@@ -40,7 +40,10 @@ export default defineConfig({
         // フォントは文字の範囲ごとに細かく分かれていて数が多いため、最初にまとめて保存せず、
         // 使った分だけ保存する（一度表示した文字は通信なしでも表示できる）
         globPatterns: ['**/*.{js,css,html,svg,png}'],
+        globIgnores: ['intro/**'],
         navigateFallback: '/hs-baseball-manager/index.html',
+        // 紹介ページはゲーム本体とは別のページとして開く
+        navigateFallbackDenylist: [/\/intro\//],
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.destination === 'font',

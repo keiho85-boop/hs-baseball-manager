@@ -550,7 +550,7 @@ if (!game.match) router.replace({ name: 'home' })
     </div>
 
     <div v-if="flash" :key="flash.key" class="flash" :class="flash.tone">
-      <div class="flash-title">{{ flash.title }}</div>
+      <div class="flash-title" :class="{ long: flash.title.length >= 7 }">{{ flash.title }}</div>
       <div v-if="flash.runs > 0" class="flash-runs">+{{ flash.runs }}点</div>
       <div class="flash-sub">{{ flash.sub }}</div>
     </div>
@@ -1257,6 +1257,10 @@ if (!game.match) router.replace({ name: 'home' })
   color: #fff;
   -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.35);
   text-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+}
+.flash-title.long {
+  font-size: 29px;
+  white-space: nowrap;
 }
 .flash.hit .flash-title {
   color: #ff6b5e;

@@ -144,6 +144,7 @@ async function remove(slot: number): Promise<void> {
         「書き出し」でセーブデータをファイルに保存できます。機種変更やアプリの削除に備えて、ときどき書き出しておくと安心です。
       </p>
       <p v-if="game.busy" class="muted">読み込み中…</p>
+      <a class="intro-link" href="./intro/">ゲーム紹介ページ（友達に紹介する）</a>
       <input ref="fileInput" type="file" accept=".hsbm,application/gzip,application/octet-stream" hidden @change="onFile" />
     </div>
   </div>
@@ -306,6 +307,14 @@ async function remove(slot: number): Promise<void> {
   background: #fff8e6;
   border-color: #ecd9a4;
   color: var(--ink);
+}
+.intro-link {
+  display: block;
+  text-align: center;
+  margin: 18px 0 8px;
+  color: #ffd36b;
+  font-size: 13px;
+  font-weight: 800;
 }
 .head {
   justify-content: space-between;

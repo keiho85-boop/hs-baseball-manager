@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>高校野球監督ゲーム（仮）｜ゲーム紹介</title>
+    <meta name="description" content="高校野球の監督になって、部員を育て、1球ごとに采配を振るう。スマホのブラウザですぐ遊べる育成シミュレーション。" />
+    <meta name="theme-color" content="#0a1426" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="高校野球監督ゲーム（仮）" />
+    <meta property="og:description" content="無名校を、君の采配で頂点へ。スマホのブラウザですぐ遊べる高校野球の監督ゲーム。" />
+    <meta property="og:url" content="https://keiho85-boop.github.io/hs-baseball-manager/intro/" />
+    <meta property="og:image" content="https://keiho85-boop.github.io/hs-baseball-manager/intro/ogp.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="../icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800;900&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #0a1426;
+        --bg2: #0f1e38;
+        --panel: #13233f;
+        --line: rgba(140, 180, 230, 0.18);
+        --ink: #e8eef8;
+        --soft: #9fb4cc;
+        --gold: #ffd36b;
+        --gold2: #f2a516;
+        --red: #ff6b5e;
+        --sky: #5cb8ff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: 'M PLUS Rounded 1c', system-ui, 'Hiragino Maru Gothic ProN', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+        font-weight: 500;
+        line-height: 1.75;
+        -webkit-font-smoothing: antialiased;
+      }
+      img {
+        max-width: 100%;
+        display: block;
+      }
+      a {
+        color: inherit;
+      }
+      .wrap {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+
+      /* ---------- ヘッダー ---------- */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        background: rgba(10, 20, 38, 0.82);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--line);
+      }
+      .nav .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 54px;
+      }
+      .brand {
+        font-weight: 900;
+        font-style: italic;
+        letter-spacing: 0.04em;
+        text-decoration: none;
+        font-size: 15px;
+      }
+      .brand b {
+        color: var(--gold);
+      }
+      .nav-play {
+        text-decoration: none;
+        font-weight: 900;
+        font-size: 13px;
+        color: #2a1700;
+        background: linear-gradient(180deg, #ffe08a, #f4ad1d);
+        border-radius: 999px;
+        padding: 6px 16px;
+        box-shadow: 0 3px 0 #a86a00;
+      }
+
+      /* ---------- ヒーロー ---------- */
+      .hero {
+        position: relative;
+        overflow: hidden;
+        background:
+          radial-gradient(70% 55% at 50% 0%, #1d3b6b 0%, rgba(10, 20, 38, 0) 70%),
+          radial-gradient(40% 30% at 15% 20%, rgba(255, 248, 216, 0.16), transparent 70%),
+          radial-gradient(40% 30% at 85% 20%, rgba(255, 248, 216, 0.16), transparent 70%),
+          var(--bg);
+      }
+      .hero::after {
+        content: '';
+        position: absolute;
+        inset: auto 0 0 0;
+        height: 120px;
+        background: linear-gradient(180deg, transparent, var(--bg));
+        pointer-events: none;
+      }
+      .hero .wrap {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 30px;
+        align-items: center;
+        padding-top: 56px;
+        padding-bottom: 70px;
+      }
+      .kicker {
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.4em;
+        color: var(--gold);
+        text-shadow: 0 0 12px rgba(255, 211, 107, 0.55);
+      }
+      h1 {
+        margin: 6px 0 0;
+        line-height: 1.05;
+        font-weight: 900;
+        font-style: italic;
+      }
+      h1 .l1 {
+        display: block;
+        font-size: clamp(30px, 6vw, 48px);
+        letter-spacing: 0.14em;
+        text-shadow: 0 0 22px rgba(120, 180, 255, 0.5);
+      }
+      h1 .l2 {
+        display: inline-block;
+        margin-top: 4px;
+        font-size: clamp(52px, 11vw, 92px);
+        background: linear-gradient(180deg, #fffbe6 0%, #ffe07a 38%, #f2a516 52%, #ffd84d 70%, #fff1b8 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        -webkit-text-stroke: 1.5px #6b3d00;
+        filter: drop-shadow(0 5px 0 #3a2000) drop-shadow(0 0 20px rgba(255, 196, 61, 0.5));
+      }
+      .tentative {
+        display: inline-block;
+        margin-top: 8px;
+        font-size: 11px;
+        color: var(--soft);
+        letter-spacing: 0.2em;
+      }
+      .catch {
+        margin: 22px 0 0;
+        font-size: clamp(20px, 3.6vw, 28px);
+        font-weight: 900;
+        line-height: 1.5;
+      }
+      .catch em {
+        font-style: normal;
+        color: var(--gold);
+      }
+      .lead {
+        margin: 12px 0 0;
+        color: var(--soft);
+        font-size: 15px;
+      }
+      .cta {
+        margin-top: 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-decoration: none;
+        font-weight: 900;
+        border-radius: 16px;
+        padding: 15px 28px;
+        font-size: 18px;
+        transition: transform 0.15s;
+      }
+      .btn:active {
+        transform: translateY(3px);
+      }
+      .btn.gold {
+        color: #2a1700;
+        background: linear-gradient(180deg, #ffe9a6 0%, #ffd04a 50%, #f4a516 100%);
+        box-shadow: 0 5px 0 #a86a00, 0 12px 26px rgba(242, 165, 22, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.7);
+      }
+      .btn.ghost {
+        color: var(--ink);
+        border: 1.5px solid var(--line);
+        padding: 13px 22px;
+        font-size: 15px;
+      }
+      .cta-note {
+        width: 100%;
+        font-size: 12px;
+        color: var(--soft);
+      }
+      .phone {
+        position: relative;
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+        border-radius: 34px;
+        padding: 9px;
+        background: linear-gradient(145deg, #3a4a63, #121a28);
+        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      }
+      .phone img {
+        border-radius: 26px;
+        width: 100%;
+        aspect-ratio: 390 / 844;
+        object-fit: cover;
+      }
+      .hero .phone {
+        transform: rotate(4deg);
+      }
+      .hero .phone.back {
+        position: absolute;
+        right: -10%;
+        top: 12%;
+        width: 70%;
+        transform: rotate(-8deg);
+        opacity: 0.55;
+        filter: blur(1px);
+        z-index: -1;
+      }
+      .hero-art {
+        position: relative;
+      }
+
+      /* ---------- 見出し ---------- */
+      section {
+        padding: 70px 0;
+      }
+      .sec-head {
+        text-align: center;
+        margin-bottom: 36px;
+      }
+      .sec-head .en {
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.4em;
+        color: var(--gold);
+      }
+      .sec-head h2 {
+        margin: 4px 0 0;
+        font-size: clamp(24px, 4.4vw, 34px);
+        font-weight: 900;
+      }
+      .sec-head p {
+        margin: 10px auto 0;
+        max-width: 640px;
+        color: var(--soft);
+      }
+
+      /* ---------- 概要 ---------- */
+      .about {
+        background: linear-gradient(180deg, var(--bg), var(--bg2));
+      }
+      .points {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+      .point {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 20px 18px;
+        text-align: center;
+      }
+      .point .ic {
+        font-size: 34px;
+        line-height: 1;
+      }
+      .point h3 {
+        margin: 10px 0 4px;
+        font-size: 17px;
+        font-weight: 900;
+      }
+      .point p {
+        margin: 0;
+        font-size: 13px;
+        color: var(--soft);
+      }
+
+      /* ---------- 特徴 ---------- */
+      .feature {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+        align-items: center;
+        margin-bottom: 80px;
+      }
+      .feature:last-child {
+        margin-bottom: 0;
+      }
+      .feature.rev .text {
+        order: 2;
+      }
+      .num {
+        font-size: 56px;
+        font-weight: 900;
+        font-style: italic;
+        line-height: 1;
+        color: transparent;
+        -webkit-text-stroke: 1.5px var(--gold);
+        opacity: 0.9;
+      }
+      .feature h3 {
+        margin: 6px 0 0;
+        font-size: clamp(22px, 3.6vw, 30px);
+        font-weight: 900;
+        line-height: 1.4;
+      }
+      .feature h3 small {
+        display: block;
+        font-size: 13px;
+        color: var(--gold);
+        letter-spacing: 0.1em;
+      }
+      .feature p {
+        color: #c9d6e6;
+      }
+      .feature ul {
+        margin: 12px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+      .feature li {
+        position: relative;
+        padding-left: 22px;
+        margin: 6px 0;
+        font-size: 14px;
+        color: #c9d6e6;
+      }
+      .feature li::before {
+        content: '';
+        position: absolute;
+        left: 2px;
+        top: 0.6em;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 30%, #fff, #dfe6ef 60%, #9aa8ba);
+        box-shadow: 0 0 0 1.5px #e5484d inset;
+      }
+      .duo {
+        display: flex;
+        gap: 14px;
+        justify-content: center;
+      }
+      .duo .phone {
+        max-width: 230px;
+      }
+      .duo .phone:nth-child(2) {
+        margin-top: 40px;
+      }
+
+      /* ---------- ギャラリー ---------- */
+      .gallery {
+        background: var(--bg2);
+      }
+      .strip {
+        display: flex;
+        gap: 16px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        padding: 6px 20px 20px;
+        scrollbar-width: none;
+      }
+      .strip::-webkit-scrollbar {
+        display: none;
+      }
+      .strip figure {
+        margin: 0;
+        flex: 0 0 210px;
+        scroll-snap-align: center;
+      }
+      .strip .phone {
+        border-radius: 26px;
+        padding: 6px;
+      }
+      .strip .phone img {
+        border-radius: 21px;
+      }
+      .strip figcaption {
+        text-align: center;
+        font-size: 13px;
+        font-weight: 800;
+        margin-top: 10px;
+        color: var(--soft);
+      }
+
+      /* ---------- 遊び方 ---------- */
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        counter-reset: step;
+      }
+      .step {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 22px 18px 18px;
+        position: relative;
+      }
+      .step::before {
+        counter-increment: step;
+        content: 'STEP ' counter(step);
+        position: absolute;
+        top: -12px;
+        left: 16px;
+        background: linear-gradient(180deg, #ffe08a, #f4ad1d);
+        color: #2a1700;
+        font-weight: 900;
+        font-size: 12px;
+        padding: 2px 12px;
+        border-radius: 999px;
+        letter-spacing: 0.1em;
+      }
+      .step h3 {
+        margin: 4px 0 6px;
+        font-size: 17px;
+        font-weight: 900;
+      }
+      .step p {
+        margin: 0;
+        font-size: 13px;
+        color: var(--soft);
+      }
+      .notes {
+        margin-top: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+      }
+      .notes span {
+        font-size: 12px;
+        font-weight: 800;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 12px;
+        color: #c9d6e6;
+      }
+
+      /* ---------- 今後 ---------- */
+      .roadmap {
+        background: linear-gradient(180deg, var(--bg), var(--bg2));
+      }
+      .road {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 0;
+        list-style: none;
+        border-left: 2px dashed rgba(255, 211, 107, 0.45);
+      }
+      .road li {
+        position: relative;
+        padding: 0 0 22px 24px;
+      }
+      .road li::before {
+        content: '';
+        position: absolute;
+        left: -8px;
+        top: 6px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--bg);
+        border: 2px solid var(--gold);
+      }
+      .road li.done::before {
+        background: var(--gold);
+      }
+      .road b {
+        font-size: 16px;
+      }
+      .road li > span {
+        display: block;
+        font-size: 13px;
+        color: var(--soft);
+      }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 900;
+        border-radius: 6px;
+        padding: 0 8px;
+        margin-left: 6px;
+        vertical-align: 2px;
+        background: rgba(92, 184, 255, 0.18);
+        color: var(--sky);
+      }
+      .badge.done {
+        background: rgba(255, 211, 107, 0.18);
+        color: var(--gold);
+      }
+
+      /* ---------- 最後の誘導 ---------- */
+      .final {
+        text-align: center;
+        background:
+          radial-gradient(60% 80% at 50% 100%, rgba(242, 165, 22, 0.2), transparent 70%),
+          var(--bg);
+      }
+      .final h2 {
+        font-size: clamp(24px, 4.6vw, 36px);
+        font-weight: 900;
+        margin: 0 0 8px;
+      }
+      .share {
+        margin-top: 26px;
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .share a,
+      .share button {
+        font: inherit;
+        font-weight: 800;
+        font-size: 14px;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        border-radius: 999px;
+        padding: 9px 18px;
+        color: #fff;
+      }
+      .s-line {
+        background: #06c755;
+      }
+      .s-x {
+        background: #1d1f23;
+        box-shadow: inset 0 0 0 1px #3a3f48;
+      }
+      .s-copy {
+        background: #2a3c5c;
+      }
+      footer {
+        border-top: 1px solid var(--line);
+        padding: 26px 0 40px;
+        font-size: 12px;
+        color: var(--soft);
+        text-align: center;
+      }
+      footer p {
+        margin: 4px 0;
+      }
+
+      /* ---------- 表示されたら浮き上がる ---------- */
+      .reveal {
+        opacity: 0;
+        transform: translateY(26px);
+        transition: opacity 0.7s ease, transform 0.7s ease;
+      }
+      .reveal.in {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* ---------- スマホ ---------- */
+      @media (max-width: 760px) {
+        .hero .wrap {
+          grid-template-columns: 1fr;
+          padding-top: 36px;
+          text-align: center;
+        }
+        .cta {
+          justify-content: center;
+        }
+        .hero .phone {
+          max-width: 230px;
+        }
+        .hero .phone.back {
+          display: none;
+        }
+        .points,
+        .steps {
+          grid-template-columns: 1fr;
+        }
+        .steps {
+          gap: 22px;
+        }
+        .feature {
+          grid-template-columns: 1fr;
+          gap: 22px;
+          margin-bottom: 64px;
+        }
+        .feature.rev .text {
+          order: 0;
+        }
+        .duo .phone {
+          max-width: 46%;
+        }
+        section {
+          padding: 56px 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .reveal {
+          opacity: 1;
+          transform: none;
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="nav">
+      <div class="wrap">
+        <a class="brand" href="#top">高校野球<b>監督ゲーム</b></a>
+        <a class="nav-play" href="../">遊ぶ</a>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- ヒーロー -->
+      <div class="hero">
+        <div class="wrap">
+          <div>
+            <div class="kicker">HIGH SCHOOL BASEBALL</div>
+            <h1><span class="l1">高校野球</span><span class="l2">監督ゲーム</span></h1>
+            <div class="tentative">― 仮タイトル ―</div>
+            <p class="catch">無名の高校を、<br /><em>君の采配</em>で頂点へ。</p>
+            <p class="lead">監督になって部員を育て、試合では1球ごとに作戦を出す。<br />3年ごとにメンバーが入れ替わる、終わらない高校野球の物語。</p>
+            <div class="cta">
+              <a class="btn gold" href="../">▶ 今すぐ遊ぶ</a>
+              <a class="btn ghost" href="#features">ゲームの特徴</a>
+              <div class="cta-note">無料・登録不要。スマホのブラウザでそのまま遊べます。</div>
+            </div>
+          </div>
+          <div class="hero-art">
+            <div class="phone back"><img src="match.webp" alt="" /></div>
+            <div class="phone"><img src="title.webp" alt="タイトル画面" /></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 概要 -->
+      <section class="about">
+        <div class="wrap">
+          <div class="sec-head reveal">
+            <div class="en">ABOUT</div>
+            <h2>どんなゲーム？</h2>
+            <p>あなたは高校野球部の監督。限られた3年間で選手を鍛え、オーダーを組み、試合では采配で勝利をつかみ取ります。</p>
+          </div>
+          <div class="points">
+            <div class="point reveal">
+              <div class="ic">🎴</div>
+              <h3>育てる</h3>
+              <p>すごろく式の練習で、部員の能力を伸ばす</p>
+            </div>
+            <div class="point reveal">
+              <div class="ic">⚾</div>
+              <h3>采配する</h3>
+              <p>3Dの球場で、1球ごとに作戦を指示する</p>
+            </div>
+            <div class="point reveal">
+              <div class="ic">🏆</div>
+              <h3>受け継ぐ</h3>
+              <p>卒業と入部をくり返し、伝統校をつくる</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 特徴 -->
+      <section id="features">
+        <div class="wrap">
+          <div class="sec-head reveal">
+            <div class="en">FEATURES</div>
+            <h2>ゲームの特徴</h2>
+          </div>
+
+          <div class="feature reveal">
+            <div class="text">
+              <div class="num">01</div>
+              <h3><small>すごろく式の練習</small>カード1枚で、<br />1週間の練習が決まる</h3>
+              <p>手札から数字のカードを選んで盤面を進み、止まったマスの練習を部員みんなで行います。打撃、投球、守備、走塁、体力づくり、休養、そしてイベント。どのマスに止まるかは、カード選び次第です。</p>
+              <ul>
+                <li>大きく伸びる「熱血」、全員に効く「全体」などのカード</li>
+                <li>特訓マスでは、選んだ1人を集中して鍛える</li>
+                <li>チームの主な能力と体力は、ホーム画面でひと目でわかる</li>
+              </ul>
+            </div>
+            <div class="phone"><img src="home.webp" alt="すごろくの盤面と手札" /></div>
+          </div>
+
+          <div class="feature rev reveal">
+            <div class="text">
+              <div class="num">02</div>
+              <h3><small>3DCGの球場で采配</small>1球ごとに、<br />勝負の作戦を出す</h3>
+              <p>ナイターの球場に、守備の選手や走者が並びます。強振、ミート、バント、エンドラン、盗塁。守りでは全力投球や配球、前進守備。作戦ボタンはいつでも押せる位置にあり、その場の判断がすぐ試合に反映されます。</p>
+              <ul>
+                <li>投手と打者の能力、今日の成績を並べて比べられる</li>
+                <li>いまの場面で効いている特殊能力がその場で光る</li>
+                <li>打球は3Dで飛び、ホームランはスタンドへ</li>
+              </ul>
+            </div>
+            <div class="phone"><img src="match.webp" alt="3Dの球場と作戦ボタン" /></div>
+          </div>
+
+          <div class="feature reveal">
+            <div class="text">
+              <div class="num">03</div>
+              <h3><small>手に汗にぎる演出</small>ピンチもチャンスも、<br />見逃さない</h3>
+              <p>得点圏に走者が出ると、チャンスやピンチを告げるカットインが入り、自動で進めていても試合が止まります。打席が終わるたびに「ヒット！」「三振！」「ホームラン！！」の文字が画面いっぱいに現れ、何が起きたかがすぐわかります。</p>
+            </div>
+            <div class="duo">
+              <div class="phone"><img src="pinch.webp" alt="ピンチのカットイン" /></div>
+              <div class="phone"><img src="hit.webp" alt="ヒットの演出" /></div>
+            </div>
+          </div>
+
+          <div class="feature rev reveal">
+            <div class="text">
+              <div class="num">04</div>
+              <h3><small>チームづくり</small>打順は、指で<br />ドラッグして入れ替え</h3>
+              <p>打順は行をつまんで動かすだけ。守備位置の適性は◎○△×で表示されるので、誰をどこに置くかで悩むのも楽しみの一つです。面倒なときは「おまかせ」で、ケガや調子を見て毎試合組み直してくれます。</p>
+            </div>
+            <div class="phone"><img src="lineup.webp" alt="オーダーの編集画面" /></div>
+          </div>
+
+          <div class="feature reveal">
+            <div class="text">
+              <div class="num">05</div>
+              <h3><small>成長と世代交代</small>3年生は卒業し、<br />新しい物語が始まる</h3>
+              <p>夏が終われば3年生は引退し、春には新入生が入ってきます。練習やイベントで特殊能力を覚えることも。何年も続けていると、かつての教え子の息子が入部してくることもあります。</p>
+              <ul>
+                <li>「一球目の刺客」「粘りの鬼」など、オリジナルの特殊能力</li>
+                <li>監督の見立てで、伸びそうな選手を見つける</li>
+              </ul>
+            </div>
+            <div class="phone"><img src="members.webp" alt="部員の一覧" /></div>
+          </div>
+
+          <div class="feature rev reveal">
+            <div class="text">
+              <div class="num">06</div>
+              <h3><small>試合結果</small>試合のあとは、<br />数字で振り返る</h3>
+              <p>スコアボードに、本塁打、責任投手、バッテリー、スターティングメンバー。打者成績と投手成績もタブで切り替えて確認できます。次の試合の作戦を考える材料に。</p>
+            </div>
+            <div class="phone"><img src="result.webp" alt="試合結果の画面" /></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ギャラリー -->
+      <section class="gallery">
+        <div class="wrap">
+          <div class="sec-head reveal">
+            <div class="en">SCREENSHOTS</div>
+            <h2>ゲーム画面</h2>
+            <p>横にスライドして見られます</p>
+          </div>
+        </div>
+        <div class="strip">
+          <figure><div class="phone"><img src="title.webp" alt="" /></div><figcaption>タイトル</figcaption></figure>
+          <figure><div class="phone"><img src="home.webp" alt="" /></div><figcaption>ホーム（練習）</figcaption></figure>
+          <figure><div class="phone"><img src="match.webp" alt="" /></div><figcaption>試合</figcaption></figure>
+          <figure><div class="phone"><img src="pinch.webp" alt="" /></div><figcaption>カットイン</figcaption></figure>
+          <figure><div class="phone"><img src="hit.webp" alt="" /></div><figcaption>打席結果</figcaption></figure>
+          <figure><div class="phone"><img src="result.webp" alt="" /></div><figcaption>試合結果</figcaption></figure>
+          <figure><div class="phone"><img src="lineup.webp" alt="" /></div><figcaption>オーダー</figcaption></figure>
+          <figure><div class="phone"><img src="members.webp" alt="" /></div><figcaption>部員</figcaption></figure>
+        </div>
+      </section>
+
+      <!-- 遊び方 -->
+      <section>
+        <div class="wrap">
+          <div class="sec-head reveal">
+            <div class="en">HOW TO PLAY</div>
+            <h2>遊び方</h2>
+            <p>アプリのインストールは不要です。</p>
+          </div>
+          <div class="steps">
+            <div class="step reveal">
+              <h3>リンクを開く</h3>
+              <p>スマホのブラウザ（AndroidならChrome）で、ゲームのページを開きます。</p>
+            </div>
+            <div class="step reveal">
+              <h3>ホーム画面に追加</h3>
+              <p>ブラウザのメニューから「ホーム画面に追加」。アイコンから起動すると全画面で遊べます。</p>
+            </div>
+            <div class="step reveal">
+              <h3>学校を決めて開始</h3>
+              <p>監督の名前と都道府県、学校を決めたら、あなたの3年間が始まります。</p>
+            </div>
+          </div>
+          <div class="notes reveal">
+            <span>💾 自動でセーブ</span>
+            <span>⏸ 試合はいつでも中断・再開</span>
+            <span>📶 通信なしでも遊べる</span>
+            <span>📤 セーブデータの書き出し</span>
+          </div>
+          <div style="text-align: center; margin-top: 28px" class="reveal">
+            <a class="btn gold" href="../">▶ ゲームを開く</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- 今後 -->
+      <section class="roadmap">
+        <div class="wrap">
+          <div class="sec-head reveal">
+            <div class="en">ROADMAP</div>
+            <h2>これからのアップデート</h2>
+            <p>いまも開発中です。遊んだ感想をぜひ聞かせてください。</p>
+          </div>
+          <ul class="road reveal">
+            <li class="done"><b>練習・育成・練習試合<span class="badge done">遊べます</span></b><span>すごろく式の練習、成長と世代交代、3Dの球場での練習試合</span></li>
+            <li><b>県大会・全国大会<span class="badge">準備中</span></b><span>トーナメントを勝ち上がり、全国の頂点を目指す</span></li>
+            <li><b>スカウトと評判<span class="badge">準備中</span></b><span>学校の評判を上げて、有望な中学生を呼び込む</span></li>
+            <li><b>ドラフト<span class="badge">準備中</span></b><span>育てた選手がプロの世界へ</span></li>
+            <li><b>選手の顔グラフィックの強化<span class="badge">準備中</span></b><span>一人ひとりの個性がもっと伝わる顔に</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 最後の誘導 -->
+      <section class="final">
+        <div class="wrap reveal">
+          <h2>さあ、監督の席へ。</h2>
+          <p style="color: var(--soft); margin: 0 0 22px">次の夏、あなたのチームは何回勝てるか。</p>
+          <a class="btn gold" href="../">▶ 今すぐ遊ぶ</a>
+          <div class="share">
+            <a class="s-line" id="share-line" href="#" target="_blank" rel="noopener">LINEで送る</a>
+            <a class="s-x" id="share-x" href="#" target="_blank" rel="noopener">Xでポスト</a>
+            <button class="s-copy" id="copy" type="button">リンクをコピー</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <p>高校野球監督ゲーム（仮）は個人で制作している開発中のゲームです。</p>
+        <p>登場する学校・選手・大会はすべて架空のもので、実在の人物・団体とは関係ありません。</p>
+      </div>
+    </footer>
+
+    <script>
+      // 画面に入ったら浮き上がる
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting) {
+              e.target.classList.add('in')
+              io.unobserve(e.target)
+            }
+          }
+        },
+        { threshold: 0.12 },
+      )
+      document.querySelectorAll('.reveal').forEach((el) => io.observe(el))
+
+      // 共有のリンク
+      const url = 'https://keiho85-boop.github.io/hs-baseball-manager/intro/'
+      const text = '高校野球の監督ゲーム、スマホですぐ遊べるよ！'
+      document.getElementById('share-line').href = 'https://social-plugins.line.me/lineit/share?url=' + encodeURIComponent(url)
+      document.getElementById('share-x').href =
+        'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(url)
+      document.getElementById('copy').addEventListener('click', async (ev) => {
+        const b = ev.currentTarget
+        try {
+          await navigator.clipboard.writeText(url)
+          b.textContent = 'コピーしました'
+        } catch {
+          b.textContent = url
+        }
+        setTimeout(() => (b.textContent = 'リンクをコピー'), 2000)
+      })
+    </script>
+  </body>
+</html>
