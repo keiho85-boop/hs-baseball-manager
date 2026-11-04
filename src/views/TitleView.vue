@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import GameIcon from '@/components/GameIcon.vue'
-import { onMounted, ref } from 'vue'
+import { defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import { formatWeek } from '@/game/constants'
-import FieldScene from '@/components/FieldScene.vue'
+// 3DCGの球場（three.js）は容量が大きいので、別ファイルで後から読み込む
+const Field3D = defineAsyncComponent(() => import('@/components/match/Field3D.vue'))
+const noBases = [null, null, null]
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -93,11 +95,18 @@ async function remove(slot: number): Promise<void> {
 <template>
   <div class="title-page">
     <div class="hero">
-      <FieldScene :height="260" />
+      <div class="stage3d">
+        <Field3D :bases="noBases" :names="{}" :last-event="null" :own-batting="true" cinematic />
+      </div>
+      <div class="vignette" />
       <div class="logo-wrap">
-        <div class="logo-ball"><GameIcon name="ball" :size="44" /></div>
-        <h1 class="logo">高校野球<br /><span>監督ゲーム</span></h1>
-        <p class="sub">（仮タイトル）</p>
+        <div class="kicker">HIGH SCHOOL BASEBALL</div>
+        <h1 class="logo">
+          <span class="l1">高校野球</span>
+          <span class="l2">監督ゲーム</span>
+        </h1>
+        <div class="rule"><i /><GameIcon name="ball" :size="18" /><i /></div>
+        <p class="sub">仮タイトル</p>
       </div>
     </div>
 
@@ -141,11 +150,29 @@ async function remove(slot: number): Promise<void> {
 </template>
 
 <style scoped>
+/* タイトルはナイターの球場を背景に、暗い配色で引き締める */
 .title-page {
-  min-height: 100vh;
+  min-height: 100dvh;
+  background: radial-gradient(120% 60% at 50% 0%, #17305a 0%, #0a1426 55%, #060c18 100%);
+  color: #e8eef8;
 }
 .hero {
   position: relative;
+  height: min(52dvh, 420px);
+  overflow: hidden;
+}
+.stage3d {
+  position: absolute;
+  inset: 0;
+}
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(6, 12, 24, 0.55) 0%, rgba(6, 12, 24, 0) 30%, rgba(6, 12, 24, 0) 60%, #0a1426 100%),
+    radial-gradient(60% 26% at 50% 48%, rgba(6, 12, 24, 0.55) 0%, rgba(6, 12, 24, 0) 100%),
+    radial-gradient(90% 70% at 50% 40%, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.45) 100%);
 }
 .logo-wrap {
   position: absolute;
@@ -153,59 +180,114 @@ async function remove(slot: number): Promise<void> {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  justify-content: center;
+  padding-top: env(safe-area-inset-top, 0px);
+  pointer-events: none;
 }
-.logo-ball {
-  color: #fff;
-  filter: drop-shadow(0 3px 0 var(--sky-deep));
-  animation: pop-in 0.5s ease-out;
+.kicker {
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.42em;
+  color: #ffd36b;
+  text-shadow: 0 0 10px rgba(255, 211, 107, 0.6);
+  animation: rise 0.8s ease-out both;
 }
 .logo {
-  text-align: center;
-  font-size: 30px;
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
   font-weight: 900;
-  line-height: 1.15;
-  color: #fff;
-  letter-spacing: 0.04em;
-  -webkit-text-stroke: 6px var(--sky-deep);
-  paint-order: stroke fill;
-  text-shadow: 0 5px 0 rgba(0, 0, 0, 0.18);
-  animation: pop-in 0.5s ease-out 0.1s both;
+  font-style: italic;
+  animation: rise 0.8s ease-out 0.12s both;
 }
-.logo span {
-  font-size: 38px;
-  color: var(--sun);
-  -webkit-text-stroke: 6px #c26b00;
+.l1 {
+  font-size: 30px;
+  letter-spacing: 0.18em;
+  color: #fff;
+  text-shadow: 0 2px 0 #0b1a33, 0 0 18px rgba(120, 180, 255, 0.55);
+}
+.l2 {
+  margin-top: 4px;
+  font-size: 50px;
+  letter-spacing: 0.04em;
+  /* 金属のような光沢のある文字 */
+  background: linear-gradient(180deg, #fffbe6 0%, #ffe07a 38%, #f2a516 52%, #ffd84d 70%, #fff1b8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 1.5px #6b3d00;
+  filter: drop-shadow(0 4px 0 #3a2000) drop-shadow(0 0 16px rgba(255, 196, 61, 0.55));
+  position: relative;
+}
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: #fff;
+  animation: rise 0.8s ease-out 0.24s both;
+}
+.rule i {
+  display: block;
+  width: 70px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #ffd36b);
+}
+.rule i:last-child {
+  background: linear-gradient(90deg, #ffd36b, transparent);
 }
 .sub {
-  margin: 6px 0 0;
-  color: var(--sky-deep);
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 999px;
-  padding: 0 10px;
+  margin: 8px 0 0;
+  font-size: 10px;
   font-weight: 800;
-  font-size: 11px;
+  color: #9fb4cc;
+  letter-spacing: 0.2em;
 }
-.head {
-  justify-content: space-between;
-  margin: 4px 0 8px;
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.page {
+  position: relative;
+  margin-top: -36px;
 }
 .head h2 {
-  font-size: 17px;
-  font-weight: 900;
+  color: #fff;
 }
-.slot {
-  border-left: 7px solid var(--sky);
+.head .plain {
+  color: #ffd36b;
+}
+.slot.card {
+  background: linear-gradient(160deg, rgba(34, 58, 96, 0.85), rgba(16, 30, 54, 0.92));
+  border: 1px solid rgba(140, 180, 230, 0.25);
+  border-left: 5px solid #ffd36b;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: #e8eef8;
+  backdrop-filter: blur(6px);
+}
+.slot .muted,
+.page > .muted {
+  color: #9fb4cc;
 }
 .slot-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
-  color: var(--sky-deep);
-  letter-spacing: 0.08em;
+  color: #ffd36b;
+  letter-spacing: 0.2em;
 }
 .school {
   font-weight: 900;
   font-size: 17px;
+  color: #fff;
 }
 .actions {
   display: flex;
@@ -223,5 +305,14 @@ async function remove(slot: number): Promise<void> {
   gap: 8px;
   background: #fff8e6;
   border-color: #ecd9a4;
+  color: var(--ink);
+}
+.head {
+  justify-content: space-between;
+  margin: 4px 0 8px;
+}
+.head h2 {
+  font-size: 17px;
+  font-weight: 900;
 }
 </style>

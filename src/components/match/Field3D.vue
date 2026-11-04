@@ -48,8 +48,10 @@ const props = withDefaults(
     /** 打者の打席（R / L / S） */
     batterSide?: string
     infieldIn?: boolean
+    /** タイトル画面用：カメラがゆっくり球場を回る */
+    cinematic?: boolean
   }>(),
-  { batterSide: 'R', infieldIn: false },
+  { batterSide: 'R', infieldIn: false, cinematic: false },
 )
 
 const host = ref<HTMLDivElement | null>(null)
@@ -622,6 +624,21 @@ function updateLabels(): void {
 }
 
 /** 画面の縦横比に合わせて、内野から外野フェンスまでが収まるようにカメラを置く */
+let cineTimer = 0
+let cineLast = 0
+/** タイトル画面：外野の上空から本塁方向へ、ゆっくり回り込むカメラ（30fpsに抑える） */
+function cineLoop(now: number): void {
+  cineTimer = requestAnimationFrame(cineLoop)
+  if (now - cineLast < 33 || !camera) return
+  cineLast = now
+  const t = now / 1000
+  const ang = Math.sin(t * 0.08) * 0.75
+  const r = 70
+  camera.position.set(Math.sin(ang) * r, 30 + Math.sin(t * 0.13) * 4, Math.cos(ang) * r - 25)
+  camera.lookAt(0, 4, -40)
+  draw(now)
+}
+
 function fit(): void {
   const el = canvasHost.value
   if (!el || !renderer || !camera) return
@@ -630,6 +647,11 @@ function fit(): void {
   renderer.setSize(w, h, false)
   const aspect = w / h
   camera.aspect = aspect
+  if (props.cinematic) {
+    camera.fov = aspect < 1 ? 62 : 46
+    camera.updateProjectionMatrix()
+    return
+  }
   // 横幅（フェンスの両翼）が入る画角を基準にする
   const hfov = 60
   const vfov = (2 * Math.atan(Math.tan((hfov * Math.PI) / 360) / aspect) * 180) / Math.PI
@@ -668,6 +690,7 @@ onMounted(() => {
   syncPlayers()
   fit()
   launch(props.lastEvent)
+  if (props.cinematic) cineTimer = requestAnimationFrame(cineLoop)
   ro = new ResizeObserver(() => fit())
   ro.observe(el)
   renderer.domElement.addEventListener('webglcontextlost', () => (failed.value = true))
@@ -675,6 +698,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)
+  cancelAnimationFrame(cineTimer)
   ro?.disconnect()
   for (const d of disposables) d.dispose()
   renderer?.dispose()

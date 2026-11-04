@@ -1,18 +1,17 @@
 <script setup lang="ts">
-import GameIcon from '@/components/GameIcon.vue'
-import type { IconName } from '@/components/icons'
+import TabIcon from '@/components/TabIcon.vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
 
 const tabs = [
-  { name: 'home', label: 'ホーム', icon: 'home', color: '#3aa8f0' },
-  { name: 'players', label: '部員', icon: 'cap', color: '#36a843' },
-  { name: 'team', label: 'チーム', icon: 'ball', color: '#ff7a2e' },
-  { name: 'school', label: '学校', icon: 'school', color: '#e5484d' },
-  { name: 'records', label: '記録', icon: 'trophy', color: '#e9a400' },
-] as const satisfies readonly { name: string; label: string; icon: IconName; color: string }[]
+  { name: 'home', label: 'ホーム', color: '#e5484d' },
+  { name: 'players', label: '部員', color: '#2a6fd6' },
+  { name: 'team', label: 'チーム', color: '#d9731f' },
+  { name: 'school', label: '学校', color: '#1f8a42' },
+  { name: 'records', label: '記録', color: '#c98a00' },
+] as const
 
 function isActive(name: string): boolean {
   if (name === 'players') return route.name === 'players' || route.name === 'player'
@@ -34,7 +33,7 @@ function go(name: string): void {
       :style="{ '--c': t.color }"
       @click="go(t.name)"
     >
-      <span class="icon"><GameIcon :name="t.icon" :size="22" /></span>
+      <span class="icon"><TabIcon :name="t.name" :size="30" /></span>
       <span class="label">{{ t.label }}</span>
     </button>
   </nav>
@@ -75,20 +74,37 @@ function go(name: string): void {
   box-shadow: none;
 }
 .icon {
-  color: #9fb0c4;
-  width: 42px;
-  height: 32px;
+  width: 46px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  transition: transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1), background 0.2s;
+  border-radius: 14px;
+  /* 選ばれていないタブは色を落として、選んだタブだけを際立たせる */
+  filter: grayscale(0.85) brightness(1.08) opacity(0.6);
+  transition: transform 0.22s cubic-bezier(0.3, 1.6, 0.5, 1), filter 0.2s, background 0.2s;
 }
 .active .icon {
-  color: #fff;
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, var(--c), var(--c));
-  transform: translateY(-8px) scale(1.12);
-  box-shadow: 0 0 0 3px #fff, 0 4px 0 3px rgba(0, 0, 0, 0.12), 0 8px 12px rgba(0, 0, 0, 0.15);
+  filter: none;
+  background:
+    radial-gradient(120% 90% at 30% 10%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #ffffff, #e4eef9);
+  transform: translateY(-10px) scale(1.18);
+  box-shadow:
+    0 0 0 2.5px var(--c),
+    0 4px 0 2.5px var(--c),
+    0 10px 16px rgba(0, 0, 0, 0.22);
+}
+.active .icon :deep(svg) {
+  animation: icon-bounce 0.45s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes icon-bounce {
+  0% {
+    transform: scale(0.7) rotate(-8deg);
+  }
+  100% {
+    transform: none;
+  }
 }
 .label {
   font-size: 11px;

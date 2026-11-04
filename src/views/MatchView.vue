@@ -9,6 +9,7 @@ import { canPitch } from '@/game/match/lineup'
 import type { BattingOrder, DefenseShift, FieldPos, PlayEvent, PitchPlan, PitchingOrder, TeamState } from '@/game/match/types'
 import type { Player } from '@/game/types'
 import Field3D from '@/components/match/Field3D.vue'
+import MatchResult from '@/components/match/MatchResult.vue'
 import { shortResult, isGoodResult, bigResult } from '@/game/match/labels'
 import { getSkill } from '@/game/skills'
 import { rankOf } from '@/game/constants'
@@ -283,18 +284,6 @@ async function pickSub(inId: string): Promise<void> {
 }
 
 // ---- 試合終了 ----
-const resultText = computed(() => {
-  const s = m.value
-  if (!s?.finished) return null
-  const ownHome = s.home.schoolId === ownId.value
-  const [a, h] = sc.value
-  const own = ownHome ? h : a
-  const opp = ownHome ? a : h
-  if (s.winner === null) return { title: '引き分け', own, opp, cls: 'draw' }
-  const won = (s.winner === 'home') === ownHome
-  return { title: won ? '勝利！' : '敗戦…', own, opp, cls: won ? 'win' : 'lose' }
-})
-
 async function finish(): Promise<void> {
   const r = await game.endMatch()
   if (!r) return
@@ -489,14 +478,7 @@ if (!game.match) router.replace({ name: 'home' })
     </div>
 
     <!-- 試合終了 -->
-    <div v-if="resultText" class="result-backdrop">
-      <div class="result" :class="resultText.cls">
-        <div class="result-title">{{ resultText.title }}</div>
-        <div class="result-score">{{ resultText.own }} - {{ resultText.opp }}</div>
-        <p class="muted">{{ m.options.label }}</p>
-        <button class="sun full" :disabled="game.busy" @click="finish">試合を終える</button>
-      </div>
-    </div>
+    <MatchResult v-if="m.finished && !flash" :m="m" :players="players" :own-id="ownId" :busy="game.busy" @finish="finish" />
 
     <!-- ポップアップ -->
     <div v-if="sheet" class="sheet-backdrop" @click.self="sheet = null">
