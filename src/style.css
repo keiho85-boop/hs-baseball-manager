@@ -432,3 +432,13 @@ textarea {
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* 能力ランクの文字色（一覧や表で使う） */
+.rk-S { color: #c99a06; }
+.rk-A { color: #d63fd1; }
+.rk-B { color: #e5363d; }
+.rk-C { color: #f07a1a; }
+.rk-D { color: #d9a300; }
+.rk-E { color: #1fa64a; }
+.rk-F { color: #3d7be0; }
+.rk-G { color: #8d99a8; }

@@ -17,6 +17,7 @@ import { BOARD_SIZE, CARD_EFFECT_DESC, SQUARES } from '@/game/sugoroku'
 import type { School, SquareType } from '@/game/types'
 import TournamentPanel from '@/components/tournament/TournamentPanel.vue'
 import BracketSheet from '@/components/tournament/BracketSheet.vue'
+import BoardRefresh from '@/components/sugoroku/BoardRefresh.vue'
 import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 
 const game = useGameStore()
@@ -377,6 +378,12 @@ const specialCandidates = computed(() =>
       </div>
     </div>
     <PlayerSheet v-if="viewing" :player-id="viewing" @close="viewing = null" />
+    <BoardRefresh
+      v-if="game.boardNotice && !game.showGrowth && sg && !eventOpen && !ui.dialog"
+      :month="game.boardNotice"
+      :board="sg.board"
+      @close="game.boardNotice = null"
+    />
     <BracketSheet v-if="bracketOpen && tournament" :t="tournament" :schools="game.save!.schools" :own-id="game.save!.playerSchoolId" @close="bracketOpen = false" />
     <div v-if="picking" class="picker-backdrop" @click.self="picking = false">
       <div class="picker card">

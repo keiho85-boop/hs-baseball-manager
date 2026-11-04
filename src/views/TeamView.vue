@@ -7,7 +7,7 @@ import { POSITIONS, POSITION_NAME, PRACTICE_NAME } from '@/game/constants'
 import { playerRating } from '@/game/player'
 import type { PracticeMenu } from '@/game/types'
 import RankBadge from '@/components/RankBadge.vue'
-import LineupEditor from '@/components/LineupEditor.vue'
+import OrderBoard from '@/components/OrderBoard.vue'
 
 const game = useGameStore()
 const members = computed(() => game.ownPlayers().filter((p) => !p.retired))
@@ -30,12 +30,12 @@ const menuCount = computed(() => {
 
 <template>
   <div class="page">
-    <LineupEditor>
-      <template #tools>
-        <button class="secondary tool" aria-label="ポジション別の部員" @click="open = 'pos'"><GameIcon name="glove" :size="16" />守備</button>
-        <button class="secondary tool" aria-label="練習メニューの割り当て" @click="open = 'menu'"><GameIcon name="run" :size="16" />練習</button>
-      </template>
-    </LineupEditor>
+    <div class="team-head">
+      <h2 class="ttl"><GameIcon name="clipboard" :size="18" /> オーダー</h2>
+      <button class="secondary tool" @click="open = 'pos'"><GameIcon name="glove" :size="15" />ポジション別</button>
+      <button class="secondary tool" @click="open = 'menu'"><GameIcon name="run" :size="15" />練習</button>
+    </div>
+    <OrderBoard />
     <InfoSheet v-if="open === 'pos'" @close="open = null">
       <h2 class="orange"><GameIcon name="glove" /> ポジション別の部員</h2>
       <div v-for="row in byPosition" :key="row.pos" class="row line">
@@ -59,6 +59,21 @@ const menuCount = computed(() => {
 </template>
 
 <style scoped>
+.team-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 6px;
+}
+.ttl {
+  flex: 1;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .tool {
   padding: 7px 8px;
   font-size: 13px;

@@ -50,6 +50,18 @@ export const useGameStore = defineStore('game', () => {
   const match = ref<MatchState | null>(null)
   const matchRev = ref(0)
   let matchRng: Rng | null = null
+  /** 月が変わってすごろくの盤面が新しくなったとき、その月（ホームで演出を出す） */
+  const boardNotice = ref<number | null>(null)
+
+  /** 1週間進めたあとの共通処理：盤面が新しくなった知らせは、文字ではなく演出で出す */
+  function afterWeek(result: WeekResult): WeekResult {
+    const i = result.messages.findIndex((m) => m.includes('練習の盤面が新しくなった'))
+    if (i >= 0) {
+      result.messages.splice(i, 1)
+      boardNotice.value = save.value?.sugoroku?.boardMonth ?? null
+    }
+    return result
+  }
 
   function touch(): void {
     rev.value += 1
@@ -125,7 +137,7 @@ export const useGameStore = defineStore('game', () => {
     busy.value = true
     try {
       const before = takeSnapshot(ownPlayers())
-      const result = advanceWeek(save.value)
+      const result = afterWeek(advanceWeek(save.value))
       lastResult.value = result
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
       showGrowth.value = lastGrowth.value.length > 0
@@ -244,7 +256,7 @@ export const useGameStore = defineStore('game', () => {
     busy.value = true
     try {
       const before = takeSnapshot(ownPlayers())
-      const week = advanceWeek(s, { kind: 'tournament' })
+      const week = afterWeek(advanceWeek(s, { kind: 'tournament' }))
       lastResult.value = week
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
       showGrowth.value = lastGrowth.value.length > 0
@@ -331,7 +343,7 @@ export const useGameStore = defineStore('game', () => {
       match.value = null
       matchRng = null
       const before = takeSnapshot(ownPlayers())
-      const week = advanceWeek(s, { kind: 'match' })
+      const week = afterWeek(advanceWeek(s, { kind: 'match' }))
       lastResult.value = week
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
       touch()
@@ -379,7 +391,7 @@ export const useGameStore = defineStore('game', () => {
         s.log.push({ year: s.calendar.year, week: s.calendar.week, text: `${pending.event.title}：${choice.result}` })
       }
       const before = takeSnapshot(ownPlayers())
-      const week = advanceWeek(s, { kind: 'square', square: pending.square, card: pending.card, specialPlayerId: opts.specialPlayerId })
+      const week = afterWeek(advanceWeek(s, { kind: 'square', square: pending.square, card: pending.card, specialPlayerId: opts.specialPlayerId }))
       lastResult.value = week
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
       showGrowth.value = lastGrowth.value.length > 0
@@ -443,6 +455,7 @@ export const useGameStore = defineStore('game', () => {
     showGrowth,
     match,
     matchRev,
+    boardNotice,
     startPracticeMatch,
     startTournamentMatch,
     nextTournamentWeek,
