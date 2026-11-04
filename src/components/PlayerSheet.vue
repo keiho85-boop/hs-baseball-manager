@@ -28,7 +28,7 @@ const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
         <div class="who">
           <div class="name">{{ p.surname }} {{ p.givenName }}</div>
           <div class="muted">{{ p.grade }}年・{{ POSITION_NAME[p.mainPosition] }}・{{ THROWS[p.throws] }}{{ BATS[p.bats] }}</div>
-          <div class="muted">見立て：{{ p.estimate }} ／ 調子：{{ FORM[p.condition.form] }} ／ 体力{{ p.condition.stamina }}</div>
+          <div class="muted">見立て：{{ p.estimate }} ／ 調子：{{ FORM[p.condition.form] }} ／ 体力{{ Math.round(p.condition.stamina) }}</div>
           <div v-if="p.condition.injury" class="bad">ケガ：{{ p.condition.injury.name }}（あと{{ p.condition.injury.weeksLeft }}週）</div>
           <div v-if="p.condition.armIssue" class="bad">{{ p.condition.armIssue.part === 'shoulder' ? '肩' : '肘' }}の不安あり</div>
         </div>

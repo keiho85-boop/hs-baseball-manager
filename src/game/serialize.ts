@@ -45,6 +45,11 @@ export function migrate(data: SaveData): SaveData {
     throw new Error('このセーブデータは、より新しい版のゲームで作られています。ゲームを更新してください。')
   }
   // 例：if (data.version === 1) { ...変換...; data.version = 2 }
+  // 以前の版で体力などが小数になっていたデータを整数に直す
+  for (const p of Object.values(data.players ?? {})) {
+    p.condition.stamina = Math.round(p.condition.stamina)
+    p.condition.motivation = Math.round(p.condition.motivation)
+  }
   return data
 }
 

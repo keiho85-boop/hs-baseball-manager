@@ -124,7 +124,9 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
 function weeklyCondition(rng: Rng, p: Player, ownMessages: string[] | null): void {
   const c = p.condition
   // 体力の回復
-  c.stamina = clamp(c.stamina + 8 + Math.round(p.common.recovery / 10), 0, 100)
+  // 整数にそろえる（以前の版で小数になっていたデータもここで直る）
+  c.stamina = clamp(Math.round(c.stamina + 8 + p.common.recovery / 10), 0, 100)
+  c.motivation = clamp(Math.round(c.motivation), 0, 100)
   // 調子の変化（安定度が高いほど動きにくい）
   const moveChance = 0.35 - p.common.stability / 400
   if (rng.chance(moveChance)) {

@@ -133,7 +133,8 @@ const candidates = computed(() => {
     <h2><GameIcon name="clipboard" /> オーダー <span v-if="auto" class="soon">おまかせ中</span></h2>
     <div class="row top">
       <button :class="draft.useDH ? 'sky' : 'secondary'" class="small" @click="toggleDH">DH {{ draft.useDH ? 'あり' : 'なし' }}</button>
-      <button class="secondary small" @click="autoBuild">おまかせで組む</button>
+      <button class="secondary small" @click="autoBuild">自動で組む</button>
+      <slot name="tools" />
     </div>
 
     <div v-for="(b, i) in draft.batters" :key="i" class="slot">
@@ -144,7 +145,7 @@ const candidates = computed(() => {
       </select>
       <button class="who" @click="b.position === 'P' ? (choosing = 'P') : (choosing = i)">
         <template v-if="players[b.playerId]">
-          <FaceIcon :face="players[b.playerId]!.face" :size="28" />
+          <FaceIcon :face="players[b.playerId]!.face" :size="24" />
           <span class="name">{{ players[b.playerId]!.surname }}<small>{{ players[b.playerId]!.grade }}年</small></span>
           <span class="apt">{{ aptOf(players[b.playerId]!, b.position) }}</span>
         </template>
@@ -160,9 +161,9 @@ const candidates = computed(() => {
       <div class="pos fixed">投</div>
       <button class="who" @click="choosing = 'P'">
         <template v-if="players[draft.startingPitcherId]">
-          <FaceIcon :face="players[draft.startingPitcherId]!.face" :size="28" />
+          <FaceIcon :face="players[draft.startingPitcherId]!.face" :size="24" />
           <span class="name">{{ players[draft.startingPitcherId]!.surname }}<small>{{ players[draft.startingPitcherId]!.pitching.velocity }}km/h</small></span>
-          <span class="muted">体力{{ players[draft.startingPitcherId]!.condition.stamina }}</span>
+          <span class="muted">体力{{ Math.round(players[draft.startingPitcherId]!.condition.stamina) }}</span>
         </template>
       </button>
     </div>
@@ -171,10 +172,9 @@ const candidates = computed(() => {
       <li v-for="p in problems" :key="p">{{ p }}</li>
     </ul>
     <div class="row actions">
-      <button class="secondary" @click="useAuto">おまかせにする</button>
+      <button class="secondary" @click="useAuto">毎試合おまかせ</button>
       <button :disabled="problems.length > 0" @click="save">決定</button>
     </div>
-    <p class="muted">おまかせにすると、試合のたびにケガや調子を見て自動で組み直します。</p>
 
     <div v-if="choosing !== null" class="choose-backdrop" @click.self="choosing = null">
       <div class="choose card">
@@ -192,17 +192,20 @@ const candidates = computed(() => {
 
 <style scoped>
 .top {
-  margin-bottom: 10px;
+  margin-bottom: 6px;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 .small {
-  padding: 7px 12px;
+  padding: 7px 10px;
   font-size: 13px;
+  white-space: nowrap;
 }
 .slot {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 0;
+  padding: 2px 0;
   border-bottom: 2px dashed #eef3f8;
 }
 .slot.pitcher {
@@ -224,7 +227,7 @@ const candidates = computed(() => {
 }
 .pos {
   width: 64px;
-  padding: 6px 26px 6px 10px;
+  padding: 3px 26px 3px 10px;
   background-size: 16px 16px, 100% 100%;
   background-position: right 6px center, 0 0;
   flex-shrink: 0;
@@ -242,7 +245,7 @@ const candidates = computed(() => {
   color: var(--ink);
   box-shadow: inset 0 0 0 2px #e2eef8;
   text-shadow: none;
-  padding: 4px 8px;
+  padding: 2px 8px;
   min-width: 0;
   text-align: left;
 }
@@ -279,7 +282,7 @@ const candidates = computed(() => {
   padding-left: 18px;
 }
 .actions {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 .actions button {
   flex: 1;

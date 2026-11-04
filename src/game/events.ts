@@ -400,7 +400,7 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
       const targets = op.playerId === 'all' ? all : [save.players[op.playerId]].filter((p): p is Player => !!p)
       for (const p of targets) {
         if (op.key === 'form') p.condition.form = clamp(p.condition.form + op.delta, 1, 5)
-        else p.condition[op.key] = clamp(p.condition[op.key] + op.delta, 0, 100)
+        else p.condition[op.key] = clamp(Math.round(p.condition[op.key] + op.delta), 0, 100)
       }
     } else if (op.op === 'ability') {
       const p = save.players[op.playerId]

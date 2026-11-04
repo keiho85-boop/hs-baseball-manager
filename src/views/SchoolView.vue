@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import GameIcon from '@/components/GameIcon.vue'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import InfoSheet from '@/components/InfoSheet.vue'
 import { useGameStore } from '@/stores/game'
 import { prefName } from '@/game/constants'
 import RankBadge from '@/components/RankBadge.vue'
@@ -26,6 +27,7 @@ const ranking = computed(() => {
     .sort((a, b) => b.overall - a.overall)
 })
 
+const rankOpen = ref(false)
 const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.value?.id) + 1)
 </script>
 
@@ -35,7 +37,7 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
       <h2>{{ school.name }}（{{ school.kind === 'private' ? '私立' : '公立' }}）</h2>
       <div class="grid2">
         <div>総合力：<RankBadge :value="school.overall" /></div>
-        <div>県内順位：{{ ownRank }}位／{{ ranking.length }}校</div>
+        <div>県内順位：<button class="plain link" @click="rankOpen = true">{{ ownRank }}位／{{ ranking.length }}校</button></div>
         <div>評判：{{ school.reputation }}</div>
         <div>部費：{{ school.funds }}万円</div>
       </div>
@@ -51,7 +53,8 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
       <p class="muted">設備の強化とスカウト <span class="soon">準備中</span></p>
     </div>
 
-    <div class="card">
+    <button class="secondary full" @click="rankOpen = true"><GameIcon name="trophy" :size="16" /> {{ prefName(school.prefCode) }}の学校一覧</button>
+    <InfoSheet v-if="rankOpen" @close="rankOpen = false">
       <h2 class="orange"><GameIcon name="trophy" /> {{ prefName(school.prefCode) }}の学校（総合力順）</h2>
       <div v-for="(s, i) in ranking" :key="s.id" class="row line" :class="{ own: s.id === school.id }">
         <span class="rank">{{ i + 1 }}</span>
@@ -59,11 +62,17 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
         <span class="muted kind">{{ s.kind === 'private' ? '私立' : '公立' }}</span>
         <RankBadge :value="s.overall" />
       </div>
-    </div>
+    </InfoSheet>
   </div>
 </template>
 
 <style scoped>
+.link {
+  padding: 0;
+  color: var(--sky-deep);
+  font-weight: 800;
+  text-decoration: underline;
+}
 .lv {
   color: var(--gold);
   letter-spacing: 1px;

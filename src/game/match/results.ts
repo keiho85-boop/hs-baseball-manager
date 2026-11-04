@@ -53,7 +53,7 @@ export function applyMatchResults(save: SaveData, s: MatchState, rng: Rng): Matc
       if (s.losingPitcherId === id) t.losses += 1
     }
     p.weeklyPitches += pb.pitches
-    p.condition.stamina = clamp(p.condition.stamina - pb.pitches * 0.45 - pb.fatigue * 15, 0, 100)
+    p.condition.stamina = clamp(Math.round(p.condition.stamina - pb.pitches * 0.45 - pb.fatigue * 15), 0, 100)
     const msg = armCheck(p, pb.pitches, pb.fatigue, factor, rng)
     if (msg && p.schoolId === ownId) messages.push(msg)
   }

@@ -71,7 +71,7 @@ const summary = computed(() => {
 
 const recentLog = computed(() => {
   void game.rev
-  return [...(game.save?.log ?? [])].reverse().slice(0, 5)
+  return [...(game.save?.log ?? [])].reverse().slice(0, 12)
 })
 
 const sg = computed(() => {
@@ -84,6 +84,7 @@ const moving = ref(false)
 const eventOpen = ref(false)
 const specialOpen = ref(false)
 const viewing = ref<string | null>(null)
+const info = ref<'team' | 'log' | null>(null)
 
 const preview = computed(() => {
   const s = sg.value
@@ -211,56 +212,66 @@ const specialCandidates = computed(() =>
             </button>
           </template>
         </div>
-        <button class="sky full practice-match" :disabled="game.busy || moving || !!sg.pending" @click="picking = true">
-          <GameIcon name="ball" :size="18" /> 今週は練習試合をする
-        </button>
       </template>
 
-      <div class="card">
-        <h2 class="grass"><GameIcon name="cap" /> チームの様子</h2>
-        <div class="stats">
-          <div class="stat">
-            <div class="num">{{ summary.count }}<small>人</small></div>
-            <div class="muted">部員</div>
-          </div>
-          <div class="stat">
-            <div class="num">{{ summary.goodForm }}<small>人</small></div>
-            <div class="muted">好調</div>
-          </div>
-          <div class="stat">
-            <div class="num" :class="{ warn: summary.injured > 0 }">{{ summary.injured }}<small>人</small></div>
-            <div class="muted">ケガ人</div>
-          </div>
-        </div>
-        <div class="grades">
-          <span class="pill">1年 {{ summary.byGrade[0] }}人</span>
-          <span class="pill">2年 {{ summary.byGrade[1] }}人</span>
-          <span class="pill">3年 {{ summary.byGrade[2] }}人</span>
-          <span v-if="summary.helpers > 0" class="pill gold">助っ人 {{ summary.helpers }}人</span>
-        </div>
-      </div>
-
-      <div v-if="summary.top.length" class="card">
-        <h2 class="orange"><GameIcon name="star" /> 注目の選手</h2>
-        <button v-for="(p, i) in summary.top" :key="p.id" class="star" @click="router.push({ name: 'player', params: { id: p.id } })">
-          <span class="medal" :class="`m${i}`">{{ i + 1 }}</span>
-          <FaceIcon :face="p.face" :size="42" />
-          <span class="star-name">
-            <b>{{ p.surname }} {{ p.givenName }}</b>
-            <span class="muted">{{ p.grade }}年・{{ POSITION_LABEL[p.mainPosition] }}</span>
-          </span>
-          <RankBadge :value="playerRating(p)" />
+      <!-- 練習試合・チームの様子・出来事（詳しくはポップアップで） -->
+      <div class="actions">
+        <button class="sky practice-match" :disabled="!!game.match || !sg || game.busy || moving || !!sg.pending" @click="picking = true">
+          <GameIcon name="ball" :size="18" /> 練習試合
+        </button>
+        <button class="secondary mini" @click="info = 'team'">
+          <GameIcon name="cap" :size="18" /><span>チーム<i v-if="summary.injured > 0" class="dot" /></span>
+        </button>
+        <button class="secondary mini" @click="info = 'log'">
+          <GameIcon name="megaphone" :size="18" /><span>出来事</span>
         </button>
       </div>
-
-      <div class="card">
-        <h2><GameIcon name="megaphone" /> 最近の出来事</h2>
-        <ul class="log">
-          <li v-for="(l, i) in recentLog" :key="i">
-            <span class="muted">{{ formatWeek(l.year, l.week) }}</span>
-            <div>{{ l.text }}</div>
-          </li>
-        </ul>
+    </div>
+    <div v-if="info" class="picker-backdrop" @click.self="info = null">
+      <div class="picker card">
+        <template v-if="info === 'team'">
+          <h2 class="grass"><GameIcon name="cap" /> チームの様子</h2>
+          <div class="stats">
+            <div class="stat">
+              <div class="num">{{ summary.count }}<small>人</small></div>
+              <div class="muted">部員</div>
+            </div>
+            <div class="stat">
+              <div class="num">{{ summary.goodForm }}<small>人</small></div>
+              <div class="muted">好調</div>
+            </div>
+            <div class="stat">
+              <div class="num" :class="{ warn: summary.injured > 0 }">{{ summary.injured }}<small>人</small></div>
+              <div class="muted">ケガ人</div>
+            </div>
+          </div>
+          <div class="grades">
+            <span class="pill">1年 {{ summary.byGrade[0] }}人</span>
+            <span class="pill">2年 {{ summary.byGrade[1] }}人</span>
+            <span class="pill">3年 {{ summary.byGrade[2] }}人</span>
+            <span v-if="summary.helpers > 0" class="pill gold">助っ人 {{ summary.helpers }}人</span>
+          </div>
+          <div v-if="summary.top.length" class="sub-h"><GameIcon name="star" :size="14" /> 注目の選手</div>
+          <button v-for="(p, i) in summary.top" :key="p.id" class="star" @click="viewing = p.id">
+            <span class="medal" :class="`m${i}`">{{ i + 1 }}</span>
+            <FaceIcon :face="p.face" :size="42" />
+            <span class="star-name">
+              <b>{{ p.surname }} {{ p.givenName }}</b>
+              <span class="muted">{{ p.grade }}年・{{ POSITION_LABEL[p.mainPosition] }}</span>
+            </span>
+            <RankBadge :value="playerRating(p)" />
+          </button>
+        </template>
+        <template v-else>
+          <h2><GameIcon name="megaphone" /> 最近の出来事</h2>
+          <ul class="log">
+            <li v-for="(l, i) in recentLog" :key="i">
+              <span class="muted">{{ formatWeek(l.year, l.week) }}</span>
+              <div>{{ l.text }}</div>
+            </li>
+          </ul>
+        </template>
+        <button class="secondary full" @click="info = null">閉じる</button>
       </div>
     </div>
     <EventDialog v-if="eventOpen && sg?.pending?.event" :event="sg.pending.event" @done="onEventDone" />
@@ -272,7 +283,7 @@ const specialCandidates = computed(() =>
           <div v-for="p in specialCandidates" :key="p.id" class="opp-row">
             <button class="opp" @click="onSpecial(p.id)">
               <FaceIcon :face="p.face" :size="34" />
-              <span class="opp-name">{{ p.surname }} {{ p.givenName }}<small>{{ p.grade }}年・{{ POSITION_LABEL[p.mainPosition] }}・体力{{ p.condition.stamina }}</small></span>
+              <span class="opp-name">{{ p.surname }} {{ p.givenName }}<small>{{ p.grade }}年・{{ POSITION_LABEL[p.mainPosition] }}・体力{{ Math.round(p.condition.stamina) }}</small></span>
               <RankBadge :value="playerRating(p)" size="sm" />
             </button>
             <button class="secondary look" aria-label="能力を見る" @click="viewing = p.id"><GameIcon name="search" :size="16" /></button>
@@ -397,7 +408,7 @@ const specialCandidates = computed(() =>
 }
 /* 盤面・カード・進むボタンが1画面に収まるよう、画面の高さに合わせて盤面の大きさを決める */
 .board-fit {
-  width: min(100%, max(220px, calc(100dvh - 400px - var(--stage-h) - env(safe-area-inset-top, 0px) - var(--safe-bottom))));
+  width: min(100%, max(170px, calc(100dvh - 476px - var(--stage-h) - env(safe-area-inset-top, 0px) - var(--safe-bottom))));
   margin: 0 auto;
 }
 .h-note {
@@ -417,13 +428,44 @@ const specialCandidates = computed(() =>
   padding: 12px;
   font-size: 16px;
 }
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.go + .actions {
+  margin-top: 12px;
+}
 .practice-match {
+  flex: 1.4;
   margin-top: 0;
   padding: 11px;
 }
-.go + .card,
-.practice-match + .card {
-  margin-top: 22px;
+.actions .mini {
+  flex: 1;
+  padding: 8px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 14px;
+}
+.actions .mini span {
+  position: relative;
+}
+.dot {
+  position: absolute;
+  top: -4px;
+  right: -9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+}
+.sub-h {
+  font-weight: 900;
+  font-size: 14px;
+  margin: 12px 0 6px;
+  color: var(--orange);
 }
 .picker-backdrop {
   position: fixed;

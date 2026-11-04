@@ -8,7 +8,8 @@ import { battingTeam, currentBatterId, fieldingTeam, score, situation } from '@/
 import { canPitch } from '@/game/match/lineup'
 import type { BattingOrder, DefenseShift, FieldPos, PitchPlan, PitchingOrder, TeamState } from '@/game/match/types'
 import type { Player } from '@/game/types'
-import FieldView from '@/components/match/FieldView.vue'
+import FieldPerspective from '@/components/match/FieldPerspective.vue'
+import { shortResult, isGoodResult } from '@/game/match/labels'
 import CutIn from '@/components/match/CutIn.vue'
 import FaceIcon from '@/components/FaceIcon.vue'
 import RankBadge from '@/components/RankBadge.vue'
@@ -87,6 +88,83 @@ function orderDisabled(o: BattingOrder): boolean {
   return false
 }
 
+
+// ---- 投手・打者の成績（参考：一球速報の表示） ----
+function inningsText(outs: number): string {
+  return `${Math.floor(outs / 3)}${outs % 3 ? `.${outs % 3}` : ''}`
+}
+
+const pitcherStats = computed(() => {
+  const s = m.value
+  const p = pitcher.value
+  if (!s || !p) return null
+  const box = s.pitching[p.id]
+  const season = p.seasonStats?.pitching
+  const outs = (season?.outs ?? 0) + (box?.outs ?? 0)
+  const er = (season?.earnedRuns ?? 0) + (box?.r ?? 0)
+  const faced = s.events.filter((e) => e.pitcherId === p.id && e.kind !== 'steal' && e.kind !== 'caughtstealing').length
+  return {
+    era: outs === 0 ? '-.--' : ((er * 27) / outs).toFixed(2),
+    pitches: box?.pitches ?? 0,
+    ip: inningsText(box?.outs ?? 0),
+    faced,
+    h: box?.h ?? 0,
+    k: box?.k ?? 0,
+    bb: box?.bb ?? 0,
+    r: box?.r ?? 0,
+    fatigue: box?.fatigue ?? 0,
+  }
+})
+
+const batterStats = computed(() => {
+  const s = m.value
+  const b = batter.value
+  if (!s || !b) return null
+  const box = s.batting[b.id]
+  const season = b.seasonStats?.batting
+  const ab = (season?.atBats ?? 0) + (box?.ab ?? 0)
+  const h = (season?.hits ?? 0) + (box?.h ?? 0)
+  const results = s.events.filter((e) => e.batterId === b.id && e.kind !== 'steal' && e.kind !== 'caughtstealing')
+  return {
+    avg: ab === 0 ? '.---' : (h / ab).toFixed(3).replace(/^0/, ''),
+    today: `${box?.ab ?? 0}-${box?.h ?? 0}`,
+    hr: (season?.homeRuns ?? 0) + (box?.hr ?? 0),
+    rbi: (season?.rbi ?? 0) + (box?.rbi ?? 0),
+    bb: (season?.walks ?? 0) + (box?.bb ?? 0),
+    sb: (season?.steals ?? 0) + (box?.sb ?? 0),
+    results: results.slice(-5).map((e) => ({ label: shortResult(e), good: isGoodResult(e) })),
+  }
+})
+
+const names = computed(() => {
+  const out: Record<string, string> = {}
+  const s = m.value
+  if (!s) return out
+  for (const id of s.bases) if (id) out[id] = players.value[id]?.surname ?? ''
+  return out
+})
+
+const orderLabel = computed(() => {
+  const s = m.value
+  if (!s) return ''
+  if (ownBatting.value) return BAT_ORDERS.find((o) => o.value === s.pending.batting)?.label ?? ''
+  return PITCH_ORDERS.find((o) => o.value === s.pending.pitching)?.label ?? ''
+})
+
+const pitchCountLabel = computed(() => {
+  const s = m.value
+  if (!s) return ''
+  return s.count.balls === 0 && s.count.strikes === 0 ? '' : `${s.count.balls}-${s.count.strikes}`
+})
+
+function chooseBatOrder(o: BattingOrder): void {
+  void game.setMatchOrders({ batting: o })
+  sheet.value = null
+}
+function choosePitchOrder(o: PitchingOrder): void {
+  void game.setMatchOrders({ pitching: o })
+}
+
 // ---- 進行 ----
 const auto = ref(false)
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -143,7 +221,7 @@ function closeCutin(): void {
 }
 
 // ---- 選手交代 ----
-const sheet = ref<'pitcher' | 'sub' | null>(null)
+const sheet = ref<'pitcher' | 'sub' | 'orders' | 'log' | 'lineup' | null>(null)
 const subTarget = ref<string | null>(null)
 
 const benchPitchers = computed(() => {
@@ -202,138 +280,119 @@ if (!game.match) router.replace({ name: 'home' })
 
 <template>
   <div v-if="m" class="match">
-    <!-- スコアボード -->
-    <div class="board">
-      <div class="board-top">
-        <button class="plain back" @click="back"><GameIcon name="back" :size="16" /> 中断</button>
-        <span class="label">{{ m.options.label }}</span>
-      </div>
-      <div class="table-wrap">
-        <table class="score">
-          <thead>
-            <tr>
-              <th class="team" />
-              <th v-for="i in inningsShown" :key="i" :class="{ now: i === m.inning }">{{ i }}</th>
-              <th class="r">R</th>
-              <th>H</th>
-              <th>E</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(t, idx) in [m.away, m.home]" :key="t.schoolId" :class="{ own: t.schoolId === ownId }">
-              <td class="team">{{ t.name }}</td>
-              <td v-for="i in inningsShown" :key="i" :class="{ now: i === m.inning && m.top === (idx === 0) }">
-                {{ t.runsByInning[i - 1] ?? '' }}
-              </td>
-              <td class="r">{{ sc[idx] }}</td>
-              <td>{{ t.hits }}</td>
-              <td>{{ t.errors }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="sit">
-        <div class="inning">{{ m.inning }}<small>回{{ m.top ? '表' : '裏' }}</small></div>
-        <div class="bso">
-          <div><b>B</b><i v-for="n in 3" :key="n" :class="{ on: n <= m.count.balls, b: true }" /></div>
-          <div><b>S</b><i v-for="n in 2" :key="n" :class="{ on: n <= m.count.strikes, s: true }" /></div>
-          <div><b>O</b><i v-for="n in 2" :key="n" :class="{ on: n <= m.outs, o: true }" /></div>
-        </div>
-        <div class="mini-bases">
-          <i :class="{ on: m.bases[1] }" class="b2" /><i :class="{ on: m.bases[2] }" class="b3" /><i :class="{ on: m.bases[0] }" class="b1" />
-        </div>
+    <!-- 上部：対戦カード -->
+    <div class="topbar">
+      <button class="plain back" aria-label="中断" @click="back"><GameIcon name="back" :size="18" /></button>
+      <div class="title">
+        <div class="vs">{{ m.away.name }} <small>vs</small> {{ m.home.name }}</div>
+        <div class="label">{{ m.options.label }}</div>
       </div>
     </div>
 
-    <div class="page body">
-      <FieldView :bases="m.bases" :last-event="lastEvent" :own-batting="ownBatting" />
+    <!-- スコアボード -->
+    <div class="board">
+      <table class="score">
+        <thead>
+          <tr>
+            <th class="team" />
+            <th v-for="i in inningsShown" :key="i">{{ i }}</th>
+            <th class="sum">計</th>
+            <th class="sum">安</th>
+            <th class="sum">失</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(t, idx) in [m.away, m.home]" :key="t.schoolId" :class="{ own: t.schoolId === ownId }">
+            <td class="team">{{ t.name.slice(0, 4) }}</td>
+            <td v-for="i in inningsShown" :key="i" :class="{ now: i === m.inning && m.top === (idx === 0) && !m.finished }">
+              {{ t.runsByInning[i - 1] ?? '' }}
+            </td>
+            <td class="sum r">{{ sc[idx] }}</td>
+            <td class="sum">{{ t.hits }}</td>
+            <td class="sum">{{ t.errors }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-      <div class="live">{{ m.lastPitch || 'プレイボール！' }}</div>
+    <!-- 1球の情報 -->
+    <div class="pitchline">
+      <span v-if="pitchCountLabel" class="count">{{ pitchCountLabel }}</span>
+      <span class="ptext">{{ m.lastPitch || 'プレイボール！' }}</span>
+    </div>
 
-      <!-- 対戦 -->
-      <div v-if="batter && pitcher" class="duel">
-        <div class="side bat" :class="{ own: ownBatting }">
-          <FaceIcon :face="batter.face" :size="44" />
-          <div class="info">
-            <div class="who"><span class="slot">{{ batterSlot?.order }}番{{ batterSlot ? posLabel(batterSlot.pos) : '' }}</span>{{ batter.surname }}</div>
-            <div class="ranks">
-              <span>ミ</span><RankBadge :value="batter.batting.contact" :show-value="false" size="sm" />
-              <span>パ</span><RankBadge :value="batter.batting.power" :show-value="false" size="sm" />
-              <span>走</span><RankBadge :value="batter.running.speed" :show-value="false" size="sm" />
-            </div>
-            <div class="today">{{ todayLine(batBox ?? undefined) }}</div>
-          </div>
-        </div>
-        <div class="vs">VS</div>
-        <div class="side pit" :class="{ own: !ownBatting }">
-          <FaceIcon :face="pitcher.face" :size="44" />
-          <div class="info">
-            <div class="who">{{ pitcher.surname }}</div>
-            <div class="ranks">
-              <span>{{ pitcher.pitching.velocity }}km</span>
-              <span>制</span><RankBadge :value="pitcher.pitching.control" :show-value="false" size="sm" />
-            </div>
-            <div class="stamina">
-              <div class="fill" :style="{ width: `${Math.max(4, 100 - (pitchBox?.fatigue ?? 0) * 70)}%` }" :class="{ low: (pitchBox?.fatigue ?? 0) > 0.6 }" />
-            </div>
-            <div class="today">{{ pitchBox?.pitches ?? 0 }}球</div>
-          </div>
-        </div>
+    <!-- BSO -->
+    <div class="bso">
+      <span class="inning">{{ m.inning }}回{{ m.top ? '表' : '裏' }}</span>
+      <span class="lamp"><b>B</b><i v-for="n in 3" :key="n" :class="{ on: n <= m.count.balls }" class="g" /></span>
+      <span class="lamp"><b>S</b><i v-for="n in 2" :key="n" :class="{ on: n <= m.count.strikes }" class="y" /></span>
+      <span class="lamp"><b>O</b><i v-for="n in 2" :key="n" :class="{ on: n <= m.outs }" class="r" /></span>
+    </div>
+
+    <!-- グラウンド（左右に作戦などのボタン） -->
+    <div class="field">
+      <FieldPerspective :bases="m.bases" :names="names" :last-event="newPA ? lastEvent : null" :own-batting="ownBatting" />
+      <div class="side left">
+        <button class="side-btn" :disabled="m.finished" @click="sheet = 'orders'">
+          <GameIcon :name="ownBatting ? 'bat' : 'glove'" :size="22" />
+          <span>作戦</span>
+          <em v-if="orderLabel && orderLabel !== 'おまかせ'">{{ orderLabel }}</em>
+        </button>
+        <button class="side-btn" :disabled="m.finished" @click="sheet = ownBatting ? 'sub' : 'pitcher'">
+          <GameIcon :name="ownBatting ? 'cap' : 'flame'" :size="22" />
+          <span>{{ ownBatting ? '代打・代走' : '継投' }}</span>
+        </button>
       </div>
-
-      <!-- 作戦 -->
-      <div v-if="!m.finished" class="card orders">
-        <template v-if="ownBatting">
-          <h2 class="orange"><GameIcon name="bat" /> 攻撃の作戦</h2>
-          <div class="chips">
-            <button
-              v-for="o in BAT_ORDERS"
-              :key="o.value"
-              :class="m.pending.batting === o.value ? 'sun' : 'secondary'"
-              :disabled="orderDisabled(o.value) || ((o.value === 'bunt') && !newPA && m.pending.batting !== 'bunt')"
-              @click="game.setMatchOrders({ batting: o.value })"
-            >
-              {{ o.label }}
-            </button>
-          </div>
-          <button class="secondary full sub-btn" @click="sheet = 'sub'">代打・代走を出す</button>
-        </template>
-        <template v-else>
-          <h2><GameIcon name="glove" /> 守備の作戦</h2>
-          <div class="chips">
-            <button
-              v-for="o in PITCH_ORDERS"
-              :key="o.value"
-              :class="m.pending.pitching === o.value ? 'sun' : 'secondary'"
-              :disabled="o.value === 'walk' && !newPA"
-              @click="game.setMatchOrders({ pitching: o.value })"
-            >
-              {{ o.label }}
-            </button>
-          </div>
-          <div class="sub-label">配球</div>
-          <div class="chips">
-            <button v-for="o in PLANS" :key="o.value" :class="m.pending.plan === o.value ? 'sky' : 'secondary'" @click="game.setMatchOrders({ plan: o.value })">
-              {{ o.label }}
-            </button>
-          </div>
-          <div class="chips">
-            <button v-for="o in SHIFTS" :key="o.value" :class="m.pending.shift === o.value ? 'sky' : 'secondary'" @click="game.setMatchOrders({ shift: o.value })">
-              {{ o.label }}
-            </button>
-          </div>
-          <button class="secondary full sub-btn" @click="sheet = 'pitcher'">投手を交代する</button>
-        </template>
+      <div class="side right">
+        <button class="side-btn" @click="sheet = 'log'">
+          <GameIcon name="megaphone" :size="22" />
+          <span>実況</span>
+        </button>
+        <button class="side-btn" @click="sheet = 'lineup'">
+          <GameIcon name="clipboard" :size="22" />
+          <span>オーダー</span>
+        </button>
       </div>
+    </div>
 
-      <!-- 実況 -->
-      <div class="card">
-        <h2><GameIcon name="megaphone" /> 実況</h2>
-        <ul class="log">
-          <li v-for="(e, i) in recent" :key="i" :class="{ run: e.runs > 0 }">
-            <span class="inn">{{ e.inning }}{{ e.top ? '表' : '裏' }}</span>{{ e.text }}<b v-if="e.runs > 0">（{{ e.runs }}点）</b>
-          </li>
-        </ul>
+    <!-- 投手と打者 -->
+    <div v-if="pitcher && pitcherStats" class="duel">
+      <div class="panel" :class="{ own: !ownBatting }">
+        <div class="ph">
+          <span class="role">投手</span>
+          <span class="pname">{{ pitcher.surname }}</span>
+          <span class="hand" :class="pitcher.throws">{{ pitcher.throws === 'L' ? '左投' : '右投' }}</span>
+        </div>
+        <div class="tbl">
+          <div><small>防</small>{{ pitcherStats.era }}</div>
+          <div><small>球</small>{{ pitcherStats.pitches }}</div>
+          <div><small>回</small>{{ pitcherStats.ip }}</div>
+          <div><small>打</small>{{ pitcherStats.faced }}</div>
+          <div><small>安</small>{{ pitcherStats.h }}</div>
+          <div><small>振</small>{{ pitcherStats.k }}</div>
+          <div><small>四</small>{{ pitcherStats.bb }}</div>
+          <div><small>失</small>{{ pitcherStats.r }}</div>
+        </div>
+        <div class="stamina"><div class="fill" :class="{ low: pitcherStats.fatigue > 0.6 }" :style="{ width: `${Math.max(4, 100 - pitcherStats.fatigue * 70)}%` }" /></div>
+      </div>
+      <div v-if="batter && batterStats" class="panel" :class="{ own: ownBatting }">
+        <div class="ph">
+          <span class="role">{{ batterSlot?.order }}番 {{ batterSlot ? posLabel(batterSlot.pos) : '' }}</span>
+          <span class="pname">{{ batter.surname }}</span>
+          <span class="hand" :class="batter.bats === 'L' ? 'L' : 'R'">{{ batter.bats === 'L' ? '左打' : batter.bats === 'S' ? '両打' : '右打' }}</span>
+        </div>
+        <div class="bt">
+          <div class="tbl small">
+            <div><small>率</small>{{ batterStats.avg }}</div>
+            <div><small>本</small>{{ batterStats.hr }}</div>
+            <div><small>点</small>{{ batterStats.rbi }}</div>
+            <div><small>盗</small>{{ batterStats.sb }}</div>
+          </div>
+          <ol class="results">
+            <li v-for="(r, i) in batterStats.results" :key="i" :class="{ good: r.good }">{{ r.label }}</li>
+            <li v-if="batterStats.results.length === 0" class="none">第1打席</li>
+          </ol>
+        </div>
       </div>
     </div>
 
@@ -356,28 +415,64 @@ if (!game.match) router.replace({ name: 'home' })
       </div>
     </div>
 
-    <!-- 交代のシート -->
+    <!-- ポップアップ -->
     <div v-if="sheet" class="sheet-backdrop" @click.self="sheet = null">
       <div class="sheet card">
-        <template v-if="sheet === 'pitcher'">
-          <h2><GameIcon name="flame" /> 継投（ブルペン）</h2>
+        <template v-if="sheet === 'orders'">
+          <template v-if="ownBatting">
+            <h2 class="orange"><GameIcon name="bat" /> 攻撃の作戦</h2>
+            <div class="chips">
+              <button
+                v-for="o in BAT_ORDERS"
+                :key="o.value"
+                :class="m.pending.batting === o.value ? 'sun' : 'secondary'"
+                :disabled="orderDisabled(o.value) || (o.value === 'bunt' && !newPA && m.pending.batting !== 'bunt')"
+                @click="chooseBatOrder(o.value)"
+              >
+                {{ o.label }}
+              </button>
+            </div>
+            <p class="muted">作戦はこの打席だけ有効です。打者が替わると「おまかせ」に戻ります。</p>
+          </template>
+          <template v-else>
+            <h2><GameIcon name="glove" /> 守備の作戦</h2>
+            <div class="sub-label">投球</div>
+            <div class="chips">
+              <button v-for="o in PITCH_ORDERS" :key="o.value" :class="m.pending.pitching === o.value ? 'sun' : 'secondary'" :disabled="o.value === 'walk' && !newPA" @click="choosePitchOrder(o.value)">
+                {{ o.label }}
+              </button>
+            </div>
+            <div class="sub-label">配球</div>
+            <div class="chips">
+              <button v-for="o in PLANS" :key="o.value" :class="m.pending.plan === o.value ? 'sky' : 'secondary'" @click="game.setMatchOrders({ plan: o.value })">{{ o.label }}</button>
+            </div>
+            <div class="sub-label">守備位置</div>
+            <div class="chips">
+              <button v-for="o in SHIFTS" :key="o.value" :class="m.pending.shift === o.value ? 'sky' : 'secondary'" @click="game.setMatchOrders({ shift: o.value })">{{ o.label }}</button>
+            </div>
+          </template>
+        </template>
+
+        <template v-else-if="sheet === 'pitcher'">
+          <h2 class="red"><GameIcon name="flame" /> 継投（ブルペン）</h2>
           <p v-if="benchPitchers.length === 0" class="muted">交代できる投手がいません。</p>
           <button v-for="p in benchPitchers" :key="p.id" class="pick" @click="pickPitcher(p.id)">
             <FaceIcon :face="p.face" :size="36" />
             <span class="pick-name">{{ p.surname }}<small>{{ p.grade }}年</small></span>
             <span class="muted">{{ p.pitching.velocity }}km</span>
             <RankBadge :value="velocityScore(p.pitching.velocity) * 0.4 + p.pitching.control * 0.6" size="sm" :show-value="false" />
-            <span class="pill" :class="{ bad: p.condition.armIssue }">体力{{ p.condition.stamina }}</span>
+            <span class="pill" :class="{ bad: p.condition.armIssue }">体力{{ Math.round(p.condition.stamina) }}</span>
           </button>
         </template>
-        <template v-else>
+
+        <template v-else-if="sheet === 'sub'">
           <h2 class="orange"><GameIcon name="cap" /> 代打・代走</h2>
           <template v-if="!subTarget">
             <p class="muted">交代させる選手を選んでください</p>
-            <button v-for="(s, i) in ownTeam?.lineup ?? []" :key="s.playerId" class="pick" @click="subTarget = s.playerId">
+            <button v-for="(sl, i) in ownTeam?.lineup ?? []" :key="sl.playerId" class="pick" @click="subTarget = sl.playerId">
               <span class="slot">{{ i + 1 }}番</span>
-              <span class="pick-name">{{ players[s.playerId]?.surname }}<small>{{ posLabel(s.position) }}</small></span>
-              <span v-if="m.bases.includes(s.playerId)" class="pill gold">走者</span>
+              <span class="pick-name">{{ players[sl.playerId]?.surname }}<small>{{ posLabel(sl.position) }}</small></span>
+              <span v-if="m.bases.includes(sl.playerId)" class="pill gold">走者</span>
             </button>
           </template>
           <template v-else>
@@ -390,6 +485,36 @@ if (!game.match) router.replace({ name: 'home' })
             <button class="plain" @click="subTarget = null">選び直す</button>
           </template>
         </template>
+
+        <template v-else-if="sheet === 'log'">
+          <h2><GameIcon name="megaphone" /> 実況</h2>
+          <ul class="log">
+            <li v-for="(e, i) in recent" :key="i" :class="{ run: e.runs > 0 }">
+              <span class="inn">{{ e.inning }}{{ e.top ? '表' : '裏' }}</span>{{ e.text }}<b v-if="e.runs > 0">（{{ e.runs }}点）</b>
+            </li>
+            <li v-if="recent.length === 0" class="muted">まだプレーはありません</li>
+          </ul>
+        </template>
+
+        <template v-else-if="sheet === 'lineup'">
+          <h2 class="grass"><GameIcon name="clipboard" /> オーダー</h2>
+          <div class="lineups">
+            <div v-for="t in [m.away, m.home]" :key="t.schoolId" class="lu">
+              <div class="lu-name" :class="{ own: t.schoolId === ownId }">{{ t.name }}</div>
+              <div v-for="(sl, i) in t.lineup" :key="sl.playerId" class="lu-row" :class="{ now: t === battingTeam(m) && t.battingIndex === i }">
+                <span class="lu-no">{{ i + 1 }}</span>
+                <span class="lu-pos">{{ posLabel(sl.position) }}</span>
+                <span class="lu-p">{{ players[sl.playerId]?.surname }}</span>
+                <span class="lu-r">{{ m.batting[sl.playerId]?.h ?? 0 }}/{{ m.batting[sl.playerId]?.ab ?? 0 }}</span>
+              </div>
+              <div class="lu-row pit">
+                <span class="lu-no">投</span>
+                <span class="lu-p">{{ players[t.pitcherId]?.surname }}</span>
+                <span class="lu-r">{{ m.pitching[t.pitcherId]?.pitches ?? 0 }}球</span>
+              </div>
+            </div>
+          </div>
+        </template>
         <button class="secondary full" @click="sheet = null">閉じる</button>
       </div>
     </div>
@@ -397,286 +522,333 @@ if (!game.match) router.replace({ name: 'home' })
     <CutIn v-if="cutin" :kind="cutin.kind" :face="cutin.player.face" :name="cutin.player.surname" :sub="cutin.sub" @close="closeCutin" />
   </div>
 </template>
-
 <style scoped>
+/* 試合中は、球場の電光掲示板のような暗い配色で、1画面に収める */
 .match {
-  min-height: 100vh;
-  padding-bottom: 90px;
-}
-.board {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  background: linear-gradient(180deg, #123524, #1d4a33);
-  color: #fff;
-  padding: 6px 10px 8px;
-  padding-top: calc(6px + env(safe-area-inset-top, 0px));
-  border-radius: 0 0 18px 18px;
-  box-shadow: 0 0 0 2px #e8eef5, 0 6px 14px rgba(0, 0, 0, 0.3);
-}
-.board-top {
+  height: 100dvh;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  background: linear-gradient(180deg, #0b1626 0%, #102038 100%);
+  color: #fff;
+  overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.topbar {
+  display: flex;
   align-items: center;
+  gap: 6px;
+  padding: 6px 10px 2px;
 }
 .back {
   color: #fff;
-  font-size: 13px;
-  padding: 2px 4px;
+  padding: 4px;
 }
-.label {
-  font-size: 12px;
-  font-weight: 800;
-  color: #ffd36b;
+.title {
+  min-width: 0;
 }
-.table-wrap {
-  overflow-x: auto;
-}
-.score {
-  border-collapse: collapse;
-  width: 100%;
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-}
-.score th,
-.score td {
-  text-align: center;
-  padding: 2px 3px;
-  min-width: 18px;
-}
-.score th {
-  color: #9fc8a8;
-  font-size: 11px;
-}
-.score .team {
-  text-align: left;
-  max-width: 96px;
+.vs {
+  font-size: 17px;
+  font-weight: 900;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.vs small {
+  font-size: 12px;
+  color: #9fb4cc;
+  margin: 0 2px;
+}
+.label {
+  font-size: 11px;
   font-weight: 800;
+  color: #ffd36b;
+}
+.board {
+  padding: 2px 8px 4px;
+}
+.score {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+  table-layout: fixed;
+}
+.score th {
+  font-size: 10px;
+  color: #8ea3bd;
+  font-weight: 700;
 }
 .score td {
-  color: #ffe9a3;
+  background: #1b2d47;
+  text-align: center;
   font-weight: 900;
-}
-.score .r {
-  color: #fff;
   font-size: 15px;
+  height: 26px;
+  border-radius: 3px;
 }
-.score .now {
-  background: rgba(255, 255, 255, 0.12);
+.score .team {
+  width: 52px;
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
 }
 .score tr.own .team {
   color: #8fd0ff;
 }
-.sit {
+.score td.now {
+  background: #2c4a70;
+  box-shadow: inset 0 0 0 1.5px #ffd36b;
+}
+.score .sum {
+  width: 24px;
+}
+.score td.sum {
+  background: #24395a;
+}
+.score td.r {
+  color: #ffd36b;
+}
+.pitchline {
+  margin: 0 8px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-top: 4px;
+  gap: 8px;
+  background: #13233a;
+  border: 1px solid #2a3f5e;
+  border-radius: 8px;
+  padding: 6px 10px;
+  min-height: 40px;
 }
-.inning {
-  font-size: 24px;
+.count {
+  background: #1f9e6a;
+  color: #fff;
+  font-weight: 900;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.ptext {
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 1.3;
+}
+.bso {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 4px 10px;
   font-weight: 900;
 }
-.inning small {
-  font-size: 13px;
+.inning {
+  font-size: 14px;
+  color: #ffd36b;
 }
-.bso div {
+.lamp {
   display: flex;
   align-items: center;
-  gap: 3px;
-  line-height: 1.2;
+  gap: 4px;
+  font-size: 15px;
 }
-.bso b {
-  width: 12px;
-  font-size: 11px;
+.lamp b {
+  margin-right: 2px;
 }
-.bso i {
-  width: 10px;
-  height: 10px;
+.lamp i {
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: #2f4f3d;
+  background: #2a3a50;
 }
-.bso i.on.b {
-  background: #4fd36a;
+.lamp i.on.g {
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
 }
-.bso i.on.s {
-  background: #ffc93c;
+.lamp i.on.y {
+  background: #facc15;
+  box-shadow: 0 0 6px #facc15;
 }
-.bso i.on.o {
-  background: #ff5a4f;
+.lamp i.on.r {
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
 }
-.mini-bases {
+.field {
+  flex: 1;
+  min-height: 140px;
   position: relative;
-  width: 44px;
-  height: 34px;
-  margin-left: auto;
 }
-.mini-bases i {
+.field > :deep(.fp) {
   position: absolute;
-  width: 13px;
-  height: 13px;
-  background: #2f4f3d;
-  transform: rotate(45deg);
-  border: 1.5px solid #9fc8a8;
+  inset: 0;
 }
-.mini-bases i.on {
-  background: #ffc93c;
+.side {
+  position: absolute;
+  z-index: 1;
+  top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
-.mini-bases .b2 {
-  left: 15px;
-  top: 2px;
+.side.left {
+  left: 6px;
 }
-.mini-bases .b3 {
-  left: 3px;
-  top: 14px;
+.side.right {
+  right: 6px;
 }
-.mini-bases .b1 {
-  left: 27px;
-  top: 14px;
-}
-.body {
-  padding-top: 10px;
-}
-.live {
-  margin: 10px 0;
-  background: #fff;
+.side-btn {
+  width: 62px;
+  padding: 6px 2px;
   border-radius: 12px;
-  padding: 8px 12px;
+  background: rgba(16, 32, 56, 0.85);
+  box-shadow: inset 0 0 0 1.5px #3a5478;
+  color: #ffd36b;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-size: 11px;
+  text-shadow: none;
+}
+.side-btn span {
+  color: #e6eef8;
   font-weight: 800;
-  box-shadow: var(--panel-shadow);
-  min-height: 40px;
+}
+.side-btn em {
+  font-style: normal;
+  font-size: 10px;
+  color: #0b1626;
+  background: #ffd36b;
+  border-radius: 999px;
+  padding: 0 6px;
+}
+.side-btn:active:not(:disabled) {
+  transform: scale(0.96);
+  box-shadow: inset 0 0 0 1.5px #ffd36b;
 }
 .duel {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px 8px 6px;
+}
+.panel {
+  background: #13233a;
+  border: 1px solid #2a3f5e;
+  border-radius: 10px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+.panel.own {
+  border-color: #3aa8f0;
+}
+.ph {
+  display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 14px;
-}
-.side {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  background: #fff;
-  border-radius: 14px;
-  padding: 6px;
-  box-shadow: var(--panel-shadow);
+  margin-bottom: 4px;
   min-width: 0;
 }
-.side.own {
-  box-shadow: 0 0 0 2.5px var(--sky), 0 6px 12px -6px rgba(0, 0, 0, 0.3);
+.role {
+  font-size: 10px;
+  color: #8ea3bd;
+  font-weight: 800;
+  flex-shrink: 0;
 }
-.info {
-  min-width: 0;
-}
-.who {
+.pname {
   font-weight: 900;
   font-size: 15px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.slot {
-  font-size: 11px;
-  font-weight: 800;
-  color: #fff;
-  background: var(--orange);
-  border-radius: 5px;
-  padding: 0 4px;
-  margin-right: 3px;
-}
-.ranks {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--ink-soft);
-}
-.today {
-  font-size: 11px;
-  color: var(--ink-soft);
-  white-space: nowrap;
-}
-.vs {
+.hand {
+  margin-left: auto;
+  font-size: 10px;
   font-weight: 900;
-  font-style: italic;
-  color: var(--red);
-  font-size: 18px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #d6336c;
+  flex-shrink: 0;
 }
-.stamina {
-  height: 6px;
-  border-radius: 9px;
-  background: #e5ebf2;
-  overflow: hidden;
-  margin: 2px 0;
+.hand.L {
+  background: #2f6fe0;
 }
-.stamina .fill {
-  height: 100%;
-  background: linear-gradient(90deg, #4fd36a, #2f9e3a);
-}
-.stamina .fill.low {
-  background: linear-gradient(90deg, #ff8a3d, #e5484d);
-}
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.chips button {
-  padding: 7px 11px;
+.tbl {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
   font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
 }
-.sub-label {
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--ink-soft);
-  margin-bottom: 4px;
+.tbl div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #1b2d47;
+  border-radius: 4px;
+  padding: 1px 0;
 }
-.sub-btn {
-  margin-top: 4px;
+.tbl small {
+  font-size: 9px;
+  color: #8ea3bd;
 }
-.log {
+.tbl.small {
+  grid-template-columns: repeat(2, 1fr);
+}
+.bt {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.results {
   list-style: none;
   margin: 0;
   padding: 0;
-  font-size: 14px;
-}
-.log li {
-  padding: 5px 0;
-  border-bottom: 2px dashed #eef3f8;
-}
-.log li.run {
-  color: var(--red);
+  font-size: 12px;
   font-weight: 800;
+  counter-reset: pa;
 }
-.inn {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 800;
-  color: #fff;
-  background: var(--navy);
-  border-radius: 5px;
-  padding: 0 5px;
-  margin-right: 6px;
+.results li {
+  counter-increment: pa;
+  display: flex;
+  gap: 4px;
+  line-height: 1.45;
+}
+.results li::before {
+  content: counter(pa);
+  font-size: 10px;
+  color: #8ea3bd;
+  width: 10px;
+}
+.results li.good {
+  color: #ffd36b;
+}
+.results li.none::before {
+  content: '';
+}
+.stamina {
+  height: 5px;
+  border-radius: 9px;
+  background: #2a3a50;
+  overflow: hidden;
+  margin-top: 5px;
+}
+.stamina .fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4fd36a, #22c55e);
+}
+.stamina .fill.low {
+  background: linear-gradient(90deg, #ff8a3d, #ef4444);
 }
 .controls {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
   display: flex;
   gap: 6px;
-  padding: 8px 10px;
-  padding-bottom: calc(8px + var(--safe-bottom));
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.12);
-  border-radius: 18px 18px 0 0;
-  z-index: 40;
+  padding: 6px 8px;
+  padding-bottom: calc(6px + var(--safe-bottom));
+  background: #0b1626;
+  border-top: 1px solid #22344f;
 }
 .controls button {
   flex: 1;
@@ -691,12 +863,13 @@ if (!game.match) router.replace({ name: 'home' })
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(10, 25, 45, 0.55);
+  background: rgba(5, 12, 24, 0.6);
   z-index: 70;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
+  color: var(--ink);
 }
 .sheet-backdrop {
   align-items: flex-end;
@@ -738,11 +911,28 @@ if (!game.match) router.replace({ name: 'home' })
 .sheet {
   width: 100%;
   max-width: 640px;
-  max-height: 75vh;
+  max-height: 78vh;
   overflow-y: auto;
   margin: 0;
   border-radius: 20px 20px 0 0;
   padding-bottom: calc(14px + var(--safe-bottom));
+  animation: float-up 0.2s ease-out;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.chips button {
+  padding: 9px 13px;
+  font-size: 14px;
+}
+.sub-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
 }
 .pick {
   display: flex;
@@ -757,15 +947,89 @@ if (!game.match) router.replace({ name: 'home' })
   margin-bottom: 8px;
   text-align: left;
 }
-.pick:active {
-  box-shadow: inset 0 0 0 2px var(--sky);
-}
 .pick-name {
   flex: 1;
   font-weight: 900;
 }
 .pick-name small {
   margin-left: 6px;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.slot {
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--orange);
+  border-radius: 5px;
+  padding: 0 4px;
+}
+.log {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  font-size: 14px;
+}
+.log li {
+  padding: 5px 0;
+  border-bottom: 2px dashed #eef3f8;
+}
+.log li.run {
+  color: var(--red);
+  font-weight: 800;
+}
+.inn {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--navy);
+  border-radius: 5px;
+  padding: 0 5px;
+  margin-right: 6px;
+}
+.lineups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.lu-name {
+  font-weight: 900;
+  font-size: 13px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lu-name.own {
+  color: var(--sky-deep);
+}
+.lu-row {
+  display: flex;
+  gap: 4px;
+  font-size: 13px;
+  padding: 2px 0;
+  border-bottom: 1px solid #eef3f8;
+}
+.lu-row.now {
+  background: #fff4d0;
+}
+.lu-no {
+  width: 16px;
+  color: var(--ink-soft);
+  font-weight: 800;
+}
+.lu-pos {
+  width: 16px;
+  font-weight: 900;
+  color: var(--orange);
+}
+.lu-p {
+  flex: 1;
+  font-weight: 800;
+}
+.lu-r {
   font-size: 11px;
   color: var(--ink-soft);
 }

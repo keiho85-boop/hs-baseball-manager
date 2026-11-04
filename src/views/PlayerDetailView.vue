@@ -92,18 +92,30 @@ function ip(outs: number): string {
   return `${Math.floor(outs / 3)}${outs % 3 ? ` ${outs % 3}/3` : ''}`
 }
 
+type Tab = 'bat' | 'pitch' | 'cond' | 'stats' | 'skill'
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'bat', label: '野手' },
+  { key: 'pitch', label: '投手' },
+  { key: 'cond', label: '状態' },
+  { key: 'stats', label: '成績' },
+  { key: 'skill', label: '特能・指示' },
+]
+const tab = ref<Tab>(game.player(props.id)?.mainPosition === 'P' ? 'pitch' : 'bat')
+
 const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '' : v === -1 ? '△' : '×')
 </script>
 
 <template>
   <div v-if="p" class="page">
-    <button class="plain back" @click="router.back()"><GameIcon name="back" :size="16" /> 戻る</button>
-
     <div class="card profile">
-      <div class="face-wrap"><FaceIcon :face="p.face" :size="84" /></div>
+      <button class="plain back" aria-label="戻る" @click="router.back()"><GameIcon name="back" :size="18" /></button>
+      <div class="face-wrap"><FaceIcon :face="p.face" :size="60" /></div>
       <div class="info">
         <template v-if="!editing">
-          <div class="name">{{ p.surname }} {{ p.givenName }}</div>
+          <div class="name">
+            {{ p.surname }} {{ p.givenName }}
+            <button v-if="isOwn" class="plain rename" @click="startEdit">名前変更</button>
+          </div>
           <div class="meta">
             <span class="chip grade">{{ p.grade }}年</span>
             <span class="chip pos">{{ POSITION_NAME[p.mainPosition] }}</span>
@@ -115,7 +127,6 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
             <span v-if="p.fatherAlumniId" class="pill good">OBの息子</span>
             <span class="pill gold"><GameIcon name="search" :size="13" /> 監督の見立て：{{ p.estimate }}</span>
           </div>
-          <button v-if="isOwn" class="plain small" @click="startEdit">名前を変更</button>
         </template>
         <template v-else>
           <div class="row">
@@ -130,7 +141,11 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
       </div>
     </div>
 
-    <div class="card">
+    <div class="tabs">
+      <button v-for="t in TABS" :key="t.key" :class="{ on: tab === t.key }" @click="tab = t.key">{{ t.label }}</button>
+    </div>
+
+    <div v-show="tab === 'cond'" class="card">
       <h2><GameIcon name="heart" /> 状態</h2>
       <div class="cond">
         <div class="form" :class="`f${p.condition.form}`">
@@ -153,7 +168,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
       </div>
     </div>
 
-    <div class="card">
+    <div v-show="tab === 'bat'" class="card">
       <h2 class="orange"><GameIcon name="bat" /> 野手能力 <span class="h-rank"><RankBadge :value="fielderRating(p)" size="sm" /></span></h2>
       <div class="abilities">
         <AbilityBar label="ミート" :value="p.batting.contact" />
@@ -192,7 +207,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
       </div>
     </div>
 
-    <div class="card">
+    <div v-show="tab === 'pitch'" class="card">
       <h2 class="red"><GameIcon name="flame" /> 投手能力 <span class="h-rank"><RankBadge :value="pitcherRating(p)" size="sm" /></span></h2>
       <div class="velo">
         <div class="muted">球速</div>
@@ -219,7 +234,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
       </div>
     </div>
 
-    <div class="card">
+    <div v-show="tab === 'cond'" class="card">
       <h2 class="grass"><GameIcon name="muscle" /> 共通の能力</h2>
       <div class="abilities">
         <AbilityBar label="チャンス" :value="p.common.clutch" />
@@ -229,7 +244,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
       </div>
     </div>
 
-    <div class="card">
+    <div v-show="tab === 'stats'" class="card">
       <h2 class="sun"><GameIcon name="trophy" /> 今年の成績</h2>
       <p v-if="!p.seasonStats" class="muted">まだ試合に出ていません</p>
       <template v-else>
@@ -250,7 +265,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
       </template>
     </div>
 
-    <div class="card">
+    <div v-show="tab === 'skill'" class="card">
       <h2 class="sun"><GameIcon name="sparkle" /> 特殊能力</h2>
       <div v-if="p.skills.length" class="skills">
         <div v-for="id in p.skills" :key="id" class="skill" :class="getSkill(id)?.good ? 'good' : 'bad'">
@@ -261,7 +276,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
       <div v-else class="muted">まだ特殊能力はありません</div>
     </div>
 
-    <div v-if="isOwn && !p.retired" class="card stack">
+    <div v-if="isOwn && !p.retired" v-show="tab === 'skill'" class="card stack">
       <h2 class="grass"><GameIcon name="clipboard" /> 監督の指示</h2>
       <label>
         <div class="muted">練習メニュー</div>
@@ -284,10 +299,44 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
 </template>
 
 <style scoped>
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: #e6eff8;
+  border-radius: 14px;
+  padding: 4px;
+  margin-bottom: 12px;
+}
+.tabs button {
+  flex: 1;
+  padding: 8px 0;
+  font-size: 12px;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--ink-soft);
+  box-shadow: none;
+  text-shadow: none;
+  border-radius: 10px;
+}
+.tabs button.on {
+  background: #fff;
+  color: var(--sky-deep);
+  box-shadow: 0 2px 0 #c9dbea;
+}
 .back {
-  margin-bottom: 6px;
+  padding: 4px;
+  align-self: center;
+  margin-left: -6px;
+}
+.rename {
+  font-size: 12px;
+  padding: 2px 4px;
+  vertical-align: middle;
 }
 .profile {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
   display: flex;
   gap: 12px;
   align-items: flex-start;
@@ -330,12 +379,12 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
   font-size: 14px;
 }
 .sub {
-  margin-top: 10px;
+  margin-top: 2px;
 }
 .zone {
   display: grid;
-  grid-template-columns: repeat(3, 34px);
-  grid-template-rows: repeat(3, 34px);
+  grid-template-columns: repeat(3, 28px);
+  grid-template-rows: repeat(3, 24px);
   gap: 2px;
   margin-top: 4px;
 }
