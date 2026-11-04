@@ -29,6 +29,14 @@ const list = computed(() => {
 const retiredCount = computed(() => game.ownPlayers().filter((p) => p.retired).length)
 
 const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
+
+/** ポジションの系統（色分けに使う） */
+function group(pos: Player['mainPosition']): string {
+  if (pos === 'P') return 'p'
+  if (pos === 'C') return 'c'
+  if (pos === 'LF' || pos === 'CF' || pos === 'RF') return 'of'
+  return 'if'
+}
 </script>
 
 <template>
@@ -45,7 +53,7 @@ const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
     </label>
 
     <div class="list">
-      <button v-for="p in list" :key="p.id" class="item" @click="router.push({ name: 'player', params: { id: p.id } })">
+      <button v-for="p in list" :key="p.id" class="item" :class="`g-${group(p.mainPosition)}`" @click="router.push({ name: 'player', params: { id: p.id } })">
         <FaceIcon :face="p.face" :size="42" />
         <div class="main">
           <div class="name">
@@ -66,7 +74,7 @@ const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
             ・ {{ FORM[p.condition.form] }}
           </div>
         </div>
-        <RankBadge :value="playerRating(p)" />
+        <RankBadge :value="playerRating(p)" size="lg" :show-value="false" />
       </button>
     </div>
     <p class="muted">右端のランクは、投手は投手として、野手は野手としての総合評価です。</p>
@@ -98,26 +106,39 @@ const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
   gap: 10px;
   background: var(--paper);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 2px solid #e2eef8;
+  border-left: 7px solid var(--c);
   text-align: left;
   font-weight: 400;
   padding: 8px 10px;
+  box-shadow: 0 3px 0 rgba(31, 42, 58, 0.08);
+  text-shadow: none;
 }
+.item:active {
+  box-shadow: none;
+}
+.g-p { --c: #e5484d; }
+.g-c { --c: #2f6fe0; }
+.g-if { --c: #ff8a3d; }
+.g-of { --c: #3fae4a; }
 .main {
   flex: 1;
   min-width: 0;
 }
 .name {
-  font-weight: 600;
+  font-weight: 800;
 }
 .pos {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 22px;
-  text-align: center;
-  background: var(--green);
+  height: 22px;
+  background: var(--c);
   color: #fff;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 12px;
+  font-weight: 900;
   margin-right: 4px;
 }
 .stats {

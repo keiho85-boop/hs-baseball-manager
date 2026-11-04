@@ -26,7 +26,7 @@ const menuCount = computed(() => {
 <template>
   <div class="page">
     <div class="card">
-      <h2>ポジション別の部員</h2>
+      <h2 class="orange">⚾ ポジション別の部員</h2>
       <div v-for="row in byPosition" :key="row.pos" class="row line">
         <span class="pos">{{ POSITION_NAME[row.pos] }}</span>
         <span class="count">{{ row.count }}人</span>
@@ -39,7 +39,7 @@ const menuCount = computed(() => {
     </div>
 
     <div class="card">
-      <h2>練習メニューの割り当て</h2>
+      <h2 class="grass">🏃 練習メニューの割り当て</h2>
       <div class="grid2">
         <div v-for="(label, key) in PRACTICE_NAME" :key="key">{{ label }}：{{ menuCount[key] }}人</div>
       </div>
@@ -47,7 +47,7 @@ const menuCount = computed(() => {
     </div>
 
     <div class="card">
-      <h2>オーダー</h2>
+      <h2>📝 オーダー</h2>
       <p class="muted">打順・守備位置・ベンチ入り・投手の起用順を決める画面は、試合と一緒に開発段階2で追加します。</p>
     </div>
   </div>
@@ -69,7 +69,8 @@ const menuCount = computed(() => {
   width: 36px;
 }
 a {
-  color: var(--green);
+  color: var(--sky-deep);
+  font-weight: 700;
   flex: 1;
 }
 </style>

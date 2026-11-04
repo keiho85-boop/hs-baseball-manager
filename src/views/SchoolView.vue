@@ -41,7 +41,7 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
     </div>
 
     <div class="card">
-      <h2>設備</h2>
+      <h2 class="sun">🏗 設備</h2>
       <div class="grid2">
         <div v-for="(label, key) in FACILITY_NAME" :key="key">
           {{ label }}：<span class="lv">{{ '★'.repeat(school.facilities[key]) }}{{ '☆'.repeat(5 - school.facilities[key]) }}</span>
@@ -51,7 +51,7 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
     </div>
 
     <div class="card">
-      <h2>{{ prefName(school.prefCode) }}の学校（総合力順）</h2>
+      <h2 class="orange">🏆 {{ prefName(school.prefCode) }}の学校（総合力順）</h2>
       <div v-for="(s, i) in ranking" :key="s.id" class="row line" :class="{ own: s.id === school.id }">
         <span class="rank">{{ i + 1 }}</span>
         <span class="sname">{{ s.name }}</span>
@@ -72,7 +72,7 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
   border-bottom: 1px solid var(--line);
 }
 .own {
-  background: #eef6ef;
+  background: #fff4d0;
   font-weight: 700;
 }
 .rank {

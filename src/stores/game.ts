@@ -8,6 +8,7 @@ import { createNewGame, type NewGameInput } from '@/game/world'
 import { advanceWeek, type WeekResult } from '@/game/season'
 import { deleteSlot, listSlots, readSave, requestPersistentStorage, writeSave } from '@/game/storage'
 import { exportToBlob, importFromBlob } from '@/game/serialize'
+import { diffSnapshot, takeSnapshot, type GrowthEntry } from '@/game/growth'
 import type { Player, SaveData, SaveSummary, School } from '@/game/types'
 
 export const useGameStore = defineStore('game', () => {
@@ -17,6 +18,9 @@ export const useGameStore = defineStore('game', () => {
   const busy = ref(false)
   const lastResult = ref<WeekResult | null>(null)
   const persistent = ref<boolean | null>(null)
+  /** 直前の週に伸びた選手（成長の演出に使う） */
+  const lastGrowth = ref<GrowthEntry[]>([])
+  const showGrowth = ref(false)
 
   function touch(): void {
     rev.value += 1
@@ -72,8 +76,11 @@ export const useGameStore = defineStore('game', () => {
     if (!save.value || busy.value) return null
     busy.value = true
     try {
+      const before = takeSnapshot(ownPlayers())
       const result = advanceWeek(save.value)
       lastResult.value = result
+      lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
+      showGrowth.value = lastGrowth.value.length > 0
       touch()
       await persist()
       return result
@@ -144,6 +151,8 @@ export const useGameStore = defineStore('game', () => {
     busy,
     lastResult,
     persistent,
+    lastGrowth,
+    showGrowth,
     refreshSlots,
     startNewGame,
     loadSlot,

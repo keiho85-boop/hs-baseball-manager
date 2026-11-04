@@ -22,8 +22,8 @@ const log = computed(() => {
 <template>
   <div class="page">
     <div class="row switch">
-      <button :class="tab === 'alumni' ? '' : 'secondary'" @click="tab = 'alumni'">OB名鑑</button>
-      <button :class="tab === 'log' ? '' : 'secondary'" @click="tab = 'log'">出来事の記録</button>
+      <button :class="tab === 'alumni' ? 'sky' : 'secondary'" @click="tab = 'alumni'">OB名鑑</button>
+      <button :class="tab === 'log' ? 'sky' : 'secondary'" @click="tab = 'log'">出来事の記録</button>
     </div>
 
     <template v-if="tab === 'alumni'">

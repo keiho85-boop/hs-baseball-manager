@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import { formatWeek } from '@/game/constants'
+import FieldScene from '@/components/FieldScene.vue'
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -91,9 +92,12 @@ async function remove(slot: number): Promise<void> {
 <template>
   <div class="title-page">
     <div class="hero">
-      <div class="logo">⚾</div>
-      <h1>高校野球監督ゲーム</h1>
-      <p class="sub">（仮タイトル）</p>
+      <FieldScene :height="260" />
+      <div class="logo-wrap">
+        <div class="logo-ball">⚾</div>
+        <h1 class="logo">高校野球<br /><span>監督ゲーム</span></h1>
+        <p class="sub">（仮タイトル）</p>
+      </div>
     </div>
 
     <div class="page">
@@ -108,7 +112,7 @@ async function remove(slot: number): Promise<void> {
       </div>
 
       <div v-for="(s, i) in game.slots" :key="i" class="card slot">
-        <div class="slot-title">セーブ{{ i + 1 }}</div>
+        <div class="slot-title">SAVE {{ i + 1 }}</div>
         <template v-if="s">
           <div class="school">{{ s.schoolName }}<span class="muted">（{{ s.prefName }}）</span></div>
           <div class="muted">{{ formatWeek(s.year, s.week) }} ／ 監督 {{ s.managerName }} ／ 保存 {{ updatedLabel(s.updatedAt) }}</div>
@@ -116,7 +120,7 @@ async function remove(slot: number): Promise<void> {
         <div v-else class="muted">データなし</div>
 
         <div v-if="!managing" class="actions">
-          <button v-if="s" :disabled="game.busy" @click="play(i + 1)">続きから</button>
+          <button v-if="s" class="sun" :disabled="game.busy" @click="play(i + 1)">▶ 続きから</button>
           <button :class="s ? 'secondary' : ''" :disabled="game.busy" @click="startNew(i + 1)">はじめから</button>
         </div>
         <div v-else class="actions">
@@ -140,37 +144,66 @@ async function remove(slot: number): Promise<void> {
   min-height: 100vh;
 }
 .hero {
-  background: var(--green);
-  color: #fff;
-  text-align: center;
-  padding: calc(36px + env(safe-area-inset-top, 0px)) 16px 28px;
+  position: relative;
+}
+.logo-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+}
+.logo-ball {
+  font-size: 40px;
+  animation: pop-in 0.5s ease-out;
 }
 .logo {
-  font-size: 44px;
+  text-align: center;
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1.15;
+  color: #fff;
+  letter-spacing: 0.04em;
+  -webkit-text-stroke: 6px var(--sky-deep);
+  paint-order: stroke fill;
+  text-shadow: 0 5px 0 rgba(0, 0, 0, 0.18);
+  animation: pop-in 0.5s ease-out 0.1s both;
 }
-.hero h1 {
-  font-size: 24px;
-  letter-spacing: 0.05em;
+.logo span {
+  font-size: 38px;
+  color: var(--sun);
+  -webkit-text-stroke: 6px #c26b00;
 }
 .sub {
-  margin: 4px 0 0;
-  opacity: 0.8;
-  font-size: 13px;
+  margin: 6px 0 0;
+  color: var(--sky-deep);
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  padding: 0 10px;
+  font-weight: 800;
+  font-size: 11px;
 }
 .head {
   justify-content: space-between;
   margin: 4px 0 8px;
 }
 .head h2 {
-  font-size: 16px;
+  font-size: 17px;
+  font-weight: 900;
+}
+.slot {
+  border-left: 7px solid var(--sky);
 }
 .slot-title {
   font-size: 12px;
-  color: var(--ink-soft);
+  font-weight: 900;
+  color: var(--sky-deep);
+  letter-spacing: 0.08em;
 }
 .school {
-  font-weight: 700;
-  font-size: 16px;
+  font-weight: 900;
+  font-size: 17px;
 }
 .actions {
   display: flex;
@@ -179,7 +212,7 @@ async function remove(slot: number): Promise<void> {
 }
 .actions button {
   flex: 1;
-  padding: 9px 8px;
+  padding: 10px 8px;
 }
 .update {
   display: flex;
