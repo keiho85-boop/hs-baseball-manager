@@ -154,6 +154,13 @@ async function setMenu(menu: PracticeMenu): Promise<void> {
   ui.showToast(`${p.surname}の練習を「${PRACTICE_NAME[menu]}」にしました`)
 }
 
+function openPlayer(id: string): void {
+  // 詳細画面で前後の選手に移れるよう、いまの並びを覚えておく
+  ui.playerNav = list.value.map((p) => p.id)
+  ui.playerTab = null
+  router.push({ name: 'player', params: { id } })
+}
+
 function posKind(p: Player): string {
   if (p.mainPosition === 'P') return 'p'
   if (p.mainPosition === 'C') return 'c'
@@ -185,7 +192,7 @@ function posKind(p: Player): string {
         <span class="c-m">練習</span>
       </div>
       <div class="tbody">
-        <div v-for="p in list" :key="p.id" class="tr" :class="{ off: p.retired, skv: view === 'sk' }" @click="router.push({ name: 'player', params: { id: p.id } })">
+        <div v-for="p in list" :key="p.id" class="tr" :class="{ off: p.retired, skv: view === 'sk' }" @click="openPlayer(p.id)">
           <span class="c-name">
             <b>{{ p.surname }}</b><small>{{ p.grade }}</small>
             <em v-if="p.condition.injury" class="tag bad">ケガ</em>

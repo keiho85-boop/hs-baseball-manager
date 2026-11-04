@@ -1,13 +1,70 @@
 <script setup lang="ts">
-// 1週間の練習で伸びた選手を、ポップアップで見せる演出
+// 練習や試合の週に伸びた選手を、能力表（ランクと数値）つきで見せる
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
+import { POSITION_LABEL, rankOf, velocityScore } from '@/game/constants'
+import type { Player } from '@/game/types'
+import type { GrowthEntry } from '@/game/growth'
 import FaceIcon from './FaceIcon.vue'
 
 const game = useGameStore()
 
-const entries = computed(() => game.lastGrowth.slice(0, 6))
-const rest = computed(() => Math.max(0, game.lastGrowth.length - entries.value.length))
+/** 主な能力（野手と投手で並べる項目を変える）。growth.ts の見出しと同じ名前を使う */
+const CORE_FIELDER: { label: string; get: (p: Player) => number }[] = [
+  { label: 'ミート', get: (p) => p.batting.contact },
+  { label: 'パワー', get: (p) => p.batting.power },
+  { label: '選球眼', get: (p) => p.batting.eye },
+  { label: '走力', get: (p) => p.running.speed },
+  { label: '肩力', get: (p) => p.fielding.arm },
+  { label: '守備範囲', get: (p) => p.fielding.range },
+]
+const CORE_PITCHER: { label: string; get: (p: Player) => number; velo?: boolean }[] = [
+  { label: '球速', get: (p) => p.pitching.velocity, velo: true },
+  { label: 'コントロール', get: (p) => p.pitching.control },
+  { label: 'スタミナ', get: (p) => p.pitching.stamina },
+  { label: 'キレ', get: (p) => p.pitching.kire },
+  { label: 'クイック', get: (p) => p.pitching.quick },
+  { label: 'ミート', get: (p) => p.batting.contact },
+]
+const SHORT: Record<string, string> = { コントロール: '制球', スタミナ: 'スタミナ', 守備範囲: '守備', 走塁判断: '走塁' }
+
+interface Row {
+  e: GrowthEntry
+  p: Player
+  core: { label: string; rank: string; value: string; up: number }[]
+  others: { label: string; up: number; unit: string }[]
+  total: number
+}
+
+const rows = computed<Row[]>(() => {
+  const list: Row[] = []
+  for (const e of game.lastGrowth) {
+    const p = game.player(e.playerId)
+    if (!p) continue
+    const core = p.mainPosition === 'P' ? CORE_PITCHER : CORE_FIELDER
+    const up = (label: string) => {
+      const c = e.changes.find((x) => x.label === label)
+      return c ? c.after - c.before : 0
+    }
+    const coreLabels = new Set(core.map((c) => c.label))
+    list.push({
+      e,
+      p,
+      core: core.map((c) => {
+        const v = c.get(p)
+        return {
+          label: SHORT[c.label] ?? c.label,
+          rank: rankOf('velo' in c && c.velo ? velocityScore(v) : v),
+          value: 'velo' in c && c.velo ? `${v}km` : `${v}`,
+          up: up(c.label),
+        }
+      }),
+      others: e.changes.filter((c) => !coreLabels.has(c.label)).map((c) => ({ label: SHORT[c.label] ?? c.label, up: c.after - c.before, unit: c.unit ?? '' })),
+      total: e.changes.reduce((s, c) => s + c.after - c.before, 0),
+    })
+  }
+  return list
+})
 
 function close(): void {
   game.showGrowth = false
@@ -18,20 +75,26 @@ function close(): void {
   <Transition name="sheet">
     <div v-if="game.showGrowth" class="backdrop" @click.self="close">
       <div class="sheet">
-        <div class="banner">練習の成果！</div>
+        <div class="banner">{{ game.growthTitle }}</div>
         <div class="list">
-          <div v-for="(e, i) in entries" :key="e.playerId" class="entry" :style="{ animationDelay: `${i * 70}ms` }">
-            <FaceIcon v-if="game.player(e.playerId)" :face="game.player(e.playerId)!.face" :size="40" />
-            <div class="body">
-              <div class="name">{{ e.name }}</div>
-              <div class="changes">
-                <span v-for="c in e.changes" :key="c.label" class="up">
-                  {{ c.label }} <b>+{{ c.after - c.before }}{{ c.unit ?? '' }}</b>
-                </span>
+          <div v-for="(r, i) in rows" :key="r.e.playerId" class="entry" :style="{ animationDelay: `${Math.min(i, 8) * 50}ms` }">
+            <div class="head">
+              <FaceIcon :face="r.p.face" :size="34" />
+              <span class="pos" :class="r.p.mainPosition === 'P' ? 'p' : ''">{{ POSITION_LABEL[r.p.mainPosition] }}</span>
+              <span class="name">{{ r.e.name }}<small>{{ r.p.grade }}年</small></span>
+              <span class="total">合計 +{{ r.total }}</span>
+            </div>
+            <div class="grid">
+              <div v-for="c in r.core" :key="c.label" class="cell" :class="{ up: c.up > 0 }">
+                <small>{{ c.label }}</small>
+                <b :class="`rk-${c.rank}`">{{ c.rank }}<i>{{ c.value }}</i></b>
+                <em v-if="c.up > 0">+{{ c.up }}</em>
               </div>
             </div>
+            <div v-if="r.others.length" class="others">
+              <span v-for="o in r.others" :key="o.label">{{ o.label }}<b>+{{ o.up }}{{ o.unit }}</b></span>
+            </div>
           </div>
-          <p v-if="rest > 0" class="more">ほか {{ rest }}人も成長しました</p>
         </div>
         <button class="sun full" @click="close">OK</button>
       </div>
@@ -47,18 +110,18 @@ function close(): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 16px 12px;
   z-index: 80;
 }
 .sheet {
   width: 100%;
-  max-width: 380px;
+  max-width: 420px;
   background: #fff;
   border-radius: 22px;
-  padding: 0 14px 16px;
+  padding: 0 10px 14px;
   box-shadow: 0 6px 0 rgba(0, 0, 0, 0.15), 0 16px 40px rgba(0, 0, 0, 0.25);
   border: 3px solid #ffd85e;
-  max-height: 80vh;
+  max-height: 86vh;
   display: flex;
   flex-direction: column;
 }
@@ -75,46 +138,116 @@ function close(): void {
 }
 .list {
   overflow-y: auto;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .entry {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 8px 4px;
+  padding: 8px 2px;
   border-bottom: 2px dashed #eef3f8;
   animation: float-up 0.35s ease-out both;
 }
-.body {
-  min-width: 0;
+.head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pos {
+  font-size: 11px;
+  font-weight: 900;
+  background: #ffe9c7;
+  color: #b8620a;
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.pos.p {
+  background: #fde2e2;
+  color: #c62d33;
 }
 .name {
-  font-weight: 800;
+  font-weight: 900;
+  font-size: 15px;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.changes {
+.name small {
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-left: 4px;
+}
+.total {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--orange);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 3px;
+  margin-top: 5px;
+}
+.cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #f2f6fb;
+  border-radius: 7px;
+  padding: 2px 0 3px;
+}
+.cell.up {
+  background: #fff3d6;
+  box-shadow: inset 0 0 0 1.5px #ffc04d;
+}
+.cell small {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.cell b {
+  font-size: 15px;
+  font-weight: 900;
+  font-style: italic;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.cell b i {
+  font-style: normal;
+  font-size: 11px;
+  margin-left: 1px;
+  color: var(--ink);
+}
+.cell em {
+  position: absolute;
+  top: -6px;
+  right: -2px;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 900;
+  color: #fff;
+  background: var(--orange);
+  border-radius: 999px;
+  padding: 0 4px;
+}
+.others {
   display: flex;
   flex-wrap: wrap;
   gap: 2px 10px;
-  font-size: 13px;
-  color: var(--ink-soft);
+  margin-top: 5px;
+  font-size: 12px;
   font-weight: 700;
+  color: var(--ink-soft);
 }
-.up b {
+.others b {
   color: var(--orange);
   font-weight: 900;
-}
-.more {
-  text-align: center;
-  color: var(--ink-soft);
-  font-size: 13px;
-  margin: 8px 0 0;
+  margin-left: 2px;
 }
 .sheet-enter-active,
 .sheet-leave-active {
   transition: opacity 0.2s;
-}
-.sheet-enter-active .sheet {
-  animation: pop-in 0.3s ease-out;
 }
 .sheet-enter-from,
 .sheet-leave-to {

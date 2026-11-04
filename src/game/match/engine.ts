@@ -317,6 +317,20 @@ function batterNow(s: MatchState, ctx: MatchContext, order: BattingOrder): Batte
     contact -= 10
     power += 12
   }
+  // 引っ張り：強い打球を狙うぶん確実性が少し落ちる／流し打ち：当てる確実性が上がり、長打は減る
+  if (order === 'pull') {
+    contact -= 4
+    power += 5
+  }
+  if (order === 'oppo') {
+    contact += 5
+    power -= 6
+  }
+  // ゴロ狙い：転がすことに徹する（当てやすいが長打はほぼ出ない）
+  if (order === 'grounder') {
+    contact += 6
+    power -= 12
+  }
   if (s.count.balls === 0 && s.count.strikes === 0 && has(p, 'first_pitch')) contact += 12
   if (s.count.strikes === 2 && has(p, 'persistent')) contact += 6
   const late = s.inning >= s.options.innings - 1
@@ -589,8 +603,13 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
   if (has(batter, 'double_play')) la -= 4
   if (pitch && (pitch.type === 'sinker' || pitch.type === 'fork' || pitch.type === 'splitter')) la -= 3
   const pullSide = batter.bats === 'L' ? 1 : batter.bats === 'R' ? -1 : (pitcher.throws === 'R' ? 1 : -1)
+  if (batOrder === 'grounder') la -= 16
+  if (batOrder === 'oppo') la -= 2
   const wide = has(batter, 'all_fields')
-  const dir = clamp(rng.normal(pullSide * (wide ? 3 : 9), wide ? 25 : 21), -44, 44)
+  // 打球の方向：引っ張りは引っ張る側へ、流し打ちは逆方向へ寄せる
+  const dirMean = batOrder === 'pull' ? pullSide * 21 : batOrder === 'oppo' ? -pullSide * (wide ? 18 : 15) : pullSide * (wide ? 3 : 9)
+  const dirSd = batOrder === 'pull' || batOrder === 'oppo' ? 15 : wide ? 25 : 21
+  const dir = clamp(rng.normal(dirMean, dirSd), -44, 44)
 
   s.lastPitch = `${pitchName} ${speedText}を打った！`
   // 6. 守備
@@ -846,7 +865,9 @@ function groundOut(s: MatchState, ctx: MatchContext, ball: PlayEvent['ball'], te
   if (s.outs < 3) {
     // 三塁走者：前進守備なら本塁で刺されやすい
     if (r3) {
-      if (rng.chance(infieldIn ? 0.22 : r1 && r2 ? 0.0 : 0.55)) scored.push(r3)
+      // ゴロ狙いの作戦では、三塁走者は打球が転がった瞬間にスタートを切る
+      const go = order === 'grounder' ? 0.3 : 0
+      if (rng.chance(infieldIn ? 0.22 + go : r1 && r2 ? 0.0 : 0.55 + go)) scored.push(r3)
       else bases[2] = r3
     }
     if (r2) {

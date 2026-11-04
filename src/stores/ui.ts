@@ -16,6 +16,10 @@ export const useUiStore = defineStore('ui', () => {
   const dialog = ref<DialogRequest | null>(null)
   const toast = ref<string | null>(null)
   const updateAvailable = ref(false)
+  /** 選手詳細で「前の選手・次の選手」に移るための並び（部員一覧で開いたときの順） */
+  const playerNav = ref<string[]>([])
+  /** 選手詳細で最後に開いていたタブ（次の選手に移っても同じタブを開く） */
+  const playerTab = ref<string | null>(null)
   let toastTimer: ReturnType<typeof setTimeout> | undefined
   let applyUpdate: (() => Promise<void>) | null = null
 
@@ -62,5 +66,5 @@ export const useUiStore = defineStore('ui', () => {
     await applyUpdate?.()
   }
 
-  return { dialog, toast, updateAvailable, confirm, alert, closeDialog, showToast, setUpdater, runUpdate }
+  return { dialog, toast, updateAvailable, playerNav, playerTab, confirm, alert, closeDialog, showToast, setUpdater, runUpdate }
 })

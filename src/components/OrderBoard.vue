@@ -83,6 +83,21 @@ const outside = computed<Cell[]>(() => {
     }))
 })
 
+const APT_ORDER: Position[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF']
+/** 守れる位置を適性の高い順に（×は出さない）。exclude は今ついている位置 */
+function aptList(p: Player, exclude?: string): string {
+  return APT_ORDER.filter((pos) => pos !== exclude && p.fielding.aptitude[pos] > 0)
+    .sort((a, b) => p.fielding.aptitude[b] - p.fielding.aptitude[a])
+    .map((pos) => `${POSITION_LABEL[pos]}${APTITUDE_LABEL[p.fielding.aptitude[pos]]}`)
+    .join(' ')
+}
+/** スタメンの枠の守備位置（打順の枠なら Position か DH） */
+function slotPos(key: string): string | undefined {
+  const d = draft.value
+  if (!d || key[0] !== 'S') return undefined
+  return d.batters[Number(key.slice(1))]?.position
+}
+
 /** 名前の下に並べる5つのランク（野手：ミ・パ・走・肩・守／投手：球・コ・ス・キ・変） */
 function ranks(p: Player, asPitcher = p.mainPosition === 'P'): string[] {
   if (asPitcher) {
@@ -175,6 +190,17 @@ function setPosition(pos: Position | 'DH'): void {
   posPicker.value = false
   commit()
 }
+const selectedPlayer = computed(() => (selected.value ? (players.value[idAt(selected.value) ?? ''] ?? null) : null))
+
+/** 守備練習（コンバート）：適性を上げたい守備位置を決める */
+async function setConvert(pos: Position | null): Promise<void> {
+  const p = selectedPlayer.value
+  if (!p) return
+  p.convertTo = pos
+  await game.commit()
+  ui.showToast(pos ? `${p.surname}が${POSITION_NAME[pos]}の守備練習を始めました` : `${p.surname}の守備練習をやめました`)
+}
+
 const posChoices = computed<(Position | 'DH')[]>(() => {
   const list: (Position | 'DH')[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF']
   if (draft.value?.useDH) list.push('DH')
@@ -359,6 +385,7 @@ const focusSkills = computed(() =>
       <div class="f-sk">
         <span v-for="sk in focusSkills" :key="sk.id" class="sk" :class="sk.good ? 'good' : 'bad'">{{ sk.name }}</span>
         <span v-if="focusSkills.length === 0" class="sk none">特殊能力なし</span>
+        <span v-if="focus.convertTo" class="sk conv">{{ POSITION_NAME[focus.convertTo] }}の守備練習中</span>
       </div>
     </div>
 
@@ -380,7 +407,8 @@ const focusSkills = computed(() =>
             <span class="pos" :class="`k-${c.posKind}`">{{ c.pos }}</span>
             <span class="body">
               <span class="nm">{{ players[c.id]?.surname }}<small>{{ players[c.id]?.bats === 'L' ? 'L' : players[c.id]?.bats === 'S' ? 'S' : 'R' }}</small></span>
-              <span class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              <span class="sub"><span class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              <span v-if="!c.pitcher" class="apt">{{ aptList(players[c.id]!, slotPos(c.key)) }}</span></span>
             </span>
           </div>
         </div>
@@ -400,7 +428,8 @@ const focusSkills = computed(() =>
             <span class="pos" :class="`k-${c.posKind}`">{{ c.pos }}</span>
             <span class="body">
               <span class="nm">{{ players[c.id]?.surname }}<small>{{ players[c.id]?.grade }}年</small></span>
-              <span class="rs"><i v-for="(r, k) in ranks(players[c.id]!)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              <span class="sub"><span class="rs"><i v-for="(r, k) in ranks(players[c.id]!)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              <span v-if="players[c.id]!.mainPosition !== 'P'" class="apt">{{ aptList(players[c.id]!) }}</span></span>
             </span>
           </div>
         </div>
@@ -420,7 +449,8 @@ const focusSkills = computed(() =>
             <span class="pos" :class="`k-${c.posKind}`">{{ c.pos }}</span>
             <span class="body">
               <span class="nm">{{ players[c.id]?.surname }}<small>{{ c.note ?? `${players[c.id]?.grade}年` }}</small></span>
-              <span class="rs"><i v-for="(r, k) in ranks(players[c.id]!)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              <span class="sub"><span class="rs"><i v-for="(r, k) in ranks(players[c.id]!)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              <span v-if="players[c.id]!.mainPosition !== 'P'" class="apt">{{ aptList(players[c.id]!) }}</span></span>
             </span>
           </div>
           <p v-if="outside.length === 0" class="empty">なし</p>
@@ -435,28 +465,44 @@ const focusSkills = computed(() =>
     <div class="ops">
       <button class="op cyan" :disabled="!focus" @click="viewing = focus?.id ?? null">選手詳細</button>
       <button class="op orange" @click="autoBuild">自動編成</button>
-      <button class="op navy" :disabled="selectedSlot < 0 || draft.batters[selectedSlot]?.position === 'P'" @click="posPicker = true">守備位置</button>
+      <button class="op navy" :disabled="!selectedPlayer" @click="posPicker = true">守備位置</button>
       <button class="op gray" @click="toggleDH">DH{{ draft.useDH ? 'あり' : 'なし' }}</button>
       <button class="op" :class="auto ? 'on' : 'gray'" @click="setAuto">おまかせ</button>
     </div>
 
     <div v-if="drag?.on" class="ghost" :style="{ left: `${drag.x}px`, top: `${drag.y}px` }">{{ players[drag.id]?.surname }}</div>
 
-    <div v-if="posPicker && selectedSlot >= 0" class="pp-backdrop" @click.self="posPicker = false">
+    <div v-if="posPicker && selectedPlayer" class="pp-backdrop" @click.self="posPicker = false">
       <div class="pp card">
-        <h2><GameIcon name="glove" /> {{ players[draft.batters[selectedSlot]!.playerId]?.surname }}の守備位置</h2>
+        <template v-if="selectedSlot >= 0 && draft.batters[selectedSlot]!.position !== 'P'">
+          <h2><GameIcon name="glove" /> {{ selectedPlayer.surname }}の守備位置</h2>
+          <div class="pp-grid">
+            <button
+              v-for="pos in posChoices"
+              :key="pos"
+              :class="draft.batters[selectedSlot]!.position === pos ? 'sun' : 'secondary'"
+              @click="setPosition(pos)"
+            >
+              {{ pos === 'DH' ? '指名打者' : POSITION_NAME[pos] }}
+              <small v-if="pos !== 'DH'">{{ APTITUDE_LABEL[selectedPlayer.fielding.aptitude[pos]] }}</small>
+            </button>
+          </div>
+          <p class="muted">その位置を守っていた選手と、守備位置を入れ替えます。</p>
+        </template>
+        <h2 class="grass"><GameIcon name="run" /> 守備練習（適性を上げる）</h2>
+        <p class="muted">選んだ位置の適性が、毎週の練習で少しずつ上がります（×→△→○→◎）。守備や実戦のマスで伸びやすくなります。</p>
         <div class="pp-grid">
           <button
-            v-for="pos in posChoices"
+            v-for="pos in APT_ORDER"
             :key="pos"
-            :class="draft.batters[selectedSlot]!.position === pos ? 'sun' : 'secondary'"
-            @click="setPosition(pos)"
+            :class="selectedPlayer.convertTo === pos ? 'sky' : 'secondary'"
+            :disabled="selectedPlayer.fielding.aptitude[pos] >= 3"
+            @click="setConvert(selectedPlayer.convertTo === pos ? null : pos)"
           >
-            {{ pos === 'DH' ? '指名打者' : POSITION_NAME[pos] }}
-            <small v-if="pos !== 'DH'">{{ APTITUDE_LABEL[players[draft.batters[selectedSlot]!.playerId]!.fielding.aptitude[pos]] }}</small>
+            {{ POSITION_NAME[pos] }}
+            <small>{{ APTITUDE_LABEL[selectedPlayer.fielding.aptitude[pos]] }}{{ selectedPlayer.convertTo === pos ? '・練習中' : '' }}</small>
           </button>
         </div>
-        <p class="muted">その位置を守っていた選手と、守備位置を入れ替えます。</p>
         <button class="secondary full" @click="posPicker = false">閉じる</button>
       </div>
     </div>
@@ -572,6 +618,10 @@ const focusSkills = computed(() =>
   background: #e6ebf2;
   color: #4f5b6b;
 }
+.sk.conv {
+  background: #dff0ff;
+  color: #1f6fb5;
+}
 .sk.none {
   color: var(--ink-soft);
   font-weight: 700;
@@ -583,7 +633,7 @@ const focusSkills = computed(() =>
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1.08fr 1fr 1fr;
+  grid-template-columns: 1.35fr 1fr 0.8fr;
   gap: 5px;
 }
 .col {
@@ -722,10 +772,29 @@ const focusSkills = computed(() =>
 .rs {
   font-size: 10px;
   font-weight: 900;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
 }
 .rs i {
   font-style: normal;
+}
+.sub {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.rs {
+  flex-shrink: 0;
+}
+.apt {
+  min-width: 0;
+  font-size: 9px;
+  font-weight: 800;
+  color: #6b7a90;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .empty {
   text-align: center;
@@ -814,8 +883,11 @@ const focusSkills = computed(() =>
     font-size: 12px;
   }
   .rs {
-    font-size: 9px;
-    letter-spacing: 0;
+    display: none;
+  }
+  .sub {
+    min-width: 0;
+    overflow: hidden;
   }
   .op {
     padding: 8px 0;
@@ -830,6 +902,8 @@ const focusSkills = computed(() =>
   align-items: flex-end;
 }
 .pp {
+  max-height: 86vh;
+  overflow-y: auto;
   width: 100%;
   margin: 0;
   border-radius: 20px 20px 0 0;

@@ -204,7 +204,7 @@ async function onSpecial(id: string): Promise<void> {
   await finish({ specialPlayerId: id })
 }
 
-const IMPORTANT = ['特殊能力', '克服', '違和感', '悪化', '全治', '入部した']
+const IMPORTANT = ['特殊能力', '克服', '違和感', '悪化', '全治', '入部した', '適性が']
 
 async function finish(opts: { choice?: number; specialPlayerId?: string }): Promise<void> {
   const r = await game.finishSquare(opts)

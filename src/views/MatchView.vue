@@ -60,6 +60,9 @@ const BAT_ORDERS: { value: BattingOrder; label: string }[] = [
   { value: 'swing', label: '強振' },
   { value: 'contact', label: 'ミート' },
   { value: 'wait', label: '待て' },
+  { value: 'pull', label: '引っ張り' },
+  { value: 'oppo', label: '流し打ち' },
+  { value: 'grounder', label: 'ゴロ狙い' },
   { value: 'bunt', label: 'バント' },
   { value: 'hitrun', label: 'エンドラン' },
   { value: 'steal', label: '盗塁' },
@@ -740,7 +743,7 @@ if (!game.match) router.replace({ name: 'home' })
   grid-template-columns: repeat(5, 1fr);
 }
 .cmd {
-  padding: 8px 0;
+  padding: 7px 0;
   border-radius: 9px;
   background: #1b2d47;
   box-shadow: inset 0 0 0 1.5px #34506f;

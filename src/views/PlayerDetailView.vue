@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import GameIcon from '@/components/GameIcon.vue'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
@@ -100,14 +100,60 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'stats', label: '成績' },
   { key: 'skill', label: '特能・指示' },
 ]
-const tab = ref<Tab>(game.player(props.id)?.mainPosition === 'P' ? 'pitch' : 'bat')
+const tab = ref<Tab>((ui.playerTab as Tab | null) ?? (game.player(props.id)?.mainPosition === 'P' ? 'pitch' : 'bat'))
+watch(tab, (t) => (ui.playerTab = t))
+
+// ---- 前の選手・次の選手 ----
+const navList = computed(() => {
+  if (ui.playerNav.includes(props.id)) return ui.playerNav
+  // 一覧以外から開いたときは、同じ学校の部員を学年・守備位置の順に
+  const school = p.value ? game.save?.schools[p.value.schoolId] : null
+  if (!school || !game.save) return [props.id]
+  return school.playerIds
+    .map((id) => game.save!.players[id])
+    .filter((x): x is NonNullable<typeof x> => !!x && !x.retired)
+    .sort((a, b) => b.grade - a.grade || POSITIONS.indexOf(a.mainPosition) - POSITIONS.indexOf(b.mainPosition))
+    .map((x) => x.id)
+})
+const navIndex = computed(() => navList.value.indexOf(props.id))
+function goTo(delta: number): void {
+  const list = navList.value
+  if (list.length < 2) return
+  const next = list[(navIndex.value + delta + list.length) % list.length]!
+  router.replace({ name: 'player', params: { id: next } })
+}
+// 左右のスワイプでも移れる
+let touchX = 0
+let touchY = 0
+function onTouchStart(e: TouchEvent): void {
+  touchX = e.touches[0]!.clientX
+  touchY = e.touches[0]!.clientY
+}
+function onTouchEnd(e: TouchEvent): void {
+  const dx = e.changedTouches[0]!.clientX - touchX
+  const dy = e.changedTouches[0]!.clientY - touchY
+  if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) goTo(dx < 0 ? 1 : -1)
+}
+
+async function changeConvert(e: Event): Promise<void> {
+  if (!p.value) return
+  const v = (e.target as HTMLSelectElement).value
+  p.value.convertTo = v ? (v as Position) : null
+  await game.commit()
+  ui.showToast(v ? `${POSITION_NAME[v as Position]}の守備練習を始めました` : '守備練習をやめました')
+}
 
 const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '' : v === -1 ? '△' : '×')
 </script>
 
 <template>
-  <div v-if="p" class="page">
+  <div v-if="p" class="page" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
     <div class="card profile">
+      <div v-if="navList.length > 1" class="nav">
+        <button class="navb" aria-label="前の選手" @click="goTo(-1)"><GameIcon name="back" :size="16" /></button>
+        <span class="navc">{{ navIndex + 1 }}/{{ navList.length }}</span>
+        <button class="navb" aria-label="次の選手" @click="goTo(1)"><GameIcon name="back" :size="16" class="flip" /></button>
+      </div>
       <button class="plain back" aria-label="戻る" @click="router.back()"><GameIcon name="back" :size="18" /></button>
       <div class="face-wrap"><FaceIcon :face="p.face" :size="60" /></div>
       <div class="info">
@@ -290,6 +336,15 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
           <option v-for="pos in POSITIONS" :key="pos" :value="pos">{{ POSITION_NAME[pos] }}</option>
         </select>
       </label>
+      <label>
+        <div class="muted">守備練習（選んだ位置の適性が少しずつ上がる）</div>
+        <select :value="p.convertTo ?? ''" @change="changeConvert">
+          <option value="">しない</option>
+          <option v-for="pos in POSITIONS.filter((x) => x !== 'P')" :key="pos" :value="pos" :disabled="p.fielding.aptitude[pos] >= 3">
+            {{ POSITION_NAME[pos] }}（いま{{ APTITUDE_LABEL[p.fielding.aptitude[pos]] }}）
+          </option>
+        </select>
+      </label>
     </div>
   </div>
   <div v-else class="page">
@@ -299,6 +354,37 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
 </template>
 
 <style scoped>
+.profile {
+  position: relative;
+}
+.nav {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.navb {
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #4fb6f4, #2c98e8);
+  color: #fff;
+  box-shadow: 0 3px 0 #1f7fd0;
+}
+.navc {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.flip {
+  transform: scaleX(-1);
+}
 .tabs {
   display: flex;
   gap: 4px;
@@ -346,6 +432,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
   min-width: 0;
 }
 .name {
+  padding-right: 96px;
   font-size: 21px;
   font-weight: 900;
 }

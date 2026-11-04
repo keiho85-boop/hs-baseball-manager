@@ -163,6 +163,8 @@ export interface Player {
   skills: string[]
   condition: Condition
   practiceMenu: PracticeMenu
+  /** 守備練習で適性を上げている守備位置（コンバート） */
+  convertTo?: Position | null
   weeklyPitches: number
   /** 試合に出るまでは null（データ量を抑えるため） */
   seasonStats: PlayerStats | null

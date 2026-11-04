@@ -10,7 +10,8 @@ export interface LineupSlot {
 }
 
 /** 攻撃側の作戦（打者ごと） */
-export type BattingOrder = 'auto' | 'swing' | 'contact' | 'wait' | 'bunt' | 'hitrun' | 'steal'
+/** 打撃の作戦（流し打ち・引っ張り・ゴロ狙いは打球の方向や角度を変える） */
+export type BattingOrder = 'auto' | 'swing' | 'contact' | 'wait' | 'bunt' | 'hitrun' | 'steal' | 'pull' | 'oppo' | 'grounder'
 /** 守備側の作戦 */
 export type PitchingOrder = 'auto' | 'fullpower' | 'walk'
 /** 配球の方針 */

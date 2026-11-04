@@ -45,6 +45,8 @@ export const useGameStore = defineStore('game', () => {
   /** 直前の週に伸びた選手（成長の演出に使う） */
   const lastGrowth = ref<GrowthEntry[]>([])
   const showGrowth = ref(false)
+  /** 成長の知らせの見出し（練習の成果／試合の経験 など） */
+  const growthTitle = ref('練習の成果！')
   /** 途中の試合（選手が多いセーブ本体とは別に、小さく保存する）。
    * 試合の状態は小さいので、Vueの自動追跡に入れて画面がそのまま追従するようにする */
   const match = ref<MatchState | null>(null)
@@ -259,6 +261,7 @@ export const useGameStore = defineStore('game', () => {
       const week = afterWeek(advanceWeek(s, { kind: 'tournament' }))
       lastResult.value = week
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
+      growthTitle.value = '大会の週の成長！'
       showGrowth.value = lastGrowth.value.length > 0
       touch()
       await writeSave(s)
@@ -346,6 +349,8 @@ export const useGameStore = defineStore('game', () => {
       const week = afterWeek(advanceWeek(s, { kind: 'match' }))
       lastResult.value = week
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
+      growthTitle.value = '試合で得た経験！'
+      showGrowth.value = lastGrowth.value.length > 0
       touch()
       await writeSave(s)
       await clearMatch(s.slot)
@@ -394,6 +399,7 @@ export const useGameStore = defineStore('game', () => {
       const week = afterWeek(advanceWeek(s, { kind: 'square', square: pending.square, card: pending.card, specialPlayerId: opts.specialPlayerId }))
       lastResult.value = week
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
+      growthTitle.value = '練習の成果！'
       showGrowth.value = lastGrowth.value.length > 0
       touch()
       await writeSave(s)
@@ -453,6 +459,7 @@ export const useGameStore = defineStore('game', () => {
     persistent,
     lastGrowth,
     showGrowth,
+    growthTitle,
     match,
     matchRev,
     boardNotice,

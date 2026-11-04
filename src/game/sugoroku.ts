@@ -1,7 +1,7 @@
 // すごろく形式の練習：盤面・手札・マスの効果
 
 import { Rng, clamp } from './rng'
-import { weekToDate } from './constants'
+import { POSITION_NAME, weekToDate } from './constants'
 import { fullName, growWeekly } from './player'
 import { SKILLS, conflicts } from './skills'
 import type { Card, CardEffect, Facilities, Player, PracticeMenu, SaveData, SquareType, SugorokuState, WeekPlan } from './types'
@@ -180,7 +180,32 @@ const CARD_MULT: Record<CardEffect, { gain: number; cost: number }> = {
 }
 
 /** 自校のその週の練習（マスとカードで効果が変わる） */
+/** 守備位置の練習（コンバート）：毎週、少しずつその位置の適性が上がる */
+function convertPractice(rng: Rng, p: Player, plan: WeekPlan | null, fieldingFacility: number, messages: string[]): void {
+  const pos = p.convertTo
+  if (!pos || p.retired) return
+  const apt = p.fielding.aptitude[pos]
+  if (apt >= 3) {
+    p.convertTo = null
+    return
+  }
+  let chance = 0.16 + fieldingFacility * 0.02
+  if (plan?.kind === 'square') {
+    if (plan.square === 'fielding' || plan.square === 'practical') chance += 0.14
+    chance *= CARD_MULT[plan.card.effect].gain
+  } else if (plan) chance *= 0.5
+  // ×から△へは早く、○から◎へはじっくり
+  chance *= [1.4, 1.0, 0.6][apt] ?? 1
+  if (!rng.chance(chance)) return
+  p.fielding.aptitude[pos] = (apt + 1) as 0 | 1 | 2 | 3
+  const label = ['×', '△', '○', '◎'][apt + 1]
+  messages.push(`${fullName(p)}の${POSITION_NAME[pos]}の適性が${label}になった！`)
+  if (apt + 1 >= 3) p.convertTo = null
+}
+
 export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, members: Player[], facilityIntensity: number, messages: string[]): void {
+  const fieldingFacility = save.schools[save.playerSchoolId]?.facilities.fielding ?? 0
+  for (const p of members) convertPractice(rng, p, plan, fieldingFacility, messages)
   const camp = (save.sugoroku?.campWeeks ?? 0) > 0
   const own = save.schools[save.playerSchoolId]
   const campMult = camp ? 1.35 : 1
