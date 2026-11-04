@@ -331,6 +331,8 @@ export interface EventInstance {
   id: string
   title: string
   speaker: Speaker
+  /** 能力を確認できるようにする選手（転向の相談など） */
+  relatedPlayerIds?: string[]
   lines: string[]
   choices: EventChoice[]
 }

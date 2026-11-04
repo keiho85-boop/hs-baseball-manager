@@ -5,6 +5,8 @@ import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import type { Difficulty } from '@/game/types'
+import { ref } from 'vue'
+import { fullscreenEnabled, setFullscreenEnabled } from '@/fullscreen'
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -14,6 +16,12 @@ const settings = computed(() => {
   void game.rev
   return game.save?.settings
 })
+
+const fullscreen = ref(fullscreenEnabled())
+function toggleFullscreen(): void {
+  fullscreen.value = !fullscreen.value
+  setFullscreenEnabled(fullscreen.value)
+}
 
 const LABEL: Record<Difficulty, string> = { easy: 'やさしい', normal: 'ふつう', hard: 'きびしい' }
 
@@ -60,6 +68,10 @@ async function backToTitle(): Promise<void> {
         </div>
       </div>
       <label class="row">
+        <input type="checkbox" class="check" :checked="fullscreen" @change="toggleFullscreen" />
+        全画面で表示する
+      </label>
+      <label class="row">
         <input type="checkbox" class="check" :checked="settings.cutin" @change="toggle('cutin')" />
         ピンチ・チャンスのカットインを表示する
       </label>
@@ -67,7 +79,7 @@ async function backToTitle(): Promise<void> {
         <input type="checkbox" class="check" :checked="settings.lightMode" @change="toggle('lightMode')" />
         軽量モード（演出を減らして動作を軽くする）
       </label>
-      <p class="muted">カットインと軽量モードは、試合を追加したときに効くようになります。</p>
+      <p class="muted">軽量モードは、今後追加する演出から順に効くようになります。</p>
     </div>
 
     <div class="card stack">

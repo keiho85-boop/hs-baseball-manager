@@ -25,7 +25,9 @@ export default defineConfig({
         lang: 'ja',
         start_url: '/hs-baseball-manager/',
         scope: '/hs-baseball-manager/',
-        display: 'standalone',
+        // ホーム画面のアイコンから起動したときは全画面で表示する
+        display: 'fullscreen',
+        display_override: ['fullscreen', 'standalone'],
         orientation: 'portrait',
         background_color: '#f4f1ea',
         theme_color: '#1f5130',

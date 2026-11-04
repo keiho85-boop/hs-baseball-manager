@@ -12,6 +12,9 @@ const props = defineProps<{
   preview: number | null
   month: number
   camp: boolean
+  /** 選んだカードの効果の説明 */
+  cardNote?: string | null
+  milestone?: string
 }>()
 
 /** マス番号 → 盤面の行・列（時計回り） */
@@ -42,6 +45,7 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
     </div>
     <div class="center">
       <div class="month">{{ month }}<small>月の練習</small></div>
+      <div v-if="milestone" class="milestone">{{ milestone }}</div>
       <div v-if="camp" class="camp">夏合宿中！</div>
       <div v-if="previewInfo" class="info target-info" :style="{ '--c': previewInfo.color }">
         <b>{{ previewInfo.label }}マス</b>
@@ -51,6 +55,7 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
         <span class="muted">いまの位置</span>
         <b>{{ hereInfo.label }}マス</b>
       </div>
+      <div v-if="cardNote" class="card-note">{{ cardNote }}</div>
     </div>
   </div>
 </template>
@@ -133,13 +138,24 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
   box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.05);
 }
 .month {
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 900;
   color: var(--grass-deep);
   line-height: 1;
 }
 .month small {
   font-size: 13px;
+}
+.milestone {
+  display: none;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--red);
+}
+@media (max-height: 720px) {
+  .milestone {
+    display: block;
+  }
 }
 .camp {
   font-weight: 900;
@@ -159,6 +175,14 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
   font-size: 16px;
   color: var(--c);
   font-weight: 900;
+}
+.card-note {
+  font-size: 11px;
+  font-weight: 800;
+  color: #a86f00;
+  background: #fff4d0;
+  border-radius: 8px;
+  padding: 2px 8px;
 }
 .target-info {
   background: #fff;

@@ -12,6 +12,7 @@ import FieldScene from '@/components/FieldScene.vue'
 import SugorokuBoard from '@/components/sugoroku/SugorokuBoard.vue'
 import CardHand from '@/components/sugoroku/CardHand.vue'
 import EventDialog from '@/components/sugoroku/EventDialog.vue'
+import PlayerSheet from '@/components/PlayerSheet.vue'
 import { BOARD_SIZE, CARD_EFFECT_DESC, SQUARES } from '@/game/sugoroku'
 import type { SquareType } from '@/game/types'
 
@@ -82,6 +83,7 @@ const displayPos = ref<number | null>(null)
 const moving = ref(false)
 const eventOpen = ref(false)
 const specialOpen = ref(false)
+const viewing = ref<string | null>(null)
 
 const preview = computed(() => {
   const s = sg.value
@@ -169,13 +171,13 @@ const specialCandidates = computed(() =>
 <template>
   <div class="home">
     <div class="stage">
-      <FieldScene :height="150" :evening="evening" />
-      <div class="bubble">
-        {{ milestone.label }}まで<br /><b>あと{{ milestone.weeks }}週</b>
-      </div>
-      <div class="overall">
-        <div class="overall-label">チーム総合</div>
-        <RankBadge v-if="school" :value="school.overall" size="lg" />
+      <FieldScene :height="84" :evening="evening" />
+      <div class="strip">
+        <div class="bubble">{{ milestone.label }}まで <b>あと{{ milestone.weeks }}週</b></div>
+        <div class="overall">
+          <span class="overall-label">チーム総合</span>
+          <RankBadge v-if="school" :value="school.overall" />
+        </div>
       </div>
     </div>
 
@@ -186,8 +188,17 @@ const specialCandidates = computed(() =>
       </button>
       <template v-else-if="sg">
         <div class="card board-card">
-          <h2 class="grass"><GameIcon name="run" /> 今週の練習 <span class="h-note">カードを選んで進もう</span></h2>
-          <SugorokuBoard :board="sg.board" :position="displayPos ?? sg.position" :preview="moving ? null : preview" :month="sg.boardMonth" :camp="sg.campWeeks > 0" />
+          <div class="board-fit">
+            <SugorokuBoard
+              :board="sg.board"
+              :position="displayPos ?? sg.position"
+              :preview="moving ? null : preview"
+              :month="sg.boardMonth"
+              :camp="sg.campWeeks > 0"
+              :milestone="`${milestone.label}まで あと${milestone.weeks}週`"
+              :card-note="selected !== null && sg.hand[selected] && sg.hand[selected]!.effect !== 'none' ? CARD_EFFECT_DESC[sg.hand[selected]!.effect] : null"
+            />
+          </div>
           <template v-if="sg.pending && !moving">
             <button class="sun full go-btn" :disabled="game.busy" @click="afterLand">{{ squareName(sg.pending.square) }}マスの続きをする</button>
           </template>
@@ -195,7 +206,6 @@ const specialCandidates = computed(() =>
             <div class="hand-wrap">
               <CardHand :hand="sg.hand" :selected="selected" :disabled="moving || game.busy" @select="selectCard" />
             </div>
-            <p v-if="selected !== null && sg.hand[selected]?.effect !== 'none'" class="muted card-desc">{{ CARD_EFFECT_DESC[sg.hand[selected]!.effect] }}</p>
             <button class="sun full go-btn" :disabled="selected === null || moving || game.busy" @click="go">
               <GameIcon name="play" :size="14" /> {{ selected === null ? 'カードを選んでください' : `${sg.hand[selected]!.value}マス進む` }}
             </button>
@@ -259,14 +269,18 @@ const specialCandidates = computed(() =>
         <h2 class="red"><GameIcon name="flame" /> 特訓する選手を選ぶ</h2>
         <p class="muted">選んだ選手は大きく伸び、特殊能力を覚えることもあります。そのぶん疲れます。</p>
         <div class="opp-list">
-          <button v-for="p in specialCandidates" :key="p.id" class="opp" @click="onSpecial(p.id)">
-            <FaceIcon :face="p.face" :size="34" />
-            <span class="opp-name">{{ p.surname }} {{ p.givenName }}<small>{{ p.grade }}年・{{ POSITION_LABEL[p.mainPosition] }}・体力{{ p.condition.stamina }}</small></span>
-            <RankBadge :value="playerRating(p)" size="sm" />
-          </button>
+          <div v-for="p in specialCandidates" :key="p.id" class="opp-row">
+            <button class="opp" @click="onSpecial(p.id)">
+              <FaceIcon :face="p.face" :size="34" />
+              <span class="opp-name">{{ p.surname }} {{ p.givenName }}<small>{{ p.grade }}年・{{ POSITION_LABEL[p.mainPosition] }}・体力{{ p.condition.stamina }}</small></span>
+              <RankBadge :value="playerRating(p)" size="sm" />
+            </button>
+            <button class="secondary look" aria-label="能力を見る" @click="viewing = p.id"><GameIcon name="search" :size="16" /></button>
+          </div>
         </div>
       </div>
     </div>
+    <PlayerSheet v-if="viewing" :player-id="viewing" @close="viewing = null" />
     <div v-if="picking" class="picker-backdrop" @click.self="picking = false">
       <div class="picker card">
         <h2 class="grass"><GameIcon name="ball" /> 練習試合の相手を選ぶ</h2>
@@ -284,45 +298,58 @@ const specialCandidates = computed(() =>
 </template>
 
 <style scoped>
+.home {
+  --stage-h: 66px;
+}
 .stage {
   position: relative;
   margin-top: -18px;
   overflow: hidden;
 }
-.bubble {
-  position: absolute;
-  left: 14px;
-  top: 34px;
-  background: #fff;
-  border-radius: 16px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 700;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.12);
-  animation: pop-in 0.4s ease-out;
+/* 縦に短い画面では背景の帯を省き、盤面を大きくする（節目までの週数は盤面の中に出す） */
+@media (max-height: 720px) {
+  .home {
+    --stage-h: 0px;
+  }
+  .stage {
+    display: none;
+  }
+  .board-card {
+    margin-top: 0 !important;
+  }
 }
-.bubble::after {
-  content: '';
+.strip {
   position: absolute;
-  left: 22px;
-  bottom: -9px;
-  border: 6px solid transparent;
-  border-top: 7px solid #fff;
+  left: 10px;
+  right: 10px;
+  top: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bubble {
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
 }
 .bubble b {
-  font-size: 20px;
+  font-size: 16px;
   color: var(--red);
   font-weight: 900;
 }
 .overall {
-  position: absolute;
-  right: 14px;
-  top: 38px;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 16px;
-  padding: 6px 12px 8px;
-  text-align: center;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 999px;
+  padding: 2px 10px 2px 12px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
 }
 .overall-label {
   font-size: 11px;
@@ -364,8 +391,14 @@ const specialCandidates = computed(() =>
   opacity: 0.85;
 }
 .board-card {
-  margin-top: -30px;
+  margin-top: -14px;
   z-index: 2;
+  padding-top: 10px;
+}
+/* 盤面・カード・進むボタンが1画面に収まるよう、画面の高さに合わせて盤面の大きさを決める */
+.board-fit {
+  width: min(100%, max(220px, calc(100dvh - 400px - var(--stage-h) - env(safe-area-inset-top, 0px) - var(--safe-bottom))));
+  margin: 0 auto;
 }
 .h-note {
   margin-left: auto;
@@ -373,15 +406,15 @@ const specialCandidates = computed(() =>
   opacity: 0.9;
 }
 .hand-wrap {
-  margin-top: 18px;
+  margin-top: 16px;
 }
 .card-desc {
   text-align: center;
   margin: 8px 0 0;
 }
 .go-btn {
-  margin-top: 12px;
-  padding: 13px;
+  margin-top: 10px;
+  padding: 12px;
   font-size: 16px;
 }
 .practice-match {
@@ -424,6 +457,18 @@ const specialCandidates = computed(() =>
   box-shadow: inset 0 0 0 2px #e2eef8;
   margin-bottom: 8px;
   text-align: left;
+}
+.opp-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.opp-row .opp {
+  flex: 1;
+}
+.look {
+  padding: 0 12px;
+  margin-bottom: 8px;
 }
 .opp-name {
   flex: 1;

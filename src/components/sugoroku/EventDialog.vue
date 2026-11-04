@@ -6,12 +6,20 @@ import type { EventInstance } from '@/game/types'
 import FaceIcon from '../FaceIcon.vue'
 import GameIcon from '../GameIcon.vue'
 import type { IconName } from '../icons'
+import PlayerSheet from '../PlayerSheet.vue'
 
 const props = defineProps<{ event: EventInstance }>()
 const emit = defineEmits<{ done: [choice: number] }>()
 const game = useGameStore()
 
 const step = ref(0)
+const viewing = ref<string | null>(null)
+
+/** 能力を確認できる選手（古いセーブでは話し手の選手） */
+const related = computed(() => {
+  const ids = props.event.relatedPlayerIds ?? (props.event.speaker.kind === 'player' ? [props.event.speaker.playerId] : [])
+  return ids.map((id) => game.player(id)).filter((p): p is NonNullable<typeof p> => !!p)
+})
 const shown = ref('')
 const chosen = ref<number | null>(null)
 let typing: ReturnType<typeof setInterval> | undefined
@@ -83,10 +91,16 @@ onMounted(() => typeOut(text.value))
         <div v-if="speakerName" class="name">{{ speakerName }}</div>
         <p class="line">{{ shown }}<span v-if="!atChoices && shown.length >= text.length" class="caret">▼</span></p>
       </div>
+      <div v-if="related.length" class="related">
+        <button v-for="rp in related" :key="rp.id" class="secondary look" @click.stop="viewing = rp.id">
+          <GameIcon name="search" :size="14" /> {{ rp.surname }}の能力を見る
+        </button>
+      </div>
       <div v-if="atChoices" class="choices">
         <button v-for="(c, i) in event.choices" :key="i" class="choice" @click="choose(i)">{{ c.label }}</button>
       </div>
     </div>
+    <PlayerSheet v-if="viewing" :player-id="viewing" @close="viewing = null" />
   </div>
 </template>
 
@@ -165,6 +179,16 @@ onMounted(() => typeOut(text.value))
   color: var(--sky);
   margin-left: 4px;
   animation: blink 0.8s steps(2) infinite;
+}
+.related {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.look {
+  padding: 7px 12px;
+  font-size: 13px;
 }
 .choices {
   display: flex;

@@ -7,6 +7,8 @@ export const TAB_ROUTES = ['home', 'players', 'team', 'school', 'records'] as co
 export const router = createRouter({
   // GitHub Pages では # 付きのURLが確実に動く
   history: createWebHashHistory(),
+  // 画面を移ったら一番上から表示する（戻ったときは元の位置）
+  scrollBehavior: (_to, _from, saved) => saved ?? { top: 0 },
   routes: [
     { path: '/', name: 'title', component: () => import('./views/TitleView.vue') },
     { path: '/new/:slot', name: 'new', component: () => import('./views/NewGameView.vue'), props: true },

@@ -73,6 +73,7 @@ function managerEvent(save: SaveData, rng: Rng): EventInstance {
     id: eid('note'),
     title: 'マネージャーのノート',
     speaker: { kind: 'manager', name: 'マネージャー' },
+    relatedPlayerIds: [p.id],
     lines: [`監督、${p.surname}くんのフォームを毎日記録してみたんです。`, '最近いい時と悪い時の違いが、少し分かってきました。'],
     choices: [
       {
@@ -168,6 +169,7 @@ function slumpEvent(rng: Rng, list: Player[]): EventInstance {
     id: eid('slump'),
     title: 'スランプ',
     speaker: { kind: 'player', playerId: p.id },
+    relatedPlayerIds: [p.id],
     lines: ['監督……最近、何をやってもうまくいかないんです。', '自分のどこが悪いのか、分からなくなってしまって。'],
     choices: [
       {
@@ -198,6 +200,7 @@ function awakeningEvent(rng: Rng, list: Player[]): EventInstance {
     id: eid('awake'),
     title: '覚醒の予感',
     speaker: { kind: 'player', playerId: p.id },
+    relatedPlayerIds: [p.id],
     lines: ['監督、今日の練習で……何かがつかめた気がします！', '体が勝手に動くというか、ボールがよく見えるんです！'],
     choices: [{ label: 'その感覚を忘れるな！', result: `${p.surname}の${text}が大きく伸びた！`, ops }],
   }
@@ -214,6 +217,7 @@ function rivalEvent(rng: Rng, list: Player[]): EventInstance | null {
     id: eid('rival'),
     title: 'ライバル',
     speaker: { kind: 'player', playerId: a.id },
+    relatedPlayerIds: [a.id, b.id],
     lines: [`${b.surname}には負けたくないんです。`, `${POSITION_NAME[a.mainPosition]}のレギュラーは、オレが取ります！`],
     choices: [
       {
@@ -247,6 +251,7 @@ function convertEvent(rng: Rng, list: Player[]): EventInstance | null {
     id: eid('convert'),
     title: '転向の相談',
     speaker: { kind: 'player', playerId: p.id },
+    relatedPlayerIds: [p.id],
     lines: [
       pos === 'P' ? '監督、オレ……ピッチャーをやってみたいんです！' : `監督、打撃で勝負したいんです。${POSITION_NAME[pos]}をやらせてください！`,
       '中途半端な気持ちじゃありません。お願いします！',
@@ -276,6 +281,7 @@ function secretPracticeEvent(rng: Rng, list: Player[]): EventInstance {
     id: eid('secret'),
     title: '居残り練習',
     speaker: { kind: 'narration', name: '' },
+    relatedPlayerIds: [p.id],
     lines: [`夜のグラウンドに、${p.surname}の姿があった。`, '誰もいなくなった後も、黙々とバットを振り、ボールを追っている。'],
     choices: [
       {
@@ -304,6 +310,7 @@ function painEvent(rng: Rng, list: Player[]): EventInstance {
     id: eid('pain'),
     title: '体の違和感',
     speaker: { kind: 'player', playerId: p.id },
+    relatedPlayerIds: [p.id],
     lines: ['監督……実は昨日から、少し足に張りがあって。', 'でも、大丈夫です！練習、続けさせてください！'],
     choices: [
       {
@@ -335,6 +342,7 @@ function teamMeetingEvent(rng: Rng, list: Player[]): EventInstance {
     id: eid('meeting'),
     title: 'ミーティング',
     speaker: { kind: 'player', playerId: p.id },
+    relatedPlayerIds: [p.id],
     lines: ['監督、部員だけでミーティングをさせてもらえませんか。', 'もっと一つになれると思うんです。'],
     choices: [
       {
