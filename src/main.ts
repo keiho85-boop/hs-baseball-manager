@@ -4,6 +4,10 @@ import { registerSW } from 'virtual:pwa-register'
 import App from './App.vue'
 import { router } from './router'
 import { useUiStore } from './stores/ui'
+// 太く丸みのある日本語フォント（無料で商用利用できる M PLUS Rounded 1c、SIL Open Font License）
+import '@fontsource/m-plus-rounded-1c/500.css'
+import '@fontsource/m-plus-rounded-1c/800.css'
+import '@fontsource/m-plus-rounded-1c/900.css'
 import './style.css'
 
 const app = createApp(App)

@@ -35,8 +35,20 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // フォントは文字の範囲ごとに細かく分かれていて数が多いため、最初にまとめて保存せず、
+        // 使った分だけ保存する（一度表示した文字は通信なしでも表示できる）
+        globPatterns: ['**/*.{js,css,html,svg,png}'],
         navigateFallback: '/hs-baseball-manager/index.html',
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.destination === 'font',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fonts',
+              expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+        ],
       },
     }),
   ],

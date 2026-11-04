@@ -46,6 +46,7 @@ body {
 body {
   font-size: 15px;
   line-height: 1.5;
+  font-weight: 500;
   background:
     radial-gradient(circle at 20% 0%, #ffffff 0, transparent 40%),
     linear-gradient(180deg, #eaf6ff 0%, #f6fbff 60%, #eef8ee 100%);
