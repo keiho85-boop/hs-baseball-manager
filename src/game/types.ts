@@ -1,0 +1,266 @@
+// ゲーム全体で使うデータの型定義
+
+export type Position = 'P' | 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF'
+export type Hand = 'R' | 'L'
+export type BatSide = 'R' | 'L' | 'S'
+export type GrowthType = 'early' | 'normal' | 'late'
+export type SchoolKind = 'public' | 'private'
+export type PracticeMenu = 'batting' | 'power' | 'pitching' | 'fitness' | 'fielding' | 'running'
+export type PitchType =
+  | 'slider'
+  | 'curve'
+  | 'fork'
+  | 'changeup'
+  | 'shoot'
+  | 'sinker'
+  | 'cutter'
+  | 'splitter'
+export type Difficulty = 'easy' | 'normal' | 'hard'
+
+/** 顔パーツの組み合わせ（各パーツの番号） */
+export interface FaceParts {
+  outline: number
+  skin: number
+  hair: number
+  hairColor: number
+  brows: number
+  eyes: number
+  mouth: number
+}
+
+/** 野手の打撃能力 */
+export interface BattingAbility {
+  contact: number // ミート 1-100
+  power: number // パワー 1-100
+  trajectory: number // 弾道 1-4
+  eye: number // 選球眼 1-100
+  vsLeft: number // 対左投手 1-100（50が普通）
+  /** コース別の得意・苦手（ストライクゾーン9分割、-2〜+2。左上から右下へ） */
+  zone: number[]
+}
+
+export interface RunningAbility {
+  speed: number // 走力
+  steal: number // 盗塁
+  baserunning: number // 走塁判断
+}
+
+export interface FieldingAbility {
+  arm: number // 肩力
+  range: number // 守備範囲
+  catching: number // 捕球
+  throwing: number // 送球の正確さ
+  /** ポジションごとの適性 0=× 1=△ 2=○ 3=◎ */
+  aptitude: Record<Position, number>
+}
+
+export interface PitchArsenal {
+  type: PitchType
+  level: number // 変化量 1-7
+}
+
+export interface PitchingAbility {
+  velocity: number // 球速 km/h
+  control: number // コントロール
+  stamina: number // スタミナ
+  pitches: PitchArsenal[] // 最大4種類
+  kire: number // キレ
+  vsLeft: number // 対左打者（50が普通）
+  quick: number // クイック
+  pinch: number // ピンチへの強さ
+}
+
+export interface CommonAbility {
+  clutch: number // チャンスへの強さ
+  stability: number // 調子の安定度
+  durability: number // ケガのしにくさ
+  recovery: number // 回復力
+}
+
+/** プレイヤーには直接見せない情報 */
+export interface HiddenTalent {
+  growthType: GrowthType
+  /** 才能の上限（1-100）。各能力の伸びの天井の基準になる */
+  potential: number
+}
+
+export interface Injury {
+  name: string
+  weeksLeft: number
+}
+
+export interface ArmIssue {
+  part: 'shoulder' | 'elbow'
+  severity: number // 1-3
+}
+
+export interface Condition {
+  stamina: number // 体力 0-100
+  form: number // 調子 1-5（3が普通）
+  motivation: number // やる気 0-100
+  injury: Injury | null
+  armIssue: ArmIssue | null
+}
+
+export interface BattingStats {
+  games: number
+  atBats: number
+  hits: number
+  homeRuns: number
+  rbi: number
+  steals: number
+}
+
+export interface PitchingStats {
+  games: number
+  outs: number
+  earnedRuns: number
+  strikeouts: number
+  walks: number
+  wins: number
+  losses: number
+}
+
+export interface PlayerStats {
+  batting: BattingStats
+  pitching: PitchingStats
+}
+
+export interface Player {
+  id: string
+  schoolId: string
+  surname: string
+  givenName: string
+  grade: number // 1-3
+  enrolledYear: number
+  /** 3年生の夏の大会後に引退した（卒業までは在籍だがチームには入らない） */
+  retired: boolean
+  /** 部員不足のときに他の部から入った助っ人 */
+  helper: boolean
+  bats: BatSide
+  throws: Hand
+  mainPosition: Position
+  face: FaceParts
+  batting: BattingAbility
+  running: RunningAbility
+  fielding: FieldingAbility
+  pitching: PitchingAbility
+  common: CommonAbility
+  hidden: HiddenTalent
+  /** 監督の見立て（表示用の文言） */
+  estimate: string
+  skills: string[]
+  condition: Condition
+  practiceMenu: PracticeMenu
+  weeklyPitches: number
+  /** 試合に出るまでは null（データ量を抑えるため） */
+  seasonStats: PlayerStats | null
+  careerStats: PlayerStats | null
+  /** OBの息子の場合、父親のOB番号 */
+  fatherAlumniId: string | null
+}
+
+export interface Facilities {
+  batting: number // 0-5
+  pitching: number
+  fielding: number
+  running: number
+  fitness: number
+  medical: number
+}
+
+export interface SchoolSeasonRecord {
+  year: number
+  /** 例：「夏 県ベスト8」 */
+  results: string[]
+}
+
+export interface School {
+  id: string
+  name: string
+  prefCode: number
+  kind: SchoolKind
+  /** true なら選手を個別に持つ。false なら総合力だけで管理する */
+  detailed: boolean
+  /** 総合力 1-100 */
+  overall: number
+  reputation: number // 0-100
+  funds: number // 部費（万円）
+  facilities: Facilities
+  playerIds: string[]
+  history: SchoolSeasonRecord[]
+}
+
+export interface AlumniRecord {
+  id: string
+  playerId: string
+  surname: string
+  givenName: string
+  enrolledYear: number
+  graduatedYear: number
+  mainPosition: Position
+  bats: BatSide
+  throws: Hand
+  careerStats: PlayerStats
+  achievements: string[]
+  career: 'pro' | 'university' | 'corporate' | 'work' | 'other'
+  /** 得意だった能力の傾向（息子に受け継がれる） */
+  strengths: string[]
+  /** 活躍したOBか（息子が入部する可能性がある） */
+  notable: boolean
+  /** 息子が入部する予定の年度（決まっていなければ null） */
+  sonYear: number | null
+  sonEnrolled: boolean
+}
+
+export interface Settings {
+  injury: Difficulty
+  luck: Difficulty
+  cutin: boolean
+  gameSpeed: number // 1-3
+  lightMode: boolean
+}
+
+export interface Calendar {
+  year: number // ゲーム内の年度（1年目=1）
+  week: number // 1-52（4月第1週=1）
+}
+
+export interface GameLogEntry {
+  year: number
+  week: number
+  text: string
+}
+
+export interface SaveData {
+  version: number
+  slot: number
+  createdAt: string
+  updatedAt: string
+  managerName: string
+  managerExperience: number
+  playerSchoolId: string
+  prefCode: number
+  calendar: Calendar
+  settings: Settings
+  /** 乱数の状態（やり直し防止のため保存する） */
+  rngState: number[]
+  schools: Record<string, School>
+  players: Record<string, Player>
+  alumni: AlumniRecord[]
+  log: GameLogEntry[]
+  /** 最後にバックアップを勧めた年度 */
+  lastBackupPromptYear: number
+  nextId: number
+}
+
+/** セーブ枠一覧に出す概要 */
+export interface SaveSummary {
+  slot: number
+  schoolName: string
+  prefName: string
+  managerName: string
+  year: number
+  week: number
+  updatedAt: string
+}

@@ -1,0 +1,34 @@
+{
+  "name": "hs-baseball-manager",
+  "version": "0.1.0",
+  "private": true,
+  "description": "高校野球の監督として、選手の育成・試合の采配・学校経営を楽しむシミュレーションゲーム（開発中）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/keiho85-boop/hs-baseball-manager.git"
+  },
+  "dependencies": {
+    "idb": "^8.0.4",
+    "pinia": "^4.1.0",
+    "vue": "^3.5.44",
+    "vue-router": "^4.6.4",
+    "workbox-window": "^7.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.5",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.1.0",
+    "vue-tsc": "^3.3.14"
+  }
+}
