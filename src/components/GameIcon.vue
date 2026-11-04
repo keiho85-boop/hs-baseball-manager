@@ -18,7 +18,8 @@ defineProps<{ name: IconName; size?: number }>()
     </template>
     <template v-else-if="name === 'ball'">
       <circle cx="12" cy="12" r="9" fill="currentColor" />
-      <path d="M7.6 4.8c2 2.2 2 12.2 0 14.4M16.4 4.8c-2 2.2-2 12.2 0 14.4" stroke="#fff" stroke-width="1.5" fill="none" stroke-dasharray="1.6 1.3" />
+      <circle cx="12" cy="12" r="9" fill="none" stroke="#000" stroke-opacity="0.12" stroke-width="1" />
+      <path d="M7.6 4.8c2 2.2 2 12.2 0 14.4M16.4 4.8c-2 2.2-2 12.2 0 14.4" stroke="#e5484d" stroke-width="1.6" fill="none" stroke-dasharray="1.6 1.3" />
     </template>
     <template v-else-if="name === 'school'">
       <path d="M2.5 21V10.5L8 8V5.5L12 3l4 2.5V8l5.5 2.5V21z" fill="currentColor" />

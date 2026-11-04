@@ -6,10 +6,21 @@ import { defineStore } from 'pinia'
 import { markRaw, ref, shallowRef } from 'vue'
 import { createNewGame, type NewGameInput } from '@/game/world'
 import { advanceWeek, type WeekResult } from '@/game/season'
-import { deleteSlot, listSlots, readSave, requestPersistentStorage, writeSave } from '@/game/storage'
+import { clearMatch, deleteSlot, listSlots, readMatch, readSave, requestPersistentStorage, writeMatch, writeSave } from '@/game/storage'
+import { Rng } from '@/game/rng'
+import { finishMatch as finishMatchLogic, startMatch, type FinishResult } from '@/game/match/session'
+import {
+  changePitcher as changePitcherLogic,
+  simulatePitch,
+  simulatePlateAppearance,
+  simulateToEnd,
+  substitute as substituteLogic,
+  type MatchContext,
+} from '@/game/match/engine'
+import type { MatchState } from '@/game/match/types'
 import { exportToBlob, importFromBlob } from '@/game/serialize'
 import { diffSnapshot, takeSnapshot, type GrowthEntry } from '@/game/growth'
-import type { Player, SaveData, SaveSummary, School } from '@/game/types'
+import type { LineupConfig, Player, SaveData, SaveSummary, School } from '@/game/types'
 
 export const useGameStore = defineStore('game', () => {
   const save = shallowRef<SaveData | null>(null)
@@ -21,6 +32,11 @@ export const useGameStore = defineStore('game', () => {
   /** 直前の週に伸びた選手（成長の演出に使う） */
   const lastGrowth = ref<GrowthEntry[]>([])
   const showGrowth = ref(false)
+  /** 途中の試合（選手が多いセーブ本体とは別に、小さく保存する）。
+   * 試合の状態は小さいので、Vueの自動追跡に入れて画面がそのまま追従するようにする */
+  const match = ref<MatchState | null>(null)
+  const matchRev = ref(0)
+  let matchRng: Rng | null = null
 
   function touch(): void {
     rev.value += 1
@@ -60,6 +76,14 @@ export const useGameStore = defineStore('game', () => {
       if (!result.save) throw new Error('セーブデータを読み込めませんでした。')
       save.value = markRaw(result.save)
       lastResult.value = null
+      const rec = await readMatch(slot)
+      if (rec && !rec.match.finished) {
+        match.value = rec.match
+        matchRng = new Rng(rec.rngState)
+      } else {
+        match.value = null
+        matchRng = null
+      }
       touch()
       return result.recovered
     } finally {
@@ -122,6 +146,107 @@ export const useGameStore = defineStore('game', () => {
   function closeGame(): void {
     save.value = null
     lastResult.value = null
+    match.value = null
+    matchRng = null
+  }
+
+  // ---- 試合 ----
+
+  function matchContext(): MatchContext | null {
+    if (!save.value || !matchRng) return null
+    return { players: save.value.players, rng: matchRng }
+  }
+
+  async function persistMatch(): Promise<void> {
+    if (!save.value || !match.value || !matchRng) return
+    await writeMatch({ slot: save.value.slot, match: match.value, rngState: matchRng.getState() })
+  }
+
+  async function startPracticeMatch(opponentId: string): Promise<void> {
+    const s = save.value
+    if (!s || busy.value) return
+    busy.value = true
+    try {
+      matchRng = new Rng(s.rngState)
+      const m = startMatch(s, opponentId, matchRng)
+      match.value = m
+      matchRev.value += 1
+      await persistMatch()
+    } finally {
+      busy.value = false
+    }
+  }
+
+  /** 試合を進める：1球／1打席／この回の終わりまで／試合終了まで */
+  async function stepMatch(kind: 'pitch' | 'pa' | 'inning' | 'end'): Promise<void> {
+    const m = match.value
+    const ctx = matchContext()
+    if (!m || !ctx || m.finished) return
+    if (kind === 'pitch') simulatePitch(m, ctx)
+    else if (kind === 'pa') simulatePlateAppearance(m, ctx)
+    else if (kind === 'inning') {
+      const startInning = m.inning
+      const startTop = m.top
+      let guard = 0
+      while (!m.finished && m.inning === startInning && m.top === startTop && guard++ < 30) simulatePlateAppearance(m, ctx)
+    } else simulateToEnd(m, ctx)
+    matchRev.value += 1
+    await persistMatch()
+  }
+
+  async function setMatchOrders(orders: Partial<MatchState['pending']>): Promise<void> {
+    const m = match.value
+    if (!m) return
+    Object.assign(m.pending, orders)
+    matchRev.value += 1
+  }
+
+  async function changeOwnPitcher(newId: string): Promise<void> {
+    const m = match.value
+    if (!m || !save.value) return
+    const team = m.home.schoolId === save.value.playerSchoolId ? m.home : m.away
+    changePitcherLogic(m, team, newId)
+    matchRev.value += 1
+    await persistMatch()
+  }
+
+  async function substituteOwn(outId: string, inId: string): Promise<void> {
+    const m = match.value
+    if (!m || !save.value) return
+    const team = m.home.schoolId === save.value.playerSchoolId ? m.home : m.away
+    substituteLogic(m, team, outId, inId)
+    matchRev.value += 1
+    await persistMatch()
+  }
+
+  /** 試合を終える：成績を反映して1週間進める */
+  async function endMatch(): Promise<{ finish: FinishResult; week: WeekResult } | null> {
+    const s = save.value
+    const m = match.value
+    if (!s || !m || !matchRng || !m.finished || busy.value) return null
+    busy.value = true
+    try {
+      const finish = finishMatchLogic(s, m, matchRng)
+      s.rngState = matchRng.getState()
+      match.value = null
+      matchRng = null
+      const before = takeSnapshot(ownPlayers())
+      const week = advanceWeek(s)
+      lastResult.value = week
+      lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
+      touch()
+      await writeSave(s)
+      await clearMatch(s.slot)
+      return { finish, week }
+    } finally {
+      busy.value = false
+    }
+  }
+
+  async function saveLineup(lineup: LineupConfig | null): Promise<void> {
+    if (!save.value) return
+    save.value.lineup = lineup
+    await commit()
   }
 
   // ---- 画面から使う取得用の関数（rev を読むことで再描画の対象になる） ----
@@ -153,6 +278,15 @@ export const useGameStore = defineStore('game', () => {
     persistent,
     lastGrowth,
     showGrowth,
+    match,
+    matchRev,
+    startPracticeMatch,
+    stepMatch,
+    setMatchOrders,
+    changeOwnPitcher,
+    substituteOwn,
+    endMatch,
+    saveLineup,
     refreshSlots,
     startNewGame,
     loadSlot,

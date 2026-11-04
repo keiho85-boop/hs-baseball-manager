@@ -10,6 +10,7 @@ export const router = createRouter({
   routes: [
     { path: '/', name: 'title', component: () => import('./views/TitleView.vue') },
     { path: '/new/:slot', name: 'new', component: () => import('./views/NewGameView.vue'), props: true },
+    { path: '/match', name: 'match', component: () => import('./views/MatchView.vue'), meta: { requiresGame: true } },
     {
       path: '/game',
       component: () => import('./views/GameLayout.vue'),

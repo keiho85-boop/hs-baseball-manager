@@ -109,8 +109,9 @@ export function createMatch(
   const sd = options.luck === 'easy' ? 3.5 : options.luck === 'hard' ? 9 : 6
   // チーム全体の「その日の出来」もばらつかせる（番狂わせの元）
   const teamSd = options.luck === 'easy' ? 2.5 : options.luck === 'hard' ? 8 : 5.5
+  // 1回表の先攻の枠だけ用意する（後攻の枠は1回裏が始まるときに追加）
+  state.away.runsByInning.push(0)
   for (const t of [state.away, state.home]) {
-    t.runsByInning.push(0)
     const teamForm = ctx.rng.normal(0, teamSd)
     for (const id of [...t.lineup.map((s) => s.playerId), t.pitcherId, ...t.bench]) {
       const p = ctx.players[id]
@@ -451,7 +452,7 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
   if (batOrder === 'bunt') return bunt(s, ctx, batter)
 
   // 1. 配球
-  const breaking = pitcher.pitching.pitches.length > 0 && rng.chance(0.42 + (s.pending.plan === 'breaking' ? 0.25 : 0))
+  const breaking = pitcher.pitching.pitches.length > 0 && rng.chance(0.42 + (isUser(s, field) && s.pending.plan === 'breaking' ? 0.25 : 0))
   const pitch = breaking ? rng.weighted(pitcher.pitching.pitches.map((x) => ({ value: x, weight: x.level + 1 }))) : null
   const ahead = s.count.strikes > s.count.balls
   let wantBall = rng.chance(s.count.balls === 3 ? 0.08 : s.count.strikes === 2 ? 0.48 : ahead ? 0.4 : s.count.balls > s.count.strikes ? 0.18 : 0.3)
@@ -467,7 +468,10 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
   // 「ど真ん中癖」は甘い球が増える
   if (!meatball && inZone && has(pitcher, 'meatball') && rng.chance(0.06)) meatball = true
   wantBall = !inZone
-  const zoneIdx = inZone ? (meatball ? 4 : rng.pick([0, 1, 2, 3, 5, 6, 7, 8, 4])) : -1
+  // 配球の方針：内角＝左の列、外角＝右の列、低め＝下の段（打者から見た図）
+  const plan = isUser(s, field) ? s.pending.plan : 'auto'
+  const planZones = plan === 'inside' ? [0, 3, 6] : plan === 'outside' ? [2, 5, 8] : plan === 'low' ? [6, 7, 8] : [0, 1, 2, 3, 5, 6, 7, 8, 4]
+  const zoneIdx = inZone ? (meatball ? 4 : rng.chance(0.75) ? rng.pick(planZones) : rng.pick([0, 1, 2, 3, 5, 6, 7, 8, 4])) : -1
   const zoneBonus = zoneIdx >= 0 ? (batter.batting.zone[zoneIdx] ?? 0) * 6 : 0
   const pitchName = pitch ? pitchLabel(pitch.type) : 'ストレート'
   const speedText = `${Math.round(pitch ? pn.velo - 12 - pitch.level : pn.velo)}km/h`
@@ -527,6 +531,7 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
   const trajMean = [0, 2, 8, 13, 18][batter.batting.trajectory] ?? 8
   let la = rng.normal(trajMean, 19)
   if (has(pitcher, 'groundball')) la -= 5
+  if (plan === 'low' && zoneIdx >= 6) la -= 6
   if (has(batter, 'double_play')) la -= 4
   if (pitch && (pitch.type === 'sinker' || pitch.type === 'fork' || pitch.type === 'splitter')) la -= 3
   const pullSide = batter.bats === 'L' ? 1 : batter.bats === 'R' ? -1 : (pitcher.throws === 'R' ? 1 : -1)

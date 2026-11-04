@@ -82,6 +82,16 @@ async function changeMenu(e: Event): Promise<void> {
   ui.showToast('練習メニューを変更しました')
 }
 
+function avg(h: number, ab: number): string {
+  return ab === 0 ? '-' : (h / ab).toFixed(3).replace(/^0/, '')
+}
+function era(er: number, outs: number): string {
+  return outs === 0 ? '-' : ((er * 27) / outs).toFixed(2)
+}
+function ip(outs: number): string {
+  return `${Math.floor(outs / 3)}${outs % 3 ? ` ${outs % 3}/3` : ''}`
+}
+
 const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '' : v === -1 ? '△' : '×')
 </script>
 
@@ -217,6 +227,27 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
         <AbilityBar label="ケガしにくさ" :value="p.common.durability" />
         <AbilityBar label="回復力" :value="p.common.recovery" />
       </div>
+    </div>
+
+    <div class="card">
+      <h2 class="sun"><GameIcon name="trophy" /> 今年の成績</h2>
+      <p v-if="!p.seasonStats" class="muted">まだ試合に出ていません</p>
+      <template v-else>
+        <div class="stat-grid">
+          <div><small>試合</small><b>{{ p.seasonStats.batting.games }}</b></div>
+          <div><small>打率</small><b>{{ avg(p.seasonStats.batting.hits, p.seasonStats.batting.atBats) }}</b></div>
+          <div><small>本塁打</small><b>{{ p.seasonStats.batting.homeRuns }}</b></div>
+          <div><small>打点</small><b>{{ p.seasonStats.batting.rbi }}</b></div>
+          <div><small>盗塁</small><b>{{ p.seasonStats.batting.steals }}</b></div>
+        </div>
+        <div v-if="p.seasonStats.pitching.games > 0" class="stat-grid">
+          <div><small>登板</small><b>{{ p.seasonStats.pitching.games }}</b></div>
+          <div><small>防御率</small><b>{{ era(p.seasonStats.pitching.earnedRuns, p.seasonStats.pitching.outs) }}</b></div>
+          <div><small>勝敗</small><b>{{ p.seasonStats.pitching.wins }}-{{ p.seasonStats.pitching.losses }}</b></div>
+          <div><small>投球回</small><b>{{ ip(p.seasonStats.pitching.outs) }}</b></div>
+          <div><small>奪三振</small><b>{{ p.seasonStats.pitching.strikeouts }}</b></div>
+        </div>
+      </template>
     </div>
 
     <div class="card">
@@ -504,6 +535,30 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
 .f3 { background: #3fae4a; }
 .f4 { background: #ff8a3d; }
 .f5 { background: #e5484d; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.stat-grid div {
+  background: #f3f9ff;
+  border-radius: 10px;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+}
+.stat-grid small {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-weight: 800;
+}
+.stat-grid b {
+  font-size: 17px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
 .cond-bars {
   flex: 1;
 }

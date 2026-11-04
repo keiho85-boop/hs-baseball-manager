@@ -276,8 +276,13 @@ export interface SaveData {
   nextId: number
   /** 自校のオーダー（未設定なら自動で組む） */
   lineup?: LineupConfig | null
-  /** 途中の試合（中断したら、ここから再開する） */
-  currentMatch?: MatchState | null
+}
+
+/** 途中の試合の保存データ（セーブデータ本体とは別に、1打席ごとに小さく保存する） */
+export interface MatchRecord {
+  slot: number
+  match: MatchState
+  rngState: number[]
 }
 
 /** セーブ枠一覧に出す概要 */

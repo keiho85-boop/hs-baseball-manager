@@ -75,6 +75,10 @@ describe('試合エンジン', () => {
       expect(runs).toBe(a + h)
       // 9回以上行われている（コールドなし）
       expect(m.inning).toBeGreaterThanOrEqual(9)
+      // 回ごとの得点の枠：先攻は行った回の数、後攻は同じか1つ少ない
+      expect(m.away.runsByInning.length).toBe(m.inning)
+      expect(m.home.runsByInning.length).toBeGreaterThanOrEqual(m.inning - 1)
+      expect(m.home.runsByInning.length).toBeLessThanOrEqual(m.inning)
     }
   })
 

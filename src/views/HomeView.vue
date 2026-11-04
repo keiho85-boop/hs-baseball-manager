@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import GameIcon from '@/components/GameIcon.vue'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
@@ -13,6 +13,23 @@ import FieldScene from '@/components/FieldScene.vue'
 const game = useGameStore()
 const ui = useUiStore()
 const router = useRouter()
+const picking = ref(false)
+
+/** 練習試合の相手（同じ都道府県の、選手を個別に持つ学校） */
+const opponents = computed(() => {
+  void game.rev
+  const s = game.save
+  if (!s) return []
+  return Object.values(s.schools)
+    .filter((x) => x.prefCode === s.prefCode && x.detailed && x.id !== s.playerSchoolId)
+    .sort((a, b) => b.overall - a.overall)
+})
+
+async function startMatch(id: string): Promise<void> {
+  picking.value = false
+  await game.startPracticeMatch(id)
+  await router.push({ name: 'match' })
+}
 
 const members = computed(() => game.ownPlayers().filter((p) => !p.retired))
 const school = computed(() => game.ownSchool())
@@ -79,10 +96,19 @@ async function next(): Promise<void> {
     </div>
 
     <div class="page">
-      <button class="sun go" :disabled="game.busy" @click="next">
-        <span class="go-main">{{ game.busy ? '練習中…' : '1週間 練習する' }}</span>
-        <span class="go-sub"><GameIcon name="play" :size="12" /> 次の週へ</span>
+      <button v-if="game.match" class="sun go" @click="router.push({ name: 'match' })">
+        <span class="go-main">試合の続きへ</span>
+        <span class="go-sub"><GameIcon name="play" :size="12" /> {{ game.match.options.label }}</span>
       </button>
+      <template v-else>
+        <button class="sun go" :disabled="game.busy" @click="next">
+          <span class="go-main">{{ game.busy ? '練習中…' : '1週間 練習する' }}</span>
+          <span class="go-sub"><GameIcon name="play" :size="12" /> 次の週へ</span>
+        </button>
+        <button class="sky full practice-match" :disabled="game.busy" @click="picking = true">
+          <GameIcon name="ball" :size="18" /> 今週は練習試合をする
+        </button>
+      </template>
 
       <div class="card">
         <h2 class="grass"><GameIcon name="cap" /> チームの様子</h2>
@@ -129,6 +155,19 @@ async function next(): Promise<void> {
             <div>{{ l.text }}</div>
           </li>
         </ul>
+      </div>
+    </div>
+    <div v-if="picking" class="picker-backdrop" @click.self="picking = false">
+      <div class="picker card">
+        <h2 class="grass"><GameIcon name="ball" /> 練習試合の相手を選ぶ</h2>
+        <p class="muted">練習試合をした週は、すごろくの練習の代わりに試合を行います。強い相手ほど学ぶことも多くなります。</p>
+        <div class="opp-list">
+          <button v-for="o in opponents" :key="o.id" class="opp" @click="startMatch(o.id)">
+            <span class="opp-name">{{ o.name }}<small>{{ o.kind === 'private' ? '私立' : '公立' }}</small></span>
+            <RankBadge :value="o.overall" />
+          </button>
+        </div>
+        <button class="secondary full" @click="picking = false">やめる</button>
       </div>
     </div>
   </div>
@@ -214,8 +253,55 @@ async function next(): Promise<void> {
   font-size: 12px;
   opacity: 0.85;
 }
-.go + .card {
+.practice-match {
+  margin-top: 14px;
+  padding: 11px;
+}
+.go + .card,
+.practice-match + .card {
   margin-top: 22px;
+}
+.picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(10, 25, 45, 0.5);
+  display: flex;
+  align-items: flex-end;
+}
+.picker {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px 20px 0 0;
+  padding-bottom: calc(14px + var(--safe-bottom));
+}
+.opp-list {
+  overflow-y: auto;
+  margin: 6px 0 10px;
+}
+.opp {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: #fff;
+  color: var(--ink);
+  text-shadow: none;
+  box-shadow: inset 0 0 0 2px #e2eef8;
+  margin-bottom: 8px;
+  text-align: left;
+}
+.opp-name {
+  flex: 1;
+  font-weight: 900;
+}
+.opp-name small {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--ink-soft);
 }
 .stats {
   display: grid;

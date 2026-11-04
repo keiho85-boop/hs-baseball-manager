@@ -6,6 +6,7 @@ import { POSITIONS, POSITION_NAME, PRACTICE_NAME } from '@/game/constants'
 import { playerRating } from '@/game/player'
 import type { PracticeMenu } from '@/game/types'
 import RankBadge from '@/components/RankBadge.vue'
+import LineupEditor from '@/components/LineupEditor.vue'
 
 const game = useGameStore()
 const members = computed(() => game.ownPlayers().filter((p) => !p.retired))
@@ -26,6 +27,7 @@ const menuCount = computed(() => {
 
 <template>
   <div class="page">
+    <LineupEditor />
     <div class="card">
       <h2 class="orange"><GameIcon name="glove" /> ポジション別の部員</h2>
       <div v-for="row in byPosition" :key="row.pos" class="row line">
@@ -47,10 +49,7 @@ const menuCount = computed(() => {
       <p class="muted">練習メニューは、各選手の詳細画面で変更できます。</p>
     </div>
 
-    <div class="card">
-      <h2><GameIcon name="clipboard" /> オーダー <span class="soon">準備中</span></h2>
-      <p class="muted">打順・守備位置・ベンチ入り・投手の起用順を決める画面です。試合の機能と一緒に追加します。</p>
-    </div>
+
   </div>
 </template>
 

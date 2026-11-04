@@ -3,7 +3,7 @@
 import { openDB, type IDBPDatabase } from 'idb'
 import { SAVE_SLOTS, SAVE_VERSION } from './constants'
 import { checksum, gunzip, gzip, summarize, unpackSave, type StoredSave } from './serialize'
-import type { SaveData, SaveSummary } from './types'
+import type { MatchRecord, SaveData, SaveSummary } from './types'
 
 const DB_NAME = 'hs-baseball-manager'
 const STORE = 'saves'
@@ -37,6 +37,7 @@ function db(): Promise<IDBPDatabase> {
 const pointerKey = (slot: number) => `slot${slot}:pointer`
 const genKey = (slot: number, gen: 'a' | 'b') => `slot${slot}:${gen}`
 const backupKey = (slot: number) => `slot${slot}:before-migration`
+const matchKey = (slot: number) => `slot${slot}:match`
 
 /** ブラウザに「保存データを消さない」よう求める（容量不足時の自動削除を防ぐ） */
 export async function requestPersistentStorage(): Promise<boolean> {
@@ -122,5 +123,23 @@ export async function deleteSlot(slot: number): Promise<void> {
   await tx.store.delete(genKey(slot, 'a'))
   await tx.store.delete(genKey(slot, 'b'))
   await tx.store.delete(backupKey(slot))
+  await tx.store.delete(matchKey(slot))
   await tx.done
+}
+
+// ---- 途中の試合（1打席ごとに保存して、電池切れなどから再開できるようにする） ----
+
+export async function writeMatch(record: MatchRecord): Promise<void> {
+  const d = await db()
+  await d.put(STORE, JSON.parse(JSON.stringify(record)) as MatchRecord, matchKey(record.slot))
+}
+
+export async function readMatch(slot: number): Promise<MatchRecord | null> {
+  const d = await db()
+  return ((await d.get(STORE, matchKey(slot))) as MatchRecord | undefined) ?? null
+}
+
+export async function clearMatch(slot: number): Promise<void> {
+  const d = await db()
+  await d.delete(STORE, matchKey(slot))
 }
