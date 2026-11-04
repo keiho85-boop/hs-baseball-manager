@@ -1,5 +1,7 @@
 // ゲーム全体で使うデータの型定義
 
+import type { MatchState } from './match/types'
+
 export type Position = 'P' | 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF'
 export type Hand = 'R' | 'L'
 export type BatSide = 'R' | 'L' | 'S'
@@ -92,6 +94,8 @@ export interface Injury {
 export interface ArmIssue {
   part: 'shoulder' | 'elbow'
   severity: number // 1-3
+  /** 投げずに休んだ週数（一定に達すると治る） */
+  restWeeks: number
 }
 
 export interface Condition {
@@ -106,8 +110,12 @@ export interface BattingStats {
   games: number
   atBats: number
   hits: number
+  doubles?: number
+  triples?: number
   homeRuns: number
   rbi: number
+  walks?: number
+  strikeouts?: number
   steals: number
 }
 
@@ -115,10 +123,12 @@ export interface PitchingStats {
   games: number
   outs: number
   earnedRuns: number
+  hits?: number
   strikeouts: number
   walks: number
   wins: number
   losses: number
+  pitches?: number
 }
 
 export interface PlayerStats {
@@ -158,6 +168,8 @@ export interface Player {
   careerStats: PlayerStats | null
   /** OBの息子の場合、父親のOB番号 */
   fatherAlumniId: string | null
+  /** 肩・肘の不安が悪化して、投手としては引退した */
+  pitchingRetired?: boolean
 }
 
 export interface Facilities {
@@ -232,6 +244,16 @@ export interface GameLogEntry {
   text: string
 }
 
+/** 自校のオーダー（打順・守備位置・先発投手） */
+export interface LineupConfig {
+  /** 打順1〜9番の選手と守備位置。DHありなら投手は打順に入らない */
+  batters: { playerId: string; position: Position | 'DH' }[]
+  startingPitcherId: string
+  /** ベンチ入りの控え（代打・代走・継投に使う） */
+  bench: string[]
+  useDH: boolean
+}
+
 export interface SaveData {
   version: number
   slot: number
@@ -252,6 +274,10 @@ export interface SaveData {
   /** 最後にバックアップを勧めた年度 */
   lastBackupPromptYear: number
   nextId: number
+  /** 自校のオーダー（未設定なら自動で組む） */
+  lineup?: LineupConfig | null
+  /** 途中の試合（中断したら、ここから再開する） */
+  currentMatch?: MatchState | null
 }
 
 /** セーブ枠一覧に出す概要 */

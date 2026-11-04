@@ -9,7 +9,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --exclude \"tests/**/*.run.test.ts\"",
+    "balance": "vitest run tests/balance.run.test.ts"
   },
   "repository": {
     "type": "git",

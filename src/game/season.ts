@@ -4,6 +4,7 @@ import { Rng, clamp } from './rng'
 import { MIN_ROSTER, SEASON_WEEKS, WEEKS_PER_YEAR } from './constants'
 import { estimateTalent, fullName, generatePlayer, growWeekly, newStats, playerRating, strengthsOf } from './player'
 import { computeOverall, newId, schoolStrength } from './world'
+import { armRestNeeded } from './match/results'
 import type { AlumniRecord, Player, SaveData, School } from './types'
 
 export interface WeekResult {
@@ -101,7 +102,15 @@ function weeklyCondition(rng: Rng, p: Player, ownMessages: string[] | null): voi
       c.injury = null
     }
   }
-  // 1週間の球数は毎週リセット（試合の処理は段階2で追加）
+  // 肩・肘の不安：投げずに休んだ週を数え、一定に達したら治る
+  if (c.armIssue) {
+    if (p.weeklyPitches === 0) c.armIssue.restWeeks += 1
+    if (c.armIssue.restWeeks >= armRestNeeded(c.armIssue.severity)) {
+      if (ownMessages) ownMessages.push(`${fullName(p)}の${c.armIssue.part === 'shoulder' ? '肩' : '肘'}の不安がなくなった。`)
+      c.armIssue = null
+    }
+  }
+  // 1週間の球数は毎週リセット
   p.weeklyPitches = 0
 }
 
