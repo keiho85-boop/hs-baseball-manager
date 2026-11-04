@@ -10,6 +10,7 @@ import type { BattingOrder, DefenseShift, FieldPos, PlayEvent, PitchPlan, Pitchi
 import type { Player } from '@/game/types'
 import Field3D from '@/components/match/Field3D.vue'
 import MatchResult from '@/components/match/MatchResult.vue'
+import FormIcon from '@/components/FormIcon.vue'
 import { shortResult, isGoodResult, bigResult } from '@/game/match/labels'
 import { getSkill } from '@/game/skills'
 import { rankOf } from '@/game/constants'
@@ -413,6 +414,7 @@ if (!game.match) router.replace({ name: 'home' })
       <div class="panel" :class="{ own: !ownBatting }">
         <div class="ph">
           <span class="role">投手</span>
+          <FormIcon :form="pitcher.condition.form" :size="15" />
           <span class="pname">{{ pitcher.surname }}</span>
           <span class="hand" :class="pitcher.throws">{{ pitcher.throws === 'L' ? '左投' : '右投' }}</span>
         </div>
@@ -444,6 +446,7 @@ if (!game.match) router.replace({ name: 'home' })
       <div v-if="batter && batterStats" class="panel" :class="{ own: ownBatting }">
         <div class="ph">
           <span class="role">{{ batterSlot?.order }}番 {{ batterSlot ? posLabel(batterSlot.pos) : '' }}</span>
+          <FormIcon :form="batter.condition.form" :size="15" />
           <span class="pname">{{ batter.surname }}</span>
           <span class="hand" :class="batter.bats === 'L' ? 'L' : 'R'">{{ batter.bats === 'L' ? '左打' : batter.bats === 'S' ? '両打' : '右打' }}</span>
         </div>

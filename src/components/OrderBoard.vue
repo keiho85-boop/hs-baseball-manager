@@ -11,6 +11,7 @@ import type { LineupConfig, Player, Position } from '@/game/types'
 import { getSkill } from '@/game/skills'
 import GameIcon from './GameIcon.vue'
 import PlayerSheet from './PlayerSheet.vue'
+import FormIcon from './FormIcon.vue'
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -208,13 +209,29 @@ const posChoices = computed<(Position | 'DH')[]>(() => {
 })
 
 // ---------------------------------------------------------------- ドラッグで入れ替え
-const drag = ref<{ key: string; id: string; x: number; y: number; sx: number; sy: number; on: boolean; pid: number } | null>(null)
+const drag = ref<{ key: string; id: string; x: number; y: number; sx: number; sy: number; on: boolean; pid: number; mode: 'player' | 'pos'; label: string } | null>(null)
 const dropKey = ref<string | null>(null)
 let suppressClick = false
 
 function onDown(e: PointerEvent, cell: Cell): void {
   if (cell.disabled) return
-  drag.value = { key: cell.key, id: cell.id, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, on: false, pid: e.pointerId }
+  drag.value = { key: cell.key, id: cell.id, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, on: false, pid: e.pointerId, mode: 'player', label: '' }
+}
+/** 守備位置の札をつまむと、守備位置だけを別のスタメンと入れ替えられる（打順はそのまま） */
+function onPosDown(e: PointerEvent, cell: Cell): void {
+  drag.value = { key: cell.key, id: cell.id, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, on: false, pid: e.pointerId, mode: 'pos', label: cell.pos }
+}
+function swapPositions(a: string, b: string): void {
+  const d = draft.value
+  if (!d || a[0] !== 'S' || b[0] !== 'S' || a === b) return
+  const x = d.batters[Number(a.slice(1))]!
+  const y = d.batters[Number(b.slice(1))]!
+  if (x.position === 'P' || y.position === 'P') {
+    ui.showToast('投手の守備位置は入れ替えられません')
+    return
+  }
+  ;[x.position, y.position] = [y.position, x.position]
+  commit()
 }
 function onMove(e: PointerEvent): void {
   const d = drag.value
@@ -237,8 +254,11 @@ function onUp(): void {
   if (d?.on) {
     suppressClick = true
     setTimeout(() => (suppressClick = false), 50)
-    if (dropKey.value && dropKey.value !== d.key) swap(d.key, dropKey.value)
-    selected.value = dropKey.value ?? d.key
+    if (dropKey.value && dropKey.value !== d.key) {
+      if (d.mode === 'pos') swapPositions(d.key, dropKey.value)
+      else swap(d.key, dropKey.value)
+    }
+    selected.value = d.mode === 'pos' ? d.key : (dropKey.value ?? d.key)
   }
   dropKey.value = null
 }
@@ -357,7 +377,6 @@ const focusApt = computed(() => {
   if (!slot || slot.position === 'DH' || slot.position === 'P') return ''
   return APTITUDE_LABEL[p.fielding.aptitude[slot.position]] ?? ''
 })
-const FORM_ICON = ['', '⬇', '↘', '➡', '↗', '⬆']
 const focusSkills = computed(() =>
   (focus.value?.skills ?? []).map((id) => getSkill(id)).filter((x): x is NonNullable<typeof x> => !!x),
 )
@@ -379,7 +398,7 @@ const focusSkills = computed(() =>
         </div>
         <div class="cond">
           <small>体力・調子</small>
-          <b>{{ Math.round(focus.condition.stamina) }}<i>{{ FORM_ICON[focus.condition.form] }}</i></b>
+          <b>{{ Math.round(focus.condition.stamina) }}<FormIcon :form="focus.condition.form" :size="18" class="fi" /></b>
         </div>
       </div>
       <div class="f-sk">
@@ -404,7 +423,12 @@ const focusSkills = computed(() =>
             @click="onClick(c)"
           >
             <span class="no">{{ c.no ?? '' }}</span>
-            <span class="pos" :class="`k-${c.posKind}`">{{ c.pos }}</span>
+            <span
+              class="pos"
+              :class="[`k-${c.posKind}`, { grab: c.key[0] === 'S' && !c.pitcher }]"
+              @pointerdown.stop="c.key[0] === 'S' && !c.pitcher ? onPosDown($event, c) : onDown($event, c)"
+            >{{ c.pos }}</span>
+            <FormIcon :form="players[c.id]!.condition.form" :size="15" />
             <span class="body">
               <span class="nm">{{ players[c.id]?.surname }}<small>{{ players[c.id]?.bats === 'L' ? 'L' : players[c.id]?.bats === 'S' ? 'S' : 'R' }}</small></span>
               <span class="sub"><span class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
@@ -426,6 +450,7 @@ const focusSkills = computed(() =>
             @click="onClick(c)"
           >
             <span class="pos" :class="`k-${c.posKind}`">{{ c.pos }}</span>
+            <FormIcon :form="players[c.id]!.condition.form" :size="15" />
             <span class="body">
               <span class="nm">{{ players[c.id]?.surname }}<small>{{ players[c.id]?.grade }}年</small></span>
               <span class="sub"><span class="rs"><i v-for="(r, k) in ranks(players[c.id]!)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
@@ -447,6 +472,7 @@ const focusSkills = computed(() =>
             @click="onClick(c)"
           >
             <span class="pos" :class="`k-${c.posKind}`">{{ c.pos }}</span>
+            <FormIcon :form="players[c.id]!.condition.form" :size="15" />
             <span class="body">
               <span class="nm">{{ players[c.id]?.surname }}<small>{{ c.note ?? `${players[c.id]?.grade}年` }}</small></span>
               <span class="sub"><span class="rs"><i v-for="(r, k) in ranks(players[c.id]!)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
@@ -459,7 +485,7 @@ const focusSkills = computed(() =>
     </div>
 
     <p v-if="problems.length" class="problems">{{ problems.join('・') }}</p>
-    <p v-else class="hint">選手をつまんで、入れ替える相手の上に動かす<span v-if="auto" class="auto">おまかせ中</span></p>
+    <p v-else class="hint">名前で選手、守備位置の札で守備位置を入れ替え<span v-if="auto" class="auto">おまかせ中</span></p>
 
     <!-- 下：操作 -->
     <div class="ops">
@@ -470,7 +496,9 @@ const focusSkills = computed(() =>
       <button class="op" :class="auto ? 'on' : 'gray'" @click="setAuto">おまかせ</button>
     </div>
 
-    <div v-if="drag?.on" class="ghost" :style="{ left: `${drag.x}px`, top: `${drag.y}px` }">{{ players[drag.id]?.surname }}</div>
+    <div v-if="drag?.on" class="ghost" :class="{ posg: drag.mode === 'pos' }" :style="{ left: `${drag.x}px`, top: `${drag.y}px` }">
+      {{ drag.mode === 'pos' ? `${drag.label}（守備位置）` : players[drag.id]?.surname }}
+    </div>
 
     <div v-if="posPicker && selectedPlayer" class="pp-backdrop" @click.self="posPicker = false">
       <div class="pp card">
@@ -625,6 +653,10 @@ const focusSkills = computed(() =>
 .sk.none {
   color: var(--ink-soft);
   font-weight: 700;
+}
+.cond .fi {
+  margin-left: 3px;
+  vertical-align: -2px;
 }
 .cond b {
   color: var(--ink);
@@ -855,6 +887,13 @@ const focusSkills = computed(() =>
   background: linear-gradient(180deg, #ffd96b, #f4ad1d);
   color: #3a2600;
   box-shadow: 0 3px 0 #a86a00;
+}
+.pos.grab {
+  box-shadow: inset 0 0 0 1.5px currentColor;
+  cursor: grab;
+}
+.ghost.posg {
+  background: #f08a1c;
 }
 .ghost {
   position: fixed;

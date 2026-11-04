@@ -7,6 +7,7 @@ import { estimateTalent, fullName, generatePlayer, growWeekly, newStats, playerR
 import { computeOverall, newId, schoolStrength } from './world'
 import { armRestNeeded } from './match/results'
 import type { AlumniRecord, Player, SaveData, School, WeekPlan } from './types'
+import { DRAFT_WEEK, SCOUT_DECISION_WEEK, addScoutPoints, decideProspects, enrollProspects, ensureScout, runDraft } from './scout'
 import { currentTournament, ensureTournament, findTournament, monthlyFunds, ownAlive, progress } from './tournament'
 
 export interface WeekResult {
@@ -103,6 +104,8 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   // 3. 節目の処理
   const week = save.calendar.week
   const monthBefore = weekToDate(week).month
+  if (week === SCOUT_DECISION_WEEK) messages.push(...decideProspects(save, rng))
+  if (week === DRAFT_WEEK) messages.push(...runDraft(save, rng))
   if (week === SEASON_WEEKS.thirdYearRetire) retireThirdYears(save, messages)
   if (week === SEASON_WEEKS.graduation) graduate(save, rng, messages)
 
@@ -124,14 +127,17 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   // 6. 月が変わったら部費の収入
   if (weekToDate(save.calendar.week).month !== monthBefore) {
     const income = monthlyFunds(save)
+    addScoutPoints(save, 1)
     save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `今月の部費として${income}万円が入った。` })
   }
-  // 7. 大会の開幕
+  // 7. スカウトのリスト（年度ごとに作る）
+  ensureScout(save, rng)
+  // 8. 大会の開幕
   const opened = ensureTournament(save, rng)
   if (opened && opened.current === 0 && opened.weeks[0] === save.calendar.week && !messages.some((m) => m.includes(opened.name))) {
     messages.push(`${opened.name}が開幕！`)
   }
-  // 8. 月が変わったら、すごろくの盤面を作り直す
+  // 9. 月が変わったら、すごろくの盤面を作り直す
   if (save.sugoroku && refreshBoard(save, rng)) messages.push(`${weekToDate(save.calendar.week).month}月になり、練習の盤面が新しくなった。`)
 
   save.rngState = rng.getState()
@@ -188,9 +194,12 @@ function retireThirdYears(save: SaveData, messages: string[]): void {
 /** OBとして記録する */
 function toAlumni(save: SaveData, rng: Rng, p: Player): AlumniRecord {
   const rating = playerRating(p)
-  const notable = rating >= 68
-  const career: AlumniRecord['career'] =
-    rating >= 78 && rng.chance(0.5) ? 'pro' : rating >= 60 ? 'university' : rng.pick(['corporate', 'work', 'university'] as const)
+  const notable = rating >= 68 || !!p.drafted
+  const career: AlumniRecord['career'] = p.drafted
+    ? 'pro'
+    : rating >= 60
+      ? 'university'
+      : rng.pick(['corporate', 'work', 'university'] as const)
   // 活躍したOBのうち、低い確率で10〜15年後に息子が入部する
   const sonYear = notable && rng.chance(0.3) ? save.calendar.year + rng.int(10, 15) : null
   return {
@@ -204,7 +213,7 @@ function toAlumni(save: SaveData, rng: Rng, p: Player): AlumniRecord {
     bats: p.bats,
     throws: p.throws,
     careerStats: p.careerStats ? structuredClone(p.careerStats) : newStats(),
-    achievements: [],
+    achievements: p.drafted ? [`ドラフト${p.drafted.round}位で${p.drafted.team}に入団`] : [],
     career,
     strengths: strengthsOf(p),
     notable,
@@ -255,7 +264,9 @@ function startNewYear(save: SaveData, rng: Rng, messages: string[]): void {
       if (school.id === own.id) p.estimate = estimateTalent(rng, p, save.managerExperience)
     }
     const strength = schoolStrength(school)
-    const count = freshmanCount(rng, school)
+    // 自校：スカウトで入学を決めた中学生が入部する（そのぶん一般の入部は少なめ）
+    const recruits = school.id === own.id ? enrollProspects(save, school, year) : []
+    const count = Math.max(2, freshmanCount(rng, school) - recruits.length)
     // 助っ人は、部員が足りていれば元の部に戻る
     const regulars = schoolMembers(save, school).filter((p) => !p.helper && !p.retired)
     if (regulars.length + count >= MIN_ROSTER) {
@@ -304,7 +315,10 @@ function startNewYear(save: SaveData, rng: Rng, messages: string[]): void {
       school.playerIds.push(p.id)
     }
     school.overall = computeOverall(school, save.players)
-    if (isOwn) log(save, `新年度。${freshmen.length}人の新入部員が入部した。`, messages)
+    if (isOwn) {
+      const total = freshmen.length + recruits.length
+      log(save, `新年度。${total}人の新入部員が入部した。${recruits.length ? `（スカウトした${recruits.map((p) => p.surname).join('・')}も入部！）` : ''}`, messages)
+    }
   }
 }
 

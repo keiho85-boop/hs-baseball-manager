@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui'
 import { POSITIONS, POSITION_LABEL, PRACTICE_NAME, rankOf, velocityScore } from '@/game/constants'
 import type { Player, PracticeMenu } from '@/game/types'
 import GameIcon from '@/components/GameIcon.vue'
+import FormIcon from '@/components/FormIcon.vue'
 import { getSkill } from '@/game/skills'
 
 const game = useGameStore()
@@ -183,8 +184,9 @@ function posKind(p: Player): string {
 
     <div class="table">
       <div class="thead" :class="{ skv: view === 'sk' }">
-        <span class="c-name">名前／年</span>
         <span class="c-pos">守</span>
+        <span class="c-f">調</span>
+        <span class="c-name">名前／年</span>
         <button v-for="c in cols" :key="c.key" class="c-v" :class="{ sorted: sort?.key === c.key }" @click="toggleSort(c.key)">
           {{ c.label }}<i v-if="sort?.key === c.key">{{ sort.desc ? '▼' : '▲' }}</i>
         </button>
@@ -193,12 +195,13 @@ function posKind(p: Player): string {
       </div>
       <div class="tbody">
         <div v-for="p in list" :key="p.id" class="tr" :class="{ off: p.retired, skv: view === 'sk' }" @click="openPlayer(p.id)">
+          <span class="c-pos"><i :class="`k-${posKind(p)}`">{{ POSITION_LABEL[p.mainPosition] }}</i></span>
+          <span class="c-f"><FormIcon :form="p.condition.form" :size="16" /></span>
           <span class="c-name">
             <b>{{ p.surname }}</b><small>{{ p.grade }}</small>
             <em v-if="p.condition.injury" class="tag bad">ケガ</em>
             <em v-else-if="p.helper" class="tag">助</em>
           </span>
-          <span class="c-pos"><i :class="`k-${posKind(p)}`">{{ POSITION_LABEL[p.mainPosition] }}</i></span>
           <span v-for="c in cols" :key="c.key" class="c-v">
             <template v-if="c.rank"><b :class="`rk-${rankFor(c, p)}`">{{ rankFor(c, p) }}</b><small>{{ c.text ? c.text(p) : c.value(p) }}</small></template>
             <template v-else>{{ c.text ? c.text(p) : c.value(p) }}</template>
@@ -294,12 +297,12 @@ function posKind(p: Player): string {
 .thead,
 .tr {
   display: grid;
-  grid-template-columns: 1.55fr 0.6fr repeat(5, 1fr) 0.95fr;
+  grid-template-columns: 0.55fr 0.42fr 1.45fr repeat(5, 1fr) 0.95fr;
   align-items: center;
 }
 .thead.skv,
 .tr.skv {
-  grid-template-columns: 1.55fr 0.6fr 5fr 0.95fr;
+  grid-template-columns: 0.55fr 0.42fr 1.45fr 5fr 0.95fr;
 }
 .c-sk {
   display: flex;
@@ -415,9 +418,13 @@ function posKind(p: Player): string {
   background: #ffe1e1;
   color: var(--red);
 }
-.c-pos {
+.c-pos,
+.c-f {
   display: flex;
   justify-content: center;
+}
+.c-name {
+  padding-left: 2px !important;
 }
 .c-pos i {
   font-style: normal;

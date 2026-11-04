@@ -2,6 +2,7 @@
 import GameIcon from '@/components/GameIcon.vue'
 import { computed, ref } from 'vue'
 import InfoSheet from '@/components/InfoSheet.vue'
+import ScoutSheet from '@/components/ScoutSheet.vue'
 import { useGameStore } from '@/stores/game'
 import { prefName } from '@/game/constants'
 import RankBadge from '@/components/RankBadge.vue'
@@ -33,6 +34,11 @@ const ranking = computed(() => {
 
 const rankOpen = ref(false)
 const historyOpen = ref(false)
+const scoutOpen = ref(false)
+const scoutPoints = computed(() => {
+  void game.rev
+  return game.save?.scout?.points ?? 0
+})
 
 const FACILITY_EFFECT: Record<keyof Facilities, string> = {
   batting: '打撃・長打の練習',
@@ -79,6 +85,7 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
 
     <div class="card">
       <h2 class="sun"><GameIcon name="build" /> 設備 <span class="funds">部費 {{ school.funds }}万円</span></h2>
+      <p class="muted note">部費は毎月の収入と、大会で勝ち進んだときのOB会の寄付で増えます。</p>
       <div v-for="(label, key) in FACILITY_NAME" :key="key" class="fac">
         <div class="fac-main">
           <span class="fac-name">{{ label }}</span>
@@ -94,13 +101,14 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
           {{ school.facilities[key] >= 5 ? '最大' : `${facilityCost(school.facilities[key])}万` }}
         </button>
       </div>
-      <p class="muted note">部費は毎月の収入と、大会で勝ち進んだときのOB会の寄付で増えます。スカウト <span class="soon">準備中</span></p>
     </div>
 
     <div class="row two">
-      <button class="secondary" @click="historyOpen = true"><GameIcon name="trophy" :size="16" /> 大会の成績</button>
-      <button class="secondary" @click="rankOpen = true"><GameIcon name="trophy" :size="16" /> {{ prefName(school.prefCode) }}の学校</button>
+      <button class="sun" @click="scoutOpen = true"><GameIcon name="search" :size="16" /> スカウト<small class="pts">{{ scoutPoints }}</small></button>
+      <button class="secondary" @click="historyOpen = true"><GameIcon name="trophy" :size="16" /> 大会成績</button>
+      <button class="secondary" @click="rankOpen = true"><GameIcon name="trophy" :size="16" /> 県内の学校</button>
     </div>
+    <ScoutSheet v-if="scoutOpen" @close="scoutOpen = false" />
     <InfoSheet v-if="historyOpen" @close="historyOpen = false">
       <h2 class="orange"><GameIcon name="trophy" /> {{ school.name }}の大会成績</h2>
       <p v-if="history.length === 0" class="muted">まだ大会に出ていません。最初の大会は1年目の5月（春季大会）です。</p>
@@ -135,7 +143,7 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 0;
+  padding: 2px 0;
   border-bottom: 1px dashed #eef3f8;
 }
 .fac-main {
@@ -151,15 +159,24 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
 }
 .fac-main small {
   grid-column: 1 / -1;
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1.2;
 }
 .fac .small {
-  padding: 6px 10px;
+  padding: 4px 10px;
   font-size: 13px;
   min-width: 64px;
 }
 .note {
-  margin: 8px 0 0;
+  margin: -2px 0 2px;
+  font-size: 11px;
+}
+.scout-btn {
+  margin-bottom: 8px;
+  padding: 10px;
+}
+.scout-btn small {
+  margin-left: 6px;
   font-size: 12px;
 }
 .two {
@@ -167,7 +184,17 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
 }
 .two button {
   flex: 1;
-  padding: 10px 6px;
+  padding: 10px 2px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.pts {
+  margin-left: 3px;
+  background: #fff;
+  color: #a86f00;
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 11px;
 }
 .hist {
   display: flex;

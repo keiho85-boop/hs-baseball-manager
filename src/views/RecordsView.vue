@@ -36,6 +36,7 @@ const log = computed(() => {
         <div class="muted">
           {{ ob.graduatedYear }}年目卒 ・ {{ POSITION_NAME[ob.mainPosition] }} ・ 進路：{{ CAREER[ob.career] }}
         </div>
+        <div v-for="a in ob.achievements" :key="a" class="ach">{{ a }}</div>
       </div>
     </template>
 
@@ -55,6 +56,11 @@ const log = computed(() => {
 }
 .switch button {
   flex: 1;
+}
+.ach {
+  font-size: 12px;
+  font-weight: 800;
+  color: #a86f00;
 }
 .ob {
   padding: 10px 12px;

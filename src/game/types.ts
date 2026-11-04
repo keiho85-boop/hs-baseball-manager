@@ -1,4 +1,5 @@
 import type { Tournament } from './tournament'
+import type { ScoutState } from './scout'
 // ゲーム全体で使うデータの型定義
 
 import type { MatchState } from './match/types'
@@ -163,6 +164,8 @@ export interface Player {
   skills: string[]
   condition: Condition
   practiceMenu: PracticeMenu
+  /** ドラフトで指名された（球団と順位） */
+  drafted?: { team: string; round: number } | null
   /** 守備練習で適性を上げている守備位置（コンバート） */
   convertTo?: Position | null
   weeklyPitches: number
@@ -285,6 +288,8 @@ export interface SaveData {
   sugoroku?: SugorokuState
   /** 大会（今年度と前年度の分） */
   tournaments?: Tournament[]
+  /** スカウト（来年入学する中学生） */
+  scout?: ScoutState
 }
 
 // ---------------------------------------------------------------- すごろく・イベント

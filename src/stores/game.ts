@@ -22,6 +22,7 @@ import { exportToBlob, importFromBlob } from '@/game/serialize'
 import { diffSnapshot, takeSnapshot, type GrowthEntry } from '@/game/growth'
 import { ensureSugoroku, playCard } from '@/game/sugoroku'
 import { applyOps, buildEvent } from '@/game/events'
+import { ensureScout, scoutRecruit as scoutRecruitLogic, scoutVisit as scoutVisitLogic } from '@/game/scout'
 import {
   TOURNAMENT_SPECS,
   facilityCost,
@@ -85,6 +86,11 @@ export const useGameStore = defineStore('game', () => {
       await new Promise((r) => setTimeout(r, 30))
       const data = createNewGame({ ...input, seed: (Math.random() * 2 ** 32) >>> 0 })
       ensureSugoroku(data)
+      {
+        const rng = new Rng(data.rngState)
+        ensureScout(data, rng)
+        data.rngState = rng.getState()
+      }
       save.value = markRaw(data)
       await writeSave(data)
       lastResult.value = null
@@ -103,10 +109,13 @@ export const useGameStore = defineStore('game', () => {
       const result = await readSave(slot)
       if (!result.save) throw new Error('セーブデータを読み込めませんでした。')
       ensureSugoroku(result.save)
-      // 大会の期間中なのに大会がない（以前の版のデータ）ときは、ここで作る
-      if (!currentTournament(result.save)) {
+      // 大会の期間中なのに大会がない、スカウトのリストがない（以前の版のデータ）ときは、ここで作る
+      {
         const rng = new Rng(result.save.rngState)
-        if (ensureTournament(result.save, rng)) {
+        const needScout = result.save.scout?.year !== result.save.calendar.year
+        const made = (!currentTournament(result.save) && !!ensureTournament(result.save, rng)) || needScout
+        if (needScout) ensureScout(result.save, rng)
+        if (made) {
           result.save.rngState = rng.getState()
           await writeSave(result.save)
         }
@@ -424,6 +433,17 @@ export const useGameStore = defineStore('game', () => {
     return true
   }
 
+  /** スカウト：視察と勧誘 */
+  async function scoutAction(kind: 'visit' | 'recruit', id: string): Promise<string | null> {
+    const s = save.value
+    if (!s || busy.value) return null
+    const rng = new Rng(s.rngState)
+    const msg = kind === 'visit' ? scoutVisitLogic(s, rng, id) : scoutRecruitLogic(s, rng, id)
+    s.rngState = rng.getState()
+    if (msg) await commit()
+    return msg
+  }
+
   async function saveLineup(lineup: LineupConfig | null): Promise<void> {
     if (!save.value) return
     save.value.lineup = lineup
@@ -473,6 +493,7 @@ export const useGameStore = defineStore('game', () => {
     endMatch,
     saveLineup,
     upgradeFacility,
+    scoutAction,
     useCard,
     finishSquare,
     refreshSlots,

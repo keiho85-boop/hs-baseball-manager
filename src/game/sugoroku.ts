@@ -72,6 +72,8 @@ export function buildBoard(rng: Rng, month: number): SquareType[] {
   }
   // 定期テストや行事のある月
   if (month === 7 || month === 12 || month === 3 || month === 10) squares[rng.int(0, 11)] = 'school'
+  // スカウトの季節（4月〜1月）：練習マスの1つがスカウトマスになる
+  if (month >= 4 || month === 1) squares[rng.int(6, 11)] = 'scout'
   // 冬は体づくりが中心
   if (month === 12 || month === 1 || month === 2) squares[rng.int(0, 5)] = 'fitness'
   return rng.shuffle(squares)
@@ -204,6 +206,10 @@ function convertPractice(rng: Rng, p: Player, plan: WeekPlan | null, fieldingFac
 }
 
 export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, members: Player[], facilityIntensity: number, messages: string[]): void {
+  if (plan?.kind === 'square' && plan.square === 'scout' && save.scout && !save.scout.decided) {
+    save.scout.points = Math.min(9, save.scout.points + 2)
+    messages.push('中学校の試合を見に行った。スカウト活動が2回分増えた。（学校画面のスカウトから）')
+  }
   const fieldingFacility = save.schools[save.playerSchoolId]?.facilities.fielding ?? 0
   for (const p of members) convertPractice(rng, p, plan, fieldingFacility, messages)
   const camp = (save.sugoroku?.campWeeks ?? 0) > 0

@@ -19,6 +19,7 @@ import type { PracticeMenu, Position } from '@/game/types'
 import FaceIcon from '@/components/FaceIcon.vue'
 import RankBadge from '@/components/RankBadge.vue'
 import AbilityBar from '@/components/AbilityBar.vue'
+import FormIcon from '@/components/FormIcon.vue'
 
 const props = defineProps<{ id: string }>()
 const game = useGameStore()
@@ -34,7 +35,6 @@ const givenName = ref('')
 const BATS = { R: '右打', L: '左打', S: '両打' } as const
 const THROWS = { R: '右投', L: '左投' } as const
 const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
-const FORM_ICON = ['', '⬇', '↘', '➡', '↗', '⬆']
 
 function startEdit(): void {
   if (!p.value) return
@@ -195,7 +195,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
       <h2><GameIcon name="heart" /> 状態</h2>
       <div class="cond">
         <div class="form" :class="`f${p.condition.form}`">
-          <div class="form-arrow">{{ FORM_ICON[p.condition.form] }}</div>
+          <div class="form-arrow"><FormIcon :form="p.condition.form" :size="34" /></div>
           <div class="form-label">{{ FORM[p.condition.form] }}</div>
         </div>
         <div class="cond-bars">
