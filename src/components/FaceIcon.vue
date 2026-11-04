@@ -71,14 +71,37 @@ const openMouth = computed(() => props.face.mouth % MOUTHS.length === 2)
         <stop offset="0" stop-color="#ffffff" />
         <stop offset="1" stop-color="#cfeaff" />
       </radialGradient>
-      <radialGradient :id="id('skin')" cx="45%" cy="45%" r="65%">
-        <stop offset="0.55" :stop-color="skin[0]" />
-        <stop offset="1" :stop-color="skin[1]" />
+      <!-- 左上から光が当たる立体的な陰影 -->
+      <radialGradient :id="id('skin')" cx="38%" cy="40%" r="70%">
+        <stop offset="0" stop-color="#fff6ec" />
+        <stop offset="0.28" :stop-color="skin[0]" />
+        <stop offset="0.8" :stop-color="skin[1]" />
+        <stop offset="1" :stop-color="skin[1]" stop-opacity="0.9" />
       </radialGradient>
-      <linearGradient :id="id('cap')" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" :stop-color="capColor" stop-opacity="0.85" />
-        <stop offset="1" :stop-color="capColor" />
+      <linearGradient :id="id('brimShade')" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#3a1d0a" stop-opacity="0.38" />
+        <stop offset="1" stop-color="#3a1d0a" stop-opacity="0" />
       </linearGradient>
+      <linearGradient :id="id('jaw')" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#3a1d0a" stop-opacity="0" />
+        <stop offset="0.7" stop-color="#3a1d0a" stop-opacity="0" />
+        <stop offset="1" stop-color="#3a1d0a" stop-opacity="0.22" />
+      </linearGradient>
+      <radialGradient :id="id('cap')" cx="35%" cy="25%" r="80%">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.55" />
+        <stop offset="0.18" :stop-color="capColor" stop-opacity="0.92" />
+        <stop offset="0.75" :stop-color="capColor" />
+        <stop offset="1" stop-color="#000" stop-opacity="0.55" />
+      </radialGradient>
+      <linearGradient :id="id('brim')" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" :stop-color="capColor" />
+        <stop offset="1" stop-color="#000" stop-opacity="0.7" />
+      </linearGradient>
+      <linearGradient :id="id('uni')" x1="0" y1="0" x2="1" y2="0.4">
+        <stop offset="0" stop-color="#ffffff" />
+        <stop offset="1" stop-color="#c7d3e2" />
+      </linearGradient>
+      <clipPath :id="id('faceClip')"><path :d="outline" /></clipPath>
       <radialGradient :id="id('iris')" cx="50%" cy="35%" r="65%">
         <stop offset="0" stop-color="#6b4a32" />
         <stop offset="1" stop-color="#20160f" />
@@ -90,7 +113,7 @@ const openMouth = computed(() => props.face.mouth % MOUTHS.length === 2)
     <circle cx="50" cy="50" r="47" :fill="`url(#${id('bg')})`" />
     <g :clip-path="`url(#${id('clip')})`">
       <!-- ユニフォーム -->
-      <path d="M18 100 Q20 84 38 81 L50 88 L62 81 Q80 84 82 100Z" fill="#fff" stroke="#c9d6e4" stroke-width="1" />
+      <path d="M18 100 Q20 84 38 81 L50 88 L62 81 Q80 84 82 100Z" :fill="`url(#${id('uni')})`" stroke="#b8c8da" stroke-width="1" />
       <path d="M38 81 L50 92 L62 81" fill="none" :stroke="capColor" stroke-width="3" stroke-linejoin="round" />
       <rect x="43" y="74" width="14" height="10" :fill="skin[1]" />
       <!-- 耳 -->
@@ -98,13 +121,21 @@ const openMouth = computed(() => props.face.mouth % MOUTHS.length === 2)
       <ellipse cx="74.5" cy="55" rx="4.5" ry="6.5" :fill="skin[1]" />
       <!-- 顔 -->
       <path :d="outline" :fill="`url(#${id('skin')})`" />
+      <g :clip-path="`url(#${id('faceClip')})`">
+        <rect x="20" y="40" width="60" height="14" :fill="`url(#${id('brimShade')})`" />
+        <rect x="20" y="30" width="60" height="60" :fill="`url(#${id('jaw')})`" />
+        <ellipse cx="38" cy="62" rx="7" ry="4" fill="#fff" opacity="0.18" />
+        <ellipse cx="50" cy="82" rx="22" ry="6" fill="#3a1d0a" opacity="0.12" />
+      </g>
       <!-- 髪 -->
       <path :d="hair" :fill="hairColor" />
       <!-- 帽子 -->
       <path d="M23 44 Q22 16 50 14 Q78 16 77 44 Q64 39 50 39 Q36 39 23 44Z" :fill="`url(#${id('cap')})`" />
       <path d="M30 22 Q50 12 70 22" fill="none" stroke="#fff" stroke-opacity="0.25" stroke-width="2" />
       <path d="M50 14 V39" stroke="#000" stroke-opacity="0.15" stroke-width="1" />
-      <path d="M21 44.5 Q50 34 79 44.5 Q79 49 74 48.5 Q50 42 26 48.5 Q21 49 21 44.5Z" :fill="capColor" />
+      <path d="M21 44.5 Q50 34 79 44.5 Q79 49 74 48.5 Q50 42 26 48.5 Q21 49 21 44.5Z" :fill="`url(#${id('brim')})`" />
+      <path d="M27 42.5 Q50 35.5 73 42.5" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width="1.2" stroke-linecap="round" />
+      <ellipse cx="38" cy="22" rx="7" ry="3.2" fill="#fff" opacity="0.28" transform="rotate(-24 38 22)" />
       <path d="M24 45.5 Q50 37 76 45.5" fill="none" stroke="#000" stroke-opacity="0.25" stroke-width="1.2" />
       <circle cx="50" cy="27" r="6" fill="#fff" />
       <path d="M47 24 L50 30 L53 24" fill="none" :stroke="capColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -146,12 +177,14 @@ const openMouth = computed(() => props.face.mouth % MOUTHS.length === 2)
       <path :d="mouth" stroke="#8a3b2e" stroke-width="2.2" :fill="openMouth ? '#b34a3c' : 'none'" stroke-linecap="round" stroke-linejoin="round" />
     </g>
     <circle cx="50" cy="50" r="47.5" fill="none" stroke="#9fc8ea" stroke-width="2" />
+    <!-- 丸い枠に光沢（ガラス玉のような立体感） -->
+    <path d="M14 38 A38 38 0 0 1 62 10" fill="none" stroke="#fff" stroke-opacity="0.75" stroke-width="2.4" stroke-linecap="round" />
   </svg>
 </template>
 
 <style scoped>
 .face {
   flex-shrink: 0;
-  filter: drop-shadow(0 2px 0 rgba(23, 50, 87, 0.15));
+  filter: drop-shadow(0 2px 0 rgba(23, 50, 87, 0.15)) drop-shadow(0 3px 4px rgba(23, 50, 87, 0.18));
 }
 </style>

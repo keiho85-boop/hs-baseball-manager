@@ -45,7 +45,12 @@ const emit = defineEmits<{ select: [index: number] }>()
   background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 50%), linear-gradient(160deg, #ffffff, #e6f1fb);
   color: var(--navy);
   text-shadow: none;
-  box-shadow: inset 0 0 0 2.5px var(--edge, #9fc3e4), 0 4px 0 var(--edge, #9fc3e4), 0 8px 12px -6px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    inset 0 0 0 2.5px var(--edge, #9fc3e4),
+    inset 0 5px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -6px 8px -4px rgba(0, 40, 90, 0.18),
+    0 4px 0 var(--edge, #9fc3e4),
+    0 10px 14px -6px rgba(0, 0, 0, 0.35);
   transition: transform 0.15s;
 }
 .card-btn.sel {
@@ -57,6 +62,7 @@ const emit = defineEmits<{ select: [index: number] }>()
   font-weight: 900;
   font-style: italic;
   line-height: 1;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.9), 0 3px 0 rgba(0, 0, 0, 0.18), 0 5px 6px rgba(0, 0, 0, 0.15);
 }
 .eff {
   font-size: 11px;

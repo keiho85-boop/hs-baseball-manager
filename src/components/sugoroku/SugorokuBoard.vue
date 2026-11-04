@@ -77,14 +77,22 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
 .sq {
   position: relative;
   border-radius: 10px;
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, var(--c), var(--c));
+  /* 左上から光が当たった、ぷっくりしたタイル */
+  background-image:
+    radial-gradient(120% 90% at 28% 12%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.12) 38%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, 0.16) 100%),
+    linear-gradient(180deg, var(--c), var(--c));
   color: #fff;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2), 0 2px 0 rgba(0, 0, 0, 0.2);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.22),
+    0 3px 0 rgba(0, 0, 0, 0.22),
+    0 5px 6px -2px rgba(0, 0, 0, 0.25);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35), 0 2px 3px rgba(0, 0, 0, 0.2);
   transition: transform 0.15s;
   min-width: 0;
 }
@@ -115,12 +123,12 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #fff;
+  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #eef5fc 45%, #b9cde2 100%);
   color: var(--sky-deep);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25), 0 4px 6px rgba(0, 0, 0, 0.25);
   animation: hop 0.3s ease-out;
 }
 .center {

@@ -6,10 +6,10 @@ import { useUiStore } from '@/stores/ui'
 import { POSITION_LABEL, velocityScore } from '@/game/constants'
 import { battingTeam, currentBatterId, fieldingTeam, score, situation, activeSkills } from '@/game/match/engine'
 import { canPitch } from '@/game/match/lineup'
-import type { BattingOrder, DefenseShift, FieldPos, PitchPlan, PitchingOrder, TeamState } from '@/game/match/types'
+import type { BattingOrder, DefenseShift, FieldPos, PlayEvent, PitchPlan, PitchingOrder, TeamState } from '@/game/match/types'
 import type { Player } from '@/game/types'
-import FieldPerspective from '@/components/match/FieldPerspective.vue'
-import { shortResult, isGoodResult } from '@/game/match/labels'
+import Field3D from '@/components/match/Field3D.vue'
+import { shortResult, isGoodResult, bigResult } from '@/game/match/labels'
 import { getSkill } from '@/game/skills'
 import { rankOf } from '@/game/constants'
 import CutIn from '@/components/match/CutIn.vue'
@@ -188,13 +188,30 @@ let timer: ReturnType<typeof setTimeout> | undefined
 async function step(kind: 'pitch' | 'pa' | 'inning' | 'end'): Promise<void> {
   if (busyStep.value || !m.value || m.value.finished) return
   busyStep.value = true
+  const before = m.value.events.length
   try {
     await game.stepMatch(kind)
   } finally {
     busyStep.value = false
   }
+  const s = m.value
+  if (s && !s.finished && kind !== 'end' && s.events.length > before) flashResult(s.events[s.events.length - 1]!)
   checkCutin()
 }
+
+// ---- 打席結果の演出（画面中央に一時的に出す） ----
+const flash = ref<{ title: string; tone: string; sub: string; runs: number; key: number } | null>(null)
+let flashTimer: ReturnType<typeof setTimeout> | undefined
+let flashKey = 0
+function flashResult(e: PlayEvent): void {
+  const r = bigResult(e)
+  const who = players.value[e.batterId]?.surname ?? ''
+  const detail = e.text.split('：').slice(1).join('：') || e.text
+  flash.value = { ...r, sub: e.kind === 'steal' || e.kind === 'caughtstealing' ? detail : `${who}　${detail}`, runs: e.runs, key: ++flashKey }
+  clearTimeout(flashTimer)
+  flashTimer = setTimeout(() => (flash.value = null), e.kind === 'homerun' ? 2200 : 1500)
+}
+onBeforeUnmount(() => clearTimeout(flashTimer))
 const busyStep = ref(false)
 
 function scheduleAuto(): void {
@@ -351,7 +368,14 @@ if (!game.match) router.replace({ name: 'home' })
 
     <!-- グラウンド（左右に作戦などのボタン） -->
     <div class="field">
-      <FieldPerspective :bases="m.bases" :names="names" :last-event="newPA ? lastEvent : null" :own-batting="ownBatting" />
+      <Field3D
+        :bases="m.bases"
+        :names="names"
+        :last-event="newPA ? lastEvent : null"
+        :own-batting="ownBatting"
+        :batter-side="batter?.bats ?? 'R'"
+        :infield-in="!ownBatting && m.pending.shift === 'infieldIn'"
+      />
     </div>
 
     <!-- 作戦コマンド（その場で選ぶ） -->
@@ -541,6 +565,12 @@ if (!game.match) router.replace({ name: 'home' })
         </template>
         <button class="secondary full" @click="sheet = null">閉じる</button>
       </div>
+    </div>
+
+    <div v-if="flash" :key="flash.key" class="flash" :class="flash.tone">
+      <div class="flash-title">{{ flash.title }}</div>
+      <div v-if="flash.runs > 0" class="flash-runs">+{{ flash.runs }}点</div>
+      <div class="flash-sub">{{ flash.sub }}</div>
     </div>
 
     <CutIn v-if="cutin" :kind="cutin.kind" :face="cutin.player.face" :name="cutin.player.surname" :sub="cutin.sub" @close="closeCutin" />
@@ -1220,5 +1250,87 @@ if (!game.match) router.replace({ name: 'home' })
 .lu-r {
   font-size: 11px;
   color: var(--ink-soft);
+}
+.flash {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 38%;
+  z-index: 65;
+  pointer-events: none;
+  text-align: center;
+  padding: 10px 12px 12px;
+  background: linear-gradient(90deg, transparent, rgba(8, 18, 34, 0.88) 15%, rgba(8, 18, 34, 0.88) 85%, transparent);
+  animation: flash-in 0.28s cubic-bezier(0.2, 1.6, 0.4, 1) both, flash-out 0.3s ease-in 1.2s forwards;
+}
+.flash.hr {
+  animation: flash-in 0.32s cubic-bezier(0.2, 1.6, 0.4, 1) both, flash-out 0.35s ease-in 1.85s forwards;
+}
+.flash-title {
+  font-size: 40px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 1px;
+  line-height: 1.1;
+  color: #fff;
+  -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+}
+.flash.hit .flash-title {
+  color: #ff6b5e;
+  text-shadow: 0 4px 0 #7a1410, 0 0 18px rgba(255, 90, 80, 0.6);
+}
+.flash.hr .flash-title {
+  font-size: 46px;
+  background: linear-gradient(180deg, #fff6c2, #ffd33d 55%, #f39c12);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 1.5px #7a4a00;
+  filter: drop-shadow(0 4px 0 #6b3d00) drop-shadow(0 0 14px rgba(255, 211, 61, 0.7));
+}
+.flash.out .flash-title {
+  color: #8fd0ff;
+  text-shadow: 0 4px 0 #0b3a66;
+}
+.flash.walk .flash-title {
+  color: #7ee08a;
+  text-shadow: 0 4px 0 #145a22;
+}
+.flash.error .flash-title {
+  color: #ffb547;
+  text-shadow: 0 4px 0 #6b3d00;
+}
+.flash-runs {
+  display: inline-block;
+  margin-top: 4px;
+  background: #ffd33d;
+  color: #3a2600;
+  font-weight: 900;
+  font-size: 18px;
+  border-radius: 999px;
+  padding: 1px 14px;
+}
+.flash-sub {
+  margin-top: 4px;
+  color: #e6eef8;
+  font-weight: 800;
+  font-size: 13px;
+}
+@keyframes flash-in {
+  from {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes flash-out {
+  to {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
 }
 </style>

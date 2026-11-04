@@ -85,12 +85,40 @@ function choose(id: string): void {
   choosing.value = null
 }
 
-function move(i: number, dir: -1 | 1): void {
-  const d = draft.value
-  if (!d) return
-  const j = i + dir
-  if (j < 0 || j >= 9) return
-  ;[d.batters[i], d.batters[j]] = [d.batters[j]!, d.batters[i]!]
+// ---- ドラッグ＆ドロップで打順を入れ替える ----
+const rowEls: (HTMLElement | null)[] = []
+const drag = ref<{ from: number; over: number; dy: number; startY: number; rowH: number; id: number } | null>(null)
+
+function onGripDown(e: PointerEvent, i: number): void {
+  const el = rowEls[i]
+  if (!el) return
+  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  drag.value = { from: i, over: i, dy: 0, startY: e.clientY, rowH: el.getBoundingClientRect().height, id: e.pointerId }
+  navigator.vibrate?.(10)
+}
+function onGripMove(e: PointerEvent): void {
+  const d = drag.value
+  if (!d || e.pointerId !== d.id) return
+  d.dy = e.clientY - d.startY
+  const over = Math.max(0, Math.min(8, Math.round(d.from + d.dy / d.rowH)))
+  if (over !== d.over) navigator.vibrate?.(5)
+  d.over = over
+}
+function onGripUp(): void {
+  const d = drag.value
+  const dr = draft.value
+  drag.value = null
+  if (!d || !dr || d.from === d.over) return
+  const [item] = dr.batters.splice(d.from, 1)
+  dr.batters.splice(d.over, 0, item!)
+}
+function rowStyle(i: number): Record<string, string> | undefined {
+  const d = drag.value
+  if (!d) return undefined
+  if (i === d.from) return { transform: `translateY(${d.dy}px)`, zIndex: '5', transition: 'none' }
+  if (d.from < d.over && i > d.from && i <= d.over) return { transform: `translateY(${-d.rowH}px)` }
+  if (d.from > d.over && i < d.from && i >= d.over) return { transform: `translateY(${d.rowH}px)` }
+  return { transform: 'translateY(0)' }
 }
 
 function toggleDH(): void {
@@ -137,7 +165,14 @@ const candidates = computed(() => {
       <slot name="tools" />
     </div>
 
-    <div v-for="(b, i) in draft.batters" :key="i" class="slot">
+    <div
+      v-for="(b, i) in draft.batters"
+      :key="i"
+      :ref="(el) => (rowEls[i] = el as HTMLElement | null)"
+      class="slot"
+      :class="{ dragging: drag?.from === i }"
+      :style="rowStyle(i)"
+    >
       <div class="order">{{ i + 1 }}</div>
       <select v-model="b.position" class="pos" :disabled="b.position === 'P'">
         <option v-for="pos in posOptions()" :key="pos" :value="pos">{{ pos === 'DH' ? '指' : POSITION_LABEL[pos] }}</option>
@@ -150,9 +185,15 @@ const candidates = computed(() => {
           <span class="apt">{{ aptOf(players[b.playerId]!, b.position) }}</span>
         </template>
       </button>
-      <div class="arrows">
-        <button class="plain" :disabled="i === 0" @click="move(i, -1)">▲</button>
-        <button class="plain" :disabled="i === 8" @click="move(i, 1)">▼</button>
+      <div
+        class="grip"
+        aria-label="ドラッグして打順を入れ替える"
+        @pointerdown.prevent="onGripDown($event, i)"
+        @pointermove="onGripMove"
+        @pointerup="onGripUp"
+        @pointercancel="onGripUp"
+      >
+        <i /><i /><i />
       </div>
     </div>
 
@@ -264,6 +305,38 @@ const candidates = computed(() => {
 .apt {
   font-weight: 900;
   color: var(--orange);
+}
+.slot {
+  position: relative;
+  transition: transform 0.15s ease;
+  background: var(--card-bg, #fff);
+}
+.slot.dragging {
+  box-shadow: 0 8px 18px rgba(15, 40, 80, 0.25);
+  border-radius: 12px;
+  background: #fff8e1;
+}
+.grip {
+  width: 34px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  touch-action: none;
+  cursor: grab;
+  flex-shrink: 0;
+}
+.grip i {
+  display: block;
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  background: #9fb4cc;
+}
+.slot.dragging .grip i {
+  background: var(--orange);
 }
 .arrows {
   display: flex;

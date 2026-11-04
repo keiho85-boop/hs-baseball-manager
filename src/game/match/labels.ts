@@ -62,3 +62,46 @@ export function shortResult(e: PlayEvent): string {
 export function isGoodResult(e: PlayEvent): boolean {
   return ['single', 'double', 'triple', 'homerun'].includes(e.kind) || e.runs > 0
 }
+
+/** 打席結果を画面中央に大きく出すときの見出しと色の種類 */
+export function bigResult(e: PlayEvent): { title: string; tone: 'hit' | 'hr' | 'out' | 'walk' | 'error' } {
+  switch (e.kind) {
+    case 'single':
+      return { title: e.text.includes('内野安打') ? '内野安打！' : 'ヒット！', tone: 'hit' }
+    case 'double':
+      return { title: 'ツーベース！', tone: 'hit' }
+    case 'triple':
+      return { title: 'スリーベース！', tone: 'hit' }
+    case 'homerun':
+      return { title: 'ホームラン！！', tone: 'hr' }
+    case 'walk':
+      return { title: e.text.includes('敬遠') ? '敬遠' : 'フォアボール', tone: 'walk' }
+    case 'hbp':
+      return { title: 'デッドボール', tone: 'walk' }
+    case 'strikeout':
+      return { title: '三振！', tone: 'out' }
+    case 'doubleplay':
+      return { title: 'ゲッツー', tone: 'out' }
+    case 'sacbunt':
+      return { title: '送りバント成功', tone: 'walk' }
+    case 'sacfly':
+      return { title: '犠牲フライ', tone: 'walk' }
+    case 'error':
+      return { title: 'エラー！', tone: 'error' }
+    case 'fielderschoice':
+      return { title: 'フィルダースチョイス', tone: 'error' }
+    case 'steal':
+      return { title: '盗塁成功！', tone: 'hit' }
+    case 'caughtstealing':
+      return { title: '盗塁失敗', tone: 'out' }
+    case 'buntfail':
+      return { title: 'バント失敗', tone: 'out' }
+    default: {
+      const pos = shortResult(e).replace(/[ゴロ飛直]/g, '')
+      const kind = e.kind === 'groundout' ? 'ゴロ' : e.kind === 'lineout' ? 'ライナー' : 'フライ'
+      return { title: `${pos ? `${POS_FULL[pos] ?? ''}` : ''}${kind}アウト`, tone: 'out' }
+    }
+  }
+}
+
+const POS_FULL: Record<string, string> = { 投: 'ピッチャー', 捕: 'キャッチャー', 一: 'ファースト', 二: 'セカンド', 三: 'サード', 遊: 'ショート', 左: 'レフト', 中: 'センター', 右: 'ライト' }
