@@ -2,7 +2,7 @@
 // 下部タブ専用のアイコン。光沢と陰影を付けた、小さな立体模型のような絵柄
 import { useId } from 'vue'
 
-defineProps<{ name: 'home' | 'players' | 'team' | 'school' | 'records'; size?: number }>()
+defineProps<{ name: 'home' | 'players' | 'team' | 'school' | 'records' | 'pennant' | 'news'; size?: number }>()
 const uid = useId()
 const id = (n: string) => `${uid}-${n}`
 </script>
@@ -112,6 +112,23 @@ const id = (n: string) => `${uid}-${n}`
       <path d="M24 4 L30 5.5 L24 7Z" fill="#e5484d" />
     </g>
 
+    <g v-else-if="name === 'pennant'">
+      <rect x="10" y="6" width="2.6" height="36" rx="1.2" fill="#8a6a44" />
+      <circle cx="11.3" cy="6" r="2.4" :fill="`url(#${id('gold')})`" />
+      <path d="M12.6 9 L40 17 L12.6 26Z" :fill="`url(#${id('roof')})`" stroke="#8f1424" stroke-width="0.8" stroke-linejoin="round" />
+      <path d="M15 13 L30 17" stroke="#fff" stroke-opacity="0.55" stroke-width="1.4" stroke-linecap="round" />
+      <circle cx="22" cy="17.5" r="3.4" fill="#fff" />
+      <path d="M20.3 16.2 L22 19.2 L23.7 16.2" fill="none" stroke="#c8283a" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+    </g>
+
+    <g v-else-if="name === 'news'">
+      <path d="M8 20 H15 L31 11 V37 L15 28 H8Z" :fill="`url(#${id('cap')})`" stroke="#0b2a66" stroke-width="1" stroke-linejoin="round" />
+      <rect x="11" y="28" width="5" height="9" rx="1.5" fill="#164fae" />
+      <path d="M10 22 H15 L28 15" fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="1.3" stroke-linecap="round" />
+      <path d="M35 17 Q38.5 24 35 31" fill="none" stroke="#e99a00" stroke-width="2.4" stroke-linecap="round" />
+      <path d="M38.5 13.5 Q44 24 38.5 34.5" fill="none" stroke="#ffd23d" stroke-width="2.2" stroke-linecap="round" />
+    </g>
+
     <g v-else>
       <path d="M14 10 H34 V18 Q34 30 24 31 Q14 30 14 18Z" :fill="`url(#${id('gold')})`" stroke="#8a5200" stroke-width="1" />
       <path d="M14 13 Q6 13 7.5 20 Q9 25 15.5 25" fill="none" stroke="#e9a400" stroke-width="2.6" stroke-linecap="round" />
@@ -123,7 +140,7 @@ const id = (n: string) => `${uid}-${n}`
       <path d="M16.5 12 Q16 21 20 27" fill="none" stroke="#fff" stroke-opacity="0.7" stroke-width="1.6" stroke-linecap="round" />
     </g>
 
-    <path v-if="name !== 'team'" d="M10 14 Q24 2 38 14 V18 H10Z" :fill="`url(#${id('gloss')})`" opacity="0.25" />
+    <path v-if="name === 'home' || name === 'players' || name === 'school' || name === 'records'" d="M10 14 Q24 2 38 14 V18 H10Z" :fill="`url(#${id('gloss')})`" opacity="0.25" />
   </svg>
 </template>
 

@@ -18,6 +18,7 @@ import type { School, SquareType } from '@/game/types'
 import TournamentPanel from '@/components/tournament/TournamentPanel.vue'
 import BracketSheet from '@/components/tournament/BracketSheet.vue'
 import BoardRefresh from '@/components/sugoroku/BoardRefresh.vue'
+import TabIcon from '@/components/TabIcon.vue'
 import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 
 const game = useGameStore()
@@ -302,14 +303,14 @@ const specialCandidates = computed(() =>
         <button v-else class="sky practice-match" :disabled="!!game.match || !sg || game.busy || moving || !!sg.pending" @click="picking = true">
           <GameIcon name="ball" :size="18" /> 練習試合
         </button>
-        <button v-if="tournament && !aliveInTournament && !tournamentWeek" class="secondary mini" @click="bracketOpen = true">
-          <GameIcon name="trophy" :size="18" /><span>大会</span>
+        <button v-if="tournament && !aliveInTournament && !tournamentWeek" class="icon-btn" aria-label="大会の組み合わせ" @click="bracketOpen = true">
+          <TabIcon name="records" :size="34" />
         </button>
-        <button class="secondary mini" @click="info = 'team'">
-          <GameIcon name="cap" :size="18" /><span>チーム<i v-if="summary.injured > 0" class="dot" /></span>
+        <button class="icon-btn" aria-label="チームの様子" @click="info = 'team'">
+          <TabIcon name="pennant" :size="34" /><i v-if="summary.injured > 0" class="dot" />
         </button>
-        <button class="secondary mini" @click="info = 'log'">
-          <GameIcon name="megaphone" :size="18" /><span>出来事</span>
+        <button class="icon-btn" aria-label="最近の出来事" @click="info = 'log'">
+          <TabIcon name="news" :size="34" />
         </button>
       </div>
     </div>
@@ -551,9 +552,32 @@ const specialCandidates = computed(() =>
   margin-top: 12px;
 }
 .practice-match {
-  flex: 1.4;
+  flex: 1;
+  white-space: nowrap;
   margin-top: 0;
   padding: 11px;
+}
+.icon-btn {
+  position: relative;
+  flex: 0 0 auto;
+  width: 54px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 90% at 30% 10%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #ffffff, #e4eef9);
+  box-shadow: inset 0 0 0 2px #cfe0f1, 0 4px 0 #b7cde3, 0 6px 10px rgba(0, 0, 0, 0.12);
+}
+.icon-btn:active {
+  transform: translateY(3px);
+  box-shadow: inset 0 0 0 2px #cfe0f1, 0 1px 0 #b7cde3;
+}
+.icon-btn .dot {
+  top: 6px;
+  right: 6px;
 }
 .actions .mini {
   flex: 1;

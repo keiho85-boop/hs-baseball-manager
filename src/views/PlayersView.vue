@@ -7,13 +7,14 @@ import { useUiStore } from '@/stores/ui'
 import { POSITIONS, POSITION_LABEL, PRACTICE_NAME, rankOf, velocityScore } from '@/game/constants'
 import type { Player, PracticeMenu } from '@/game/types'
 import GameIcon from '@/components/GameIcon.vue'
+import { getSkill } from '@/game/skills'
 
 const game = useGameStore()
 const ui = useUiStore()
 const router = useRouter()
 
 const kind = ref<'bat' | 'pit'>('bat')
-const view = ref<'a1' | 'a2' | 'st'>('a1')
+const view = ref<'a1' | 'a2' | 'st' | 'sk'>('a1')
 const filter = ref<string>('all')
 const sort = ref<{ key: string; desc: boolean } | null>(null)
 const showRetired = ref(false)
@@ -93,7 +94,11 @@ const COLUMNS: Record<'bat' | 'pit', Record<'a1' | 'a2' | 'st', Col[]>> = {
     ],
   },
 }
-const cols = computed(() => COLUMNS[kind.value][view.value])
+const cols = computed(() => (view.value === 'sk' ? [] : COLUMNS[kind.value][view.value]))
+
+function skillsOf(p: Player) {
+  return p.skills.map((id) => getSkill(id)).filter((x): x is NonNullable<typeof x> => !!x)
+}
 
 /** 球速のランクは km/h を評価値にしてから求める */
 function rankFor(c: Col, p: Player): string {
@@ -114,6 +119,10 @@ const list = computed(() => {
   if (s) {
     const col = cols.value.find((c) => c.key === s.key)
     if (col) return [...rows].sort((a, b) => (s.desc ? col.value(b) - col.value(a) : col.value(a) - col.value(b)))
+  }
+  if (view.value === 'sk') {
+    const good = (p: Player) => skillsOf(p).filter((x) => x.good).length
+    return [...rows].sort((a, b) => good(b) - good(a) || b.grade - a.grade)
   }
   return [...rows].sort((a, b) => b.grade - a.grade || byPos(a) - byPos(b))
 })
@@ -166,16 +175,17 @@ function posKind(p: Player): string {
     </div>
 
     <div class="table">
-      <div class="thead">
+      <div class="thead" :class="{ skv: view === 'sk' }">
         <span class="c-name">名前／年</span>
         <span class="c-pos">守</span>
         <button v-for="c in cols" :key="c.key" class="c-v" :class="{ sorted: sort?.key === c.key }" @click="toggleSort(c.key)">
           {{ c.label }}<i v-if="sort?.key === c.key">{{ sort.desc ? '▼' : '▲' }}</i>
         </button>
+        <span v-if="view === 'sk'" class="c-sk">特殊能力</span>
         <span class="c-m">練習</span>
       </div>
       <div class="tbody">
-        <div v-for="p in list" :key="p.id" class="tr" :class="{ off: p.retired }" @click="router.push({ name: 'player', params: { id: p.id } })">
+        <div v-for="p in list" :key="p.id" class="tr" :class="{ off: p.retired, skv: view === 'sk' }" @click="router.push({ name: 'player', params: { id: p.id } })">
           <span class="c-name">
             <b>{{ p.surname }}</b><small>{{ p.grade }}</small>
             <em v-if="p.condition.injury" class="tag bad">ケガ</em>
@@ -185,6 +195,10 @@ function posKind(p: Player): string {
           <span v-for="c in cols" :key="c.key" class="c-v">
             <template v-if="c.rank"><b :class="`rk-${rankFor(c, p)}`">{{ rankFor(c, p) }}</b><small>{{ c.text ? c.text(p) : c.value(p) }}</small></template>
             <template v-else>{{ c.text ? c.text(p) : c.value(p) }}</template>
+          </span>
+          <span v-if="view === 'sk'" class="c-sk">
+            <i v-for="sk in skillsOf(p)" :key="sk.id" :class="sk.good ? 'good' : 'bad'">{{ sk.name }}</i>
+            <em v-if="p.skills.length === 0">なし</em>
           </span>
           <button class="c-m" :disabled="p.retired" @click.stop="menuFor = p">{{ MENU_SHORT[p.practiceMenu] }}</button>
         </div>
@@ -199,6 +213,7 @@ function posKind(p: Player): string {
       <button :class="{ on: view === 'a1' }" @click="view = 'a1'; sort = null">能力1</button>
       <button :class="{ on: view === 'a2' }" @click="view = 'a2'; sort = null">能力2</button>
       <button :class="{ on: view === 'st' }" @click="view = 'st'; sort = null">成績</button>
+      <button :class="{ on: view === 'sk' }" @click="view = 'sk'; sort = null">特能</button>
     </div>
 
     <div v-if="menuFor" class="mb" @click.self="menuFor = null">
@@ -274,6 +289,42 @@ function posKind(p: Player): string {
   display: grid;
   grid-template-columns: 1.55fr 0.6fr repeat(5, 1fr) 0.95fr;
   align-items: center;
+}
+.thead.skv,
+.tr.skv {
+  grid-template-columns: 1.55fr 0.6fr 5fr 0.95fr;
+}
+.c-sk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 4px 2px;
+  justify-content: flex-start;
+}
+.thead .c-sk {
+  justify-content: center;
+}
+.c-sk i {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 900;
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+.c-sk i.good {
+  background: #fff1c2;
+  color: #8a5a00;
+  box-shadow: inset 0 0 0 1px #f2c94c;
+}
+.c-sk i.bad {
+  background: #e6ebf2;
+  color: #4f5b6b;
+}
+.c-sk em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink-soft);
 }
 .thead {
   background: #5d6b80;

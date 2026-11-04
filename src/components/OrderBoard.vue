@@ -8,6 +8,7 @@ import { APTITUDE_LABEL, POSITIONS, POSITION_LABEL, POSITION_NAME, rankOf, veloc
 import { autoLineup, available, BENCH_SIZE, canPitch, lineupValid } from '@/game/match/lineup'
 import { ownLineup } from '@/game/match/session'
 import type { LineupConfig, Player, Position } from '@/game/types'
+import { getSkill } from '@/game/skills'
 import GameIcon from './GameIcon.vue'
 import PlayerSheet from './PlayerSheet.vue'
 
@@ -151,21 +152,13 @@ function swap(a: string, b: string): void {
   commit()
 }
 
+/** タップは選ぶだけ（上部に能力を出し、守備位置の変更に使う）。入れ替えはドラッグで行う */
 function tap(cell: Cell): void {
   if (cell.disabled) {
     viewing.value = cell.id
     return
   }
-  if (!selected.value) {
-    selected.value = cell.key
-    return
-  }
-  if (selected.value === cell.key) {
-    selected.value = null
-    return
-  }
-  swap(selected.value, cell.key)
-  selected.value = null
+  selected.value = selected.value === cell.key ? null : cell.key
 }
 
 /** 守備位置の変更：選んだスタメンの守備位置を、別の位置の選手と入れ替える */
@@ -219,7 +212,7 @@ function onUp(): void {
     suppressClick = true
     setTimeout(() => (suppressClick = false), 50)
     if (dropKey.value && dropKey.value !== d.key) swap(d.key, dropKey.value)
-    selected.value = null
+    selected.value = dropKey.value ?? d.key
   }
   dropKey.value = null
 }
@@ -339,6 +332,9 @@ const focusApt = computed(() => {
   return APTITUDE_LABEL[p.fielding.aptitude[slot.position]] ?? ''
 })
 const FORM_ICON = ['', '⬇', '↘', '➡', '↗', '⬆']
+const focusSkills = computed(() =>
+  (focus.value?.skills ?? []).map((id) => getSkill(id)).filter((x): x is NonNullable<typeof x> => !!x),
+)
 </script>
 
 <template>
@@ -359,6 +355,10 @@ const FORM_ICON = ['', '⬇', '↘', '➡', '↗', '⬆']
           <small>体力・調子</small>
           <b>{{ Math.round(focus.condition.stamina) }}<i>{{ FORM_ICON[focus.condition.form] }}</i></b>
         </div>
+      </div>
+      <div class="f-sk">
+        <span v-for="sk in focusSkills" :key="sk.id" class="sk" :class="sk.good ? 'good' : 'bad'">{{ sk.name }}</span>
+        <span v-if="focusSkills.length === 0" class="sk none">特殊能力なし</span>
       </div>
     </div>
 
@@ -429,7 +429,7 @@ const FORM_ICON = ['', '⬇', '↘', '➡', '↗', '⬆']
     </div>
 
     <p v-if="problems.length" class="problems">{{ problems.join('・') }}</p>
-    <p v-else class="hint">{{ selected ? '入れ替える相手をタップ' : '2人をタップするか、ドラッグして入れ替え' }}<span v-if="auto" class="auto">おまかせ中</span></p>
+    <p v-else class="hint">選手をつまんで、入れ替える相手の上に動かす<span v-if="auto" class="auto">おまかせ中</span></p>
 
     <!-- 下：操作 -->
     <div class="ops">
@@ -546,6 +546,35 @@ const FORM_ICON = ['', '⬇', '↘', '➡', '↗', '⬆']
   font-style: normal;
   font-size: 12px;
   margin-left: 1px;
+}
+.f-sk {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  margin-top: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sk {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 900;
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.sk.good {
+  background: #fff1c2;
+  color: #8a5a00;
+  box-shadow: inset 0 0 0 1px #f2c94c;
+}
+.sk.bad {
+  background: #e6ebf2;
+  color: #4f5b6b;
+}
+.sk.none {
+  color: var(--ink-soft);
+  font-weight: 700;
 }
 .cond b {
   color: var(--ink);
