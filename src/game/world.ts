@@ -98,7 +98,7 @@ export function generateGrade(
 }
 
 /** 選手を個別に持つ学校に、3学年分の部員を入れる */
-function populateSchool(rng: Rng, save: SaveData, school: School, strength: number, sizeBonus: number): void {
+export function populateSchool(rng: Rng, save: SaveData, school: School, strength: number, sizeBonus: number): void {
   for (const grade of [1, 2, 3]) {
     const count = clamp(Math.round(4 + strength / 14 + sizeBonus + rng.int(-1, 1)), 5, 12)
     for (const p of generateGrade(rng, save, school, grade, count, strength)) {

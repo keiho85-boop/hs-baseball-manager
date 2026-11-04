@@ -7,6 +7,7 @@ import { estimateTalent, fullName, generatePlayer, growWeekly, newStats, playerR
 import { computeOverall, newId, schoolStrength } from './world'
 import { armRestNeeded } from './match/results'
 import type { AlumniRecord, Player, SaveData, School, WeekPlan } from './types'
+import { currentTournament, ensureTournament, findTournament, monthlyFunds, ownAlive, progress } from './tournament'
 
 export interface WeekResult {
   /** この週に起きた主な出来事（画面に出す） */
@@ -39,7 +40,10 @@ function members(save: SaveData, school: School): Player[] {
 /** 季節の行事（合宿・テスト・文化祭） */
 function seasonalEvents(save: SaveData, rng: Rng, list: Player[], messages: string[]): void {
   const week = save.calendar.week
-  if (week === 19 && save.sugoroku) {
+  const national = findTournament(save, save.calendar.year, 'summerNational')
+  if (week === 19 && save.sugoroku && national && ownAlive(save, national)) {
+    log(save, '全国大会に出場中のため、今年の夏合宿は行わない。', messages)
+  } else if (week === 19 && save.sugoroku) {
     save.sugoroku.campWeeks = 2
     log(save, '夏合宿が始まった！（2週間、練習の効果と疲れが大きくなる）', messages)
   }
@@ -78,10 +82,10 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
     if (school.id === own.id) {
       // 自校：すごろくのマスとカードで練習の効果・疲れ・ケガが決まる
       applyOwnWeek(save, rng, plan, members, intensity, messages)
-      for (const p of members) weeklyCondition(rng, p, messages)
+      for (const p of members) weeklyCondition(rng, p, messages, school.facilities.medical)
     } else {
       for (const p of members) {
-        weeklyCondition(rng, p, null)
+        weeklyCondition(rng, p, null, school.facilities.medical)
         growWeekly(rng, p, intensity)
       }
     }
@@ -92,12 +96,17 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
     save.sugoroku.pending = null
   }
 
-  // 2. 節目の処理
+  // 2. 大会：この週に予定されていた回戦を最後まで進める（他校同士の試合は総合力で決める）
+  const running = currentTournament(save)
+  if (running) messages.push(...progress(save, rng, running, true))
+
+  // 3. 節目の処理
   const week = save.calendar.week
+  const monthBefore = weekToDate(week).month
   if (week === SEASON_WEEKS.thirdYearRetire) retireThirdYears(save, messages)
   if (week === SEASON_WEEKS.graduation) graduate(save, rng, messages)
 
-  // 3. 週を進める
+  // 4. 週を進める
   save.calendar.week += 1
   if (save.calendar.week > WEEKS_PER_YEAR) {
     save.calendar.week = 1
@@ -110,9 +119,19 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
     }
   }
 
-  // 4. 部員不足の確認（助っ人）
+  // 5. 部員不足の確認（助っ人）
   ensureMinimumRoster(save, rng, own, messages)
-  // 5. 月が変わったら、すごろくの盤面を作り直す
+  // 6. 月が変わったら部費の収入
+  if (weekToDate(save.calendar.week).month !== monthBefore) {
+    const income = monthlyFunds(save)
+    save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `今月の部費として${income}万円が入った。` })
+  }
+  // 7. 大会の開幕
+  const opened = ensureTournament(save, rng)
+  if (opened && opened.current === 0 && opened.weeks[0] === save.calendar.week && !messages.some((m) => m.includes(opened.name))) {
+    messages.push(`${opened.name}が開幕！`)
+  }
+  // 8. 月が変わったら、すごろくの盤面を作り直す
   if (save.sugoroku && refreshBoard(save, rng)) messages.push(`${weekToDate(save.calendar.week).month}月になり、練習の盤面が新しくなった。`)
 
   save.rngState = rng.getState()
@@ -121,7 +140,7 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
 }
 
 /** 体力・調子・ケガの1週間分の変化 */
-function weeklyCondition(rng: Rng, p: Player, ownMessages: string[] | null): void {
+function weeklyCondition(rng: Rng, p: Player, ownMessages: string[] | null, medicalLevel = 0): void {
   const c = p.condition
   // 体力の回復
   // 整数にそろえる（以前の版で小数になっていたデータもここで直る）
@@ -134,9 +153,9 @@ function weeklyCondition(rng: Rng, p: Player, ownMessages: string[] | null): voi
     const delta = rng.chance(0.55) && towardNormal !== 0 ? towardNormal : rng.chance(0.5) ? 1 : -1
     c.form = clamp(c.form + delta, 1, 5)
   }
-  // ケガの回復
+  // ケガの回復（医務室が整っていると早く治ることがある）
   if (c.injury) {
-    c.injury.weeksLeft -= 1
+    c.injury.weeksLeft -= 1 + (rng.chance(medicalLevel * 0.06) ? 1 : 0)
     if (c.injury.weeksLeft <= 0) {
       if (ownMessages) ownMessages.push(`${fullName(p)}のケガが治った。`)
       c.injury = null
@@ -220,9 +239,12 @@ function startNewYear(save: SaveData, rng: Rng, messages: string[]): void {
   const own = save.schools[save.playerSchoolId]!
 
   for (const school of Object.values(save.schools)) {
+    // 評判は少しずつ平均に戻る（大会で結果を出し続けないと保てない）
+    school.reputation = clamp(Math.round((school.reputation + (40 - school.reputation) * 0.15) * 10) / 10, 0, 100)
     if (!school.detailed) {
-      // 総合力だけで管理する学校：少しずつ平均に戻りながら上下する
-      school.overall = clamp(Math.round(school.overall + rng.normal(0, 3) + (50 - school.overall) * 0.05), 10, 90)
+      // 総合力だけで管理する学校：評判に引き寄せられながら上下する（強豪の衰退や新しい強豪の台頭）
+      const target = school.reputation * 0.75
+      school.overall = clamp(Math.round(school.overall + (target - school.overall) * 0.12 + rng.normal(0, 3)), 10, 90)
       continue
     }
     // 進級

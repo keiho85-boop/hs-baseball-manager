@@ -22,6 +22,17 @@ import { exportToBlob, importFromBlob } from '@/game/serialize'
 import { diffSnapshot, takeSnapshot, type GrowthEntry } from '@/game/growth'
 import { ensureSugoroku, playCard } from '@/game/sugoroku'
 import { applyOps, buildEvent } from '@/game/events'
+import {
+  TOURNAMENT_SPECS,
+  facilityCost,
+  currentTournament,
+  ensureDetailed,
+  ensureTournament,
+  ownAlive,
+  pendingOwnGame,
+  recordOwnResult,
+  roundName,
+} from '@/game/tournament'
 import type { LineupConfig, Player, SaveData, SaveSummary, School, SquareType } from '@/game/types'
 
 export const useGameStore = defineStore('game', () => {
@@ -78,10 +89,19 @@ export const useGameStore = defineStore('game', () => {
       const result = await readSave(slot)
       if (!result.save) throw new Error('セーブデータを読み込めませんでした。')
       ensureSugoroku(result.save)
+      // 大会の期間中なのに大会がない（以前の版のデータ）ときは、ここで作る
+      if (!currentTournament(result.save)) {
+        const rng = new Rng(result.save.rngState)
+        if (ensureTournament(result.save, rng)) {
+          result.save.rngState = rng.getState()
+          await writeSave(result.save)
+        }
+      }
       save.value = markRaw(result.save)
       lastResult.value = null
       const rec = await readMatch(slot)
-      if (rec && !rec.match.finished) {
+      // 終わった試合も、結果を反映する前なら戻す（大会の結果を取りこぼさないように）
+      if (rec) {
         match.value = rec.match
         matchRng = new Rng(rec.rngState)
       } else {
@@ -169,6 +189,8 @@ export const useGameStore = defineStore('game', () => {
   async function startPracticeMatch(opponentId: string): Promise<void> {
     const s = save.value
     if (!s || busy.value || s.sugoroku?.pending) return
+    const t = currentTournament(s)
+    if (t && ownAlive(s, t)) return
     busy.value = true
     try {
       matchRng = new Rng(s.rngState)
@@ -176,6 +198,59 @@ export const useGameStore = defineStore('game', () => {
       match.value = m
       matchRev.value += 1
       await persistMatch()
+    } finally {
+      busy.value = false
+    }
+  }
+
+  /** 大会の次の試合を始める */
+  async function startTournamentMatch(): Promise<void> {
+    const s = save.value
+    if (!s || busy.value || match.value) return
+    const p = pendingOwnGame(s)
+    if (!p) return
+    busy.value = true
+    try {
+      matchRng = new Rng(s.rngState)
+      // 他県の学校など、選手を持っていない相手はその場で選手を作る
+      ensureDetailed(s, matchRng, p.t, p.opponentId)
+      const spec = TOURNAMENT_SPECS[p.t.kind]
+      const m = startMatch(s, p.opponentId, matchRng, {
+        label: `${p.t.name} ${roundName(p.t, p.round)}`,
+        summer: spec.summer,
+        bigStage: spec.national,
+        // 県大会は5回10点差・7回7点差でコールド
+        mercy: spec.national ? [] : [
+          [5, 10],
+          [7, 7],
+        ],
+        tournament: { id: p.t.id, round: p.round },
+      })
+      match.value = m
+      matchRev.value += 1
+      s.rngState = matchRng.getState()
+      touch()
+      await writeSave(s)
+      await persistMatch()
+    } finally {
+      busy.value = false
+    }
+  }
+
+  /** 大会の週：試合を終えたら、練習の代わりに軽い調整で1週間進める */
+  async function nextTournamentWeek(): Promise<WeekResult | null> {
+    const s = save.value
+    if (!s || busy.value || match.value || pendingOwnGame(s)) return null
+    busy.value = true
+    try {
+      const before = takeSnapshot(ownPlayers())
+      const week = advanceWeek(s, { kind: 'tournament' })
+      lastResult.value = week
+      lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
+      showGrowth.value = lastGrowth.value.length > 0
+      touch()
+      await writeSave(s)
+      return week
     } finally {
       busy.value = false
     }
@@ -224,13 +299,34 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /** 試合を終える：成績を反映して1週間進める */
-  async function endMatch(): Promise<{ finish: FinishResult; week: WeekResult } | null> {
+  async function endMatch(): Promise<{ finish: FinishResult; week: WeekResult | null } | null> {
     const s = save.value
     const m = match.value
     if (!s || !m || !matchRng || !m.finished || busy.value) return null
     busy.value = true
     try {
       const finish = finishMatchLogic(s, m, matchRng)
+      const tm = m.options.tournament
+      const t = tm ? (s.tournaments ?? []).find((x) => x.id === tm.id) : null
+      if (tm && t) {
+        // 大会の試合：結果を組み合わせ表に記録し、週は進めない（同じ週にもう1試合あることもある）
+        const ownHome = m.home.schoolId === s.playerSchoolId
+        const homeRuns = m.home.runsByInning.reduce((p, q) => p + q, 0)
+        const awayRuns = m.away.runsByInning.reduce((p, q) => p + q, 0)
+        const ownRuns = ownHome ? homeRuns : awayRuns
+        const oppRuns = ownHome ? awayRuns : homeRuns
+        // 引き分け（ごくまれ）は抽選で決める
+        const won = finish.won ?? matchRng.chance(0.5)
+        const note = m.inning < m.options.innings ? `${m.inning}回コールド` : m.inning > m.options.innings ? `延長${m.inning}回` : ''
+        finish.messages.push(...recordOwnResult(s, matchRng, t, tm.round, won, ownRuns, oppRuns, note))
+        s.rngState = matchRng.getState()
+        match.value = null
+        matchRng = null
+        touch()
+        await writeSave(s)
+        await clearMatch(s.slot)
+        return { finish, week: null }
+      }
       s.rngState = matchRng.getState()
       match.value = null
       matchRng = null
@@ -295,6 +391,21 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
+  /** 部費を使って設備を1段階強化する */
+  async function upgradeFacility(key: keyof School['facilities']): Promise<boolean> {
+    const s = save.value
+    const own = s ? s.schools[s.playerSchoolId] : null
+    if (!s || !own || busy.value) return false
+    const level = own.facilities[key]
+    const cost = facilityCost(level)
+    if (level >= 5 || own.funds < cost) return false
+    own.funds -= cost
+    own.facilities[key] = level + 1
+    s.log.push({ year: s.calendar.year, week: s.calendar.week, text: `部費${cost}万円で設備を強化した。` })
+    await commit()
+    return true
+  }
+
   async function saveLineup(lineup: LineupConfig | null): Promise<void> {
     if (!save.value) return
     save.value.lineup = lineup
@@ -333,12 +444,15 @@ export const useGameStore = defineStore('game', () => {
     match,
     matchRev,
     startPracticeMatch,
+    startTournamentMatch,
+    nextTournamentWeek,
     stepMatch,
     setMatchOrders,
     changeOwnPitcher,
     substituteOwn,
     endMatch,
     saveLineup,
+    upgradeFacility,
     useCard,
     finishSquare,
     refreshSlots,

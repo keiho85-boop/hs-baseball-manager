@@ -14,7 +14,10 @@ import CardHand from '@/components/sugoroku/CardHand.vue'
 import EventDialog from '@/components/sugoroku/EventDialog.vue'
 import PlayerSheet from '@/components/PlayerSheet.vue'
 import { BOARD_SIZE, CARD_EFFECT_DESC, SQUARES } from '@/game/sugoroku'
-import type { SquareType } from '@/game/types'
+import type { School, SquareType } from '@/game/types'
+import TournamentPanel from '@/components/tournament/TournamentPanel.vue'
+import BracketSheet from '@/components/tournament/BracketSheet.vue'
+import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -31,10 +34,45 @@ const opponents = computed(() => {
     .sort((a, b) => b.overall - a.overall)
 })
 
+// ---- 大会 ----
+const tournament = computed(() => {
+  void game.rev
+  return game.save ? currentTournament(game.save) : null
+})
+const pendingGame = computed(() => {
+  void game.rev
+  return game.save ? pendingOwnGame(game.save) : null
+})
+/** この週は大会の試合がある（または戦い終えた）ので、すごろくの代わりに大会パネルを出す */
+const tournamentWeek = computed(() => {
+  void game.rev
+  return !!game.save && !!tournament.value && (!!pendingGame.value || ownPlayedThisWeek(game.save))
+})
+const aliveInTournament = computed(() => !!game.save && !!tournament.value && ownAlive(game.save, tournament.value))
+const bracketOpen = ref(false)
+
+async function startTournament(): Promise<void> {
+  await game.startTournamentMatch()
+  if (game.match) await router.push({ name: 'match' })
+}
+
+async function nextTournamentWeek(): Promise<void> {
+  const r = await game.nextTournamentWeek()
+  if (!r) return
+  const important = r.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
+  if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
+  else if (r.messages.length > 0) ui.showToast(r.messages[r.messages.length - 1]!)
+}
+
 async function startMatch(id: string): Promise<void> {
   picking.value = false
   await game.startPracticeMatch(id)
   await router.push({ name: 'match' })
+}
+
+function canPractice(o: School): boolean {
+  const own = game.ownSchool()
+  return !!own && canRequestPractice(own, o)
 }
 
 const members = computed(() => game.ownPlayers().filter((p) => !p.retired))
@@ -211,6 +249,19 @@ const specialCandidates = computed(() =>
         <span class="go-main">試合の続きへ</span>
         <span class="go-sub"><GameIcon name="play" :size="12" /> {{ game.match.options.label }}</span>
       </button>
+      <TournamentPanel
+        v-else-if="tournamentWeek && tournament"
+        class="t-panel"
+        :t="tournament"
+        :schools="game.save!.schools"
+        :own-id="game.save!.playerSchoolId"
+        :pending="pendingGame ? { round: pendingGame.round, opponentId: pendingGame.opponentId } : null"
+        :busy="game.busy"
+        @start="startTournament"
+        @next="nextTournamentWeek"
+        @bracket="bracketOpen = true"
+        @order="router.push({ name: 'team' })"
+      />
       <template v-else-if="sg">
         <div class="card board-card">
           <div class="board-fit">
@@ -240,8 +291,18 @@ const specialCandidates = computed(() =>
 
       <!-- 練習試合・チームの様子・出来事（詳しくはポップアップで） -->
       <div class="actions">
-        <button class="sky practice-match" :disabled="!!game.match || !sg || game.busy || moving || !!sg.pending" @click="picking = true">
+        <button
+          v-if="tournament && (aliveInTournament || tournamentWeek)"
+          class="sky practice-match"
+          @click="bracketOpen = true"
+        >
+          <GameIcon name="trophy" :size="18" /> 組み合わせ
+        </button>
+        <button v-else class="sky practice-match" :disabled="!!game.match || !sg || game.busy || moving || !!sg.pending" @click="picking = true">
           <GameIcon name="ball" :size="18" /> 練習試合
+        </button>
+        <button v-if="tournament && !aliveInTournament && !tournamentWeek" class="secondary mini" @click="bracketOpen = true">
+          <GameIcon name="trophy" :size="18" /><span>大会</span>
         </button>
         <button class="secondary mini" @click="info = 'team'">
           <GameIcon name="cap" :size="18" /><span>チーム<i v-if="summary.injured > 0" class="dot" /></span>
@@ -316,13 +377,14 @@ const specialCandidates = computed(() =>
       </div>
     </div>
     <PlayerSheet v-if="viewing" :player-id="viewing" @close="viewing = null" />
+    <BracketSheet v-if="bracketOpen && tournament" :t="tournament" :schools="game.save!.schools" :own-id="game.save!.playerSchoolId" @close="bracketOpen = false" />
     <div v-if="picking" class="picker-backdrop" @click.self="picking = false">
       <div class="picker card">
         <h2 class="grass"><GameIcon name="ball" /> 練習試合の相手を選ぶ</h2>
-        <p class="muted">練習試合をした週は、すごろくの練習の代わりに試合を行います。強い相手ほど学ぶことも多くなります。</p>
+        <p class="muted">練習試合をした週は、すごろくの練習の代わりに試合を行います。強い相手ほど学ぶことも多くなります。強豪校と組むには、大会で結果を出して評判を上げる必要があります。</p>
         <div class="opp-list">
-          <button v-for="o in opponents" :key="o.id" class="opp" @click="startMatch(o.id)">
-            <span class="opp-name">{{ o.name }}<small>{{ o.kind === 'private' ? '私立' : '公立' }}</small></span>
+          <button v-for="o in opponents" :key="o.id" class="opp" :disabled="!canPractice(o)" @click="startMatch(o.id)">
+            <span class="opp-name">{{ o.name }}<small>{{ o.kind === 'private' ? '私立' : '公立' }}{{ canPractice(o) ? '' : '・評判が足りず断られる' }}</small></span>
             <RankBadge :value="o.overall" />
           </button>
         </div>
@@ -470,6 +532,9 @@ const specialCandidates = computed(() =>
   margin-top: 10px;
   padding: 12px;
   font-size: 16px;
+}
+.t-panel {
+  margin-bottom: 14px;
 }
 .actions {
   display: flex;

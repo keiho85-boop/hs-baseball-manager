@@ -4,7 +4,7 @@ import { Rng, clamp } from './rng'
 import { weekToDate } from './constants'
 import { fullName, growWeekly } from './player'
 import { SKILLS, conflicts } from './skills'
-import type { Card, CardEffect, Player, PracticeMenu, SaveData, SquareType, SugorokuState, WeekPlan } from './types'
+import type { Card, CardEffect, Facilities, Player, PracticeMenu, SaveData, SquareType, SugorokuState, WeekPlan } from './types'
 
 export const BOARD_SIZE = 20
 export const HAND_SIZE = 5
@@ -182,6 +182,7 @@ const CARD_MULT: Record<CardEffect, { gain: number; cost: number }> = {
 /** 自校のその週の練習（マスとカードで効果が変わる） */
 export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, members: Player[], facilityIntensity: number, messages: string[]): void {
   const camp = (save.sugoroku?.campWeeks ?? 0) > 0
+  const own = save.schools[save.playerSchoolId]
   const campMult = camp ? 1.35 : 1
   for (const p of members) {
     if (p.retired) continue
@@ -195,6 +196,11 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
       growWeekly(rng, p, facilityIntensity * 0.6)
       continue
     }
+    if (plan.kind === 'tournament') {
+      // 大会の週は調整が中心で、伸びは控えめ
+      growWeekly(rng, p, facilityIntensity * 0.4)
+      continue
+    }
     const sq = plan.square
     const card = CARD_MULT[plan.card.effect]
     const info = SQUARES[sq]
@@ -203,7 +209,9 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     let injuryMult = 1
     if (info.menus) {
       const match = plan.card.effect === 'all' || info.menus.includes(p.practiceMenu)
-      intensity = (match ? 1.8 : 0.95) * card.gain
+      // そのマスの練習に対応する設備が整っているほど、さらに伸びる（1段階につき4%）
+      const fac = own ? own.facilities[FACILITY_OF[sq] ?? 'fitness'] : 0
+      intensity = (match ? 1.8 : 0.95) * card.gain * (1 + fac * 0.04)
       cost = 17 * card.cost
     } else if (sq === 'practical') {
       intensity = 1.0 * card.gain
@@ -238,6 +246,18 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     // やる気と調子が高いほど伸びる
     const spirit = 0.85 + p.condition.motivation / 333 + (p.condition.form - 3) * 0.05
     growWeekly(rng, p, intensity * campMult * facilityIntensity * spirit)
-    practiceLoad(rng, save, p, cost * (cost > 0 ? campMult : 1), injuryMult * (camp ? 1.2 : 1), messages)
+    // 医務室が整っているほど、ケガをしにくい
+    const medical = own ? 1.15 - own.facilities.medical * 0.07 : 1
+    practiceLoad(rng, save, p, cost * (cost > 0 ? campMult : 1), injuryMult * (camp ? 1.2 : 1) * medical, messages)
   }
+}
+
+/** マスの種類ごとの、効き目に関わる設備 */
+const FACILITY_OF: Partial<Record<SquareType, keyof Facilities>> = {
+  batting: 'batting',
+  power: 'batting',
+  pitching: 'pitching',
+  fielding: 'fielding',
+  running: 'running',
+  fitness: 'fitness',
 }

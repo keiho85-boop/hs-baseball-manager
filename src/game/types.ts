@@ -1,3 +1,4 @@
+import type { Tournament } from './tournament'
 // ゲーム全体で使うデータの型定義
 
 import type { MatchState } from './match/types'
@@ -201,6 +202,8 @@ export interface School {
   facilities: Facilities
   playerIds: string[]
   history: SchoolSeasonRecord[]
+  /** 全国大会のために一時的に選手を作った学校の、元の総合力 */
+  tempOverall?: number
 }
 
 export interface AlumniRecord {
@@ -278,6 +281,8 @@ export interface SaveData {
   lineup?: LineupConfig | null
   /** すごろく（はじめて開いたときに作る） */
   sugoroku?: SugorokuState
+  /** 大会（今年度と前年度の分） */
+  tournaments?: Tournament[]
 }
 
 // ---------------------------------------------------------------- すごろく・イベント
@@ -361,6 +366,8 @@ export interface SugorokuState {
 export type WeekPlan =
   | { kind: 'square'; square: SquareType; card: Card; specialPlayerId?: string }
   | { kind: 'match' }
+  /** 大会の週（試合をして、残りは軽い調整） */
+  | { kind: 'tournament' }
 
 /** 途中の試合の保存データ（セーブデータ本体とは別に、1打席ごとに小さく保存する） */
 export interface MatchRecord {

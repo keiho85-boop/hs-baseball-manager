@@ -7,6 +7,7 @@ import GrowthPopup from '@/components/GrowthPopup.vue'
 import { useGameStore } from '@/stores/game'
 import { SEASON_WEEKS, WEEKS_PER_YEAR, weekToDate } from '@/game/constants'
 import RankBadge from '@/components/RankBadge.vue'
+import { currentTournament, nextTournament } from '@/game/tournament'
 
 const game = useGameStore()
 const router = useRouter()
@@ -28,7 +29,15 @@ const milestone = computed(() => {
     { week: WEEKS_PER_YEAR + 1, label: '新年度' },
   ]
   const next = items.find((i) => i.week >= week) ?? items[items.length - 1]!
-  return { label: next.label, weeks: next.week - week }
+  let best = { label: next.label, weeks: next.week - week, live: false }
+  const s = game.save
+  if (s) {
+    const now = currentTournament(s)
+    if (now && !now.finished) return { label: now.name, weeks: 0, live: true }
+    const t = nextTournament(s)
+    if (t && t.weeks > 0 && t.weeks <= best.weeks) best = { label: t.name, weeks: t.weeks, live: false }
+  }
+  return best
 })
 const overall = computed(() => {
   void game.rev
@@ -47,7 +56,8 @@ const overall = computed(() => {
       <div class="title">
         <div class="pref muted-light">{{ game.ownSchool()?.kind === 'private' ? '私立' : '公立' }}</div>
         <div class="school">{{ game.ownSchool()?.name }}</div>
-        <div class="milestone">{{ milestone.label }}まで <b>あと{{ milestone.weeks }}週</b></div>
+        <div v-if="milestone.live" class="milestone live">{{ milestone.label }} <b>開催中</b></div>
+        <div v-else class="milestone">{{ milestone.label }}まで <b>あと{{ milestone.weeks }}週</b></div>
       </div>
       <div v-if="overall !== null" class="overall">
         <span class="ov-label">チーム総合</span>
@@ -147,6 +157,9 @@ const overall = computed(() => {
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
+}
+.milestone.live {
+  background: #ffd36b;
 }
 .milestone b {
   color: var(--red);
