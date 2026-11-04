@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GameIcon from '@/components/GameIcon.vue'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
@@ -55,7 +56,7 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: 'やさしい', nor
 <template>
   <div class="page stack">
     <div class="row">
-      <button class="plain" @click="router.back()">← 戻る</button>
+      <button class="plain" @click="router.back()"><GameIcon name="back" :size="16" /> 戻る</button>
       <h1 class="title">新しく始める（セーブ{{ slot }}）</h1>
     </div>
 

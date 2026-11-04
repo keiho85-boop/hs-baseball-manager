@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GameIcon from '@/components/GameIcon.vue'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
@@ -94,7 +95,7 @@ async function remove(slot: number): Promise<void> {
     <div class="hero">
       <FieldScene :height="260" />
       <div class="logo-wrap">
-        <div class="logo-ball">⚾</div>
+        <div class="logo-ball"><GameIcon name="ball" :size="44" /></div>
         <h1 class="logo">高校野球<br /><span>監督ゲーム</span></h1>
         <p class="sub">（仮タイトル）</p>
       </div>
@@ -120,7 +121,7 @@ async function remove(slot: number): Promise<void> {
         <div v-else class="muted">データなし</div>
 
         <div v-if="!managing" class="actions">
-          <button v-if="s" class="sun" :disabled="game.busy" @click="play(i + 1)">▶ 続きから</button>
+          <button v-if="s" class="sun" :disabled="game.busy" @click="play(i + 1)"><GameIcon name="play" :size="16" /> 続きから</button>
           <button :class="s ? 'secondary' : ''" :disabled="game.busy" @click="startNew(i + 1)">はじめから</button>
         </div>
         <div v-else class="actions">
@@ -155,7 +156,8 @@ async function remove(slot: number): Promise<void> {
   padding-top: calc(14px + env(safe-area-inset-top, 0px));
 }
 .logo-ball {
-  font-size: 40px;
+  color: #fff;
+  filter: drop-shadow(0 3px 0 var(--sky-deep));
   animation: pop-in 0.5s ease-out;
 }
 .logo {

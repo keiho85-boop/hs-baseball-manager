@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GameIcon from '@/components/GameIcon.vue'
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { prefName } from '@/game/constants'
@@ -41,17 +42,17 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
     </div>
 
     <div class="card">
-      <h2 class="sun">🏗 設備</h2>
+      <h2 class="sun"><GameIcon name="build" /> 設備</h2>
       <div class="grid2">
         <div v-for="(label, key) in FACILITY_NAME" :key="key">
           {{ label }}：<span class="lv">{{ '★'.repeat(school.facilities[key]) }}{{ '☆'.repeat(5 - school.facilities[key]) }}</span>
         </div>
       </div>
-      <p class="muted">設備の強化とスカウトは、開発段階4で追加します。</p>
+      <p class="muted">設備の強化とスカウト <span class="soon">準備中</span></p>
     </div>
 
     <div class="card">
-      <h2 class="orange">🏆 {{ prefName(school.prefCode) }}の学校（総合力順）</h2>
+      <h2 class="orange"><GameIcon name="trophy" /> {{ prefName(school.prefCode) }}の学校（総合力順）</h2>
       <div v-for="(s, i) in ranking" :key="s.id" class="row line" :class="{ own: s.id === school.id }">
         <span class="rank">{{ i + 1 }}</span>
         <span class="sname">{{ s.name }}</span>

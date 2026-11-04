@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GameIcon from '@/components/GameIcon.vue'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import TabBar from '@/components/TabBar.vue'
@@ -29,7 +30,7 @@ const date = computed(() => {
         <div class="pref muted-light">{{ game.ownSchool()?.kind === 'private' ? '私立' : '公立' }}</div>
         <div class="school">{{ game.ownSchool()?.name }}</div>
       </div>
-      <button class="gear" aria-label="設定" @click="router.push({ name: 'settings' })">⚙</button>
+      <button class="gear" aria-label="設定" @click="router.push({ name: 'settings' })"><GameIcon name="gear" :size="24" /></button>
     </header>
     <main class="content">
       <RouterView v-slot="{ Component, route }">
@@ -57,13 +58,15 @@ const date = computed(() => {
   gap: 10px;
   padding: 8px 12px 10px;
   padding-top: calc(8px + env(safe-area-inset-top, 0px));
-  background: linear-gradient(180deg, #3aa6ee 0%, #5bbdf5 100%);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 10px, rgba(255, 255, 255, 0) 10px 20px),
+    linear-gradient(180deg, #2c98e8 0%, #4fb6f4 100%);
   color: #fff;
-  border-radius: 0 0 18px 18px;
-  box-shadow: 0 4px 12px rgba(31, 127, 208, 0.25);
+  border-radius: 0 0 20px 20px;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.1), 0 0 0 1.5px #1f7fd0, 0 6px 14px rgba(26, 111, 194, 0.3);
 }
 .calendar {
-  background: #fff;
+  background: linear-gradient(180deg, #fff 60%, #eef4fa);
   color: var(--ink);
   border-radius: 10px;
   width: 58px;
@@ -112,13 +115,16 @@ const date = computed(() => {
   text-overflow: ellipsis;
 }
 .gear {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   padding: 0;
   border-radius: 50%;
-  font-size: 20px;
-  background: rgba(255, 255, 255, 0.25);
-  box-shadow: none;
+  background-image: linear-gradient(180deg, #ffffff, #e3f1fc);
+  box-shadow: inset 0 0 0 2px #fff, 0 3px 0 #1f7fd0, 0 6px 10px rgba(0, 0, 0, 0.15);
+  color: var(--sky-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .gear:active {
   box-shadow: none;

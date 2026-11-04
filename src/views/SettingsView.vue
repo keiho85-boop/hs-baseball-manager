@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GameIcon from '@/components/GameIcon.vue'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
@@ -46,7 +47,7 @@ async function backToTitle(): Promise<void> {
 
 <template>
   <div v-if="settings" class="page">
-    <button class="plain" @click="router.back()">← 戻る</button>
+    <button class="plain" @click="router.back()"><GameIcon name="back" :size="16" /> 戻る</button>
 
     <div class="card stack">
       <h2>ゲームの設定</h2>

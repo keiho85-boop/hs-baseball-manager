@@ -1,16 +1,18 @@
 <script setup lang="ts">
+import GameIcon from '@/components/GameIcon.vue'
+import type { IconName } from '@/components/icons'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
 
 const tabs = [
-  { name: 'home', label: 'ホーム', icon: '🏠', color: '#48b3f0' },
-  { name: 'players', label: '部員', icon: '🧢', color: '#3fae4a' },
-  { name: 'team', label: 'チーム', icon: '⚾', color: '#ff8a3d' },
-  { name: 'school', label: '学校', icon: '🏫', color: '#e5484d' },
-  { name: 'records', label: '記録', icon: '🏆', color: '#e9a400' },
-] as const
+  { name: 'home', label: 'ホーム', icon: 'home', color: '#3aa8f0' },
+  { name: 'players', label: '部員', icon: 'cap', color: '#36a843' },
+  { name: 'team', label: 'チーム', icon: 'ball', color: '#ff7a2e' },
+  { name: 'school', label: '学校', icon: 'school', color: '#e5484d' },
+  { name: 'records', label: '記録', icon: 'trophy', color: '#e9a400' },
+] as const satisfies readonly { name: string; label: string; icon: IconName; color: string }[]
 
 function isActive(name: string): boolean {
   if (name === 'players') return route.name === 'players' || route.name === 'player'
@@ -32,11 +34,11 @@ function go(name: string): void {
       :style="{ '--c': t.color }"
       @click="go(t.name)"
     >
-      <span class="icon" aria-hidden="true">{{ t.icon }}</span>
+      <span class="icon"><GameIcon :name="t.icon" :size="22" /></span>
       <span class="label">{{ t.label }}</span>
     </button>
   </nav>
-  <div class="ad-slot" aria-hidden="true">広告スペース（準備中）</div>
+  <div class="ad-slot" aria-hidden="true" />
 </template>
 
 <style scoped>
@@ -73,9 +75,9 @@ function go(name: string): void {
   box-shadow: none;
 }
 .icon {
-  font-size: 20px;
-  width: 38px;
-  height: 30px;
+  color: #9fb0c4;
+  width: 42px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -83,9 +85,10 @@ function go(name: string): void {
   transition: transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1), background 0.2s;
 }
 .active .icon {
-  background: var(--c);
-  transform: translateY(-6px) scale(1.12);
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
+  color: #fff;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, var(--c), var(--c));
+  transform: translateY(-8px) scale(1.12);
+  box-shadow: 0 0 0 3px #fff, 0 4px 0 3px rgba(0, 0, 0, 0.12), 0 8px 12px rgba(0, 0, 0, 0.15);
 }
 .label {
   font-size: 11px;
@@ -101,12 +104,7 @@ function go(name: string): void {
   bottom: 0;
   height: calc(var(--ad-height) + var(--safe-bottom));
   padding-bottom: var(--safe-bottom);
-  background: #e6eef6;
-  color: #a7b4c4;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: #eef3f8;
   z-index: 50;
 }
 </style>

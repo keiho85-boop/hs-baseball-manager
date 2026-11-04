@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 能力1つ分の表示：名前・ランク・数値・ゲージ
+// 能力1つ分の表示：名前・ランク・数値・目盛り付きのゲージ
 import { computed } from 'vue'
 import { rankOf } from '@/game/constants'
 
@@ -25,6 +25,7 @@ const rank = computed(() => rankOf(props.gauge ?? props.value))
     <div class="value">{{ display ?? value }}</div>
     <div class="bar">
       <div class="fill" :class="`f-${rank}`" :style="{ width: `${g}%` }" />
+      <div class="ticks" />
     </div>
   </div>
 </template>
@@ -33,43 +34,66 @@ const rank = computed(() => rankOf(props.gauge ?? props.value))
 .ability {
   display: grid;
   grid-template-columns: 1fr auto auto;
-  grid-template-rows: auto 7px;
+  grid-template-rows: auto 9px;
   column-gap: 6px;
   align-items: center;
-  padding: 4px 0 6px;
+  padding: 4px 0 7px;
 }
 .label {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--ink-soft);
   white-space: nowrap;
 }
 .rank {
-  font-size: 22px;
+  font-size: 23px;
   font-weight: 900;
   line-height: 1;
   font-style: italic;
-  -webkit-text-stroke: 0.5px rgba(0, 0, 0, 0.15);
+  -webkit-text-stroke: 3px #fff;
+  paint-order: stroke fill;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.18));
 }
 .value {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 16px;
+  font-weight: 900;
   min-width: 30px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 .bar {
   grid-column: 1 / -1;
-  height: 7px;
+  height: 9px;
   border-radius: 99px;
-  background: #e8eef5;
+  background: linear-gradient(180deg, #dfe7f0, #edf2f7);
+  box-shadow: inset 0 1px 2px rgba(23, 50, 87, 0.18);
   overflow: hidden;
   margin-top: 3px;
+  position: relative;
 }
 .fill {
   height: 100%;
   border-radius: 99px;
-  transition: width 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  transition: width 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  position: relative;
+}
+.fill::after {
+  /* ゲージの光沢 */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 1px;
+  height: 3px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.45);
+}
+.ticks {
+  /* 10刻みの目盛り */
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0) 0 calc(10% - 1.5px), rgba(255, 255, 255, 0.75) calc(10% - 1.5px) 10%);
+  pointer-events: none;
 }
 .r-S { color: #e99a00; }
 .r-A { color: #e5484d; }
@@ -79,12 +103,12 @@ const rank = computed(() => rankOf(props.gauge ?? props.value))
 .r-E { color: #2f6fe0; }
 .r-F { color: #6c7a8e; }
 .r-G { color: #a2acbb; }
-.f-S { background: linear-gradient(90deg, #ffd23f, #f5a300); }
-.f-A { background: linear-gradient(90deg, #ff7a7e, #e5484d); }
-.f-B { background: linear-gradient(90deg, #ffb07a, #ff8a3d); }
-.f-C { background: linear-gradient(90deg, #7ed67f, #3fae4a); }
-.f-D { background: linear-gradient(90deg, #5fd3cc, #14a7a0); }
-.f-E { background: linear-gradient(90deg, #73a3f5, #2f6fe0); }
-.f-F { background: linear-gradient(90deg, #aab5c4, #7e8ca0); }
+.f-S { background: linear-gradient(90deg, #ffe27a, #f5a300); }
+.f-A { background: linear-gradient(90deg, #ff8a8e, #e0353b); }
+.f-B { background: linear-gradient(90deg, #ffbb8a, #fb7420); }
+.f-C { background: linear-gradient(90deg, #8ddd8f, #2f9e3a); }
+.f-D { background: linear-gradient(90deg, #76dcd5, #109a93); }
+.f-E { background: linear-gradient(90deg, #8ab4f7, #2c66d8); }
+.f-F { background: linear-gradient(90deg, #bcc5d1, #75839a); }
 .f-G { background: #c5ccd7; }
 </style>

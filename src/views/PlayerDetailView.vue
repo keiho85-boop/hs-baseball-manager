@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GameIcon from '@/components/GameIcon.vue'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
@@ -86,7 +87,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
 
 <template>
   <div v-if="p" class="page">
-    <button class="plain back" @click="router.back()">← 戻る</button>
+    <button class="plain back" @click="router.back()"><GameIcon name="back" :size="16" /> 戻る</button>
 
     <div class="card profile">
       <div class="face-wrap"><FaceIcon :face="p.face" :size="84" /></div>
@@ -102,7 +103,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
             <span v-if="p.helper" class="pill">助っ人</span>
             <span v-if="p.retired" class="pill">引退</span>
             <span v-if="p.fatherAlumniId" class="pill good">OBの息子</span>
-            <span class="pill gold">🔍 監督の見立て：{{ p.estimate }}</span>
+            <span class="pill gold"><GameIcon name="search" :size="13" /> 監督の見立て：{{ p.estimate }}</span>
           </div>
           <button v-if="isOwn" class="plain small" @click="startEdit">名前を変更</button>
         </template>
@@ -120,7 +121,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
     </div>
 
     <div class="card">
-      <h2>❤ 状態</h2>
+      <h2><GameIcon name="heart" /> 状態</h2>
       <div class="cond">
         <div class="form" :class="`f${p.condition.form}`">
           <div class="form-arrow">{{ FORM_ICON[p.condition.form] }}</div>
@@ -143,7 +144,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
     </div>
 
     <div class="card">
-      <h2 class="orange">⚾ 野手能力 <span class="h-rank"><RankBadge :value="fielderRating(p)" size="sm" /></span></h2>
+      <h2 class="orange"><GameIcon name="bat" /> 野手能力 <span class="h-rank"><RankBadge :value="fielderRating(p)" size="sm" /></span></h2>
       <div class="abilities">
         <AbilityBar label="ミート" :value="p.batting.contact" />
         <AbilityBar label="パワー" :value="p.batting.power" />
@@ -182,7 +183,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
     </div>
 
     <div class="card">
-      <h2 class="red">🔥 投手能力 <span class="h-rank"><RankBadge :value="pitcherRating(p)" size="sm" /></span></h2>
+      <h2 class="red"><GameIcon name="flame" /> 投手能力 <span class="h-rank"><RankBadge :value="pitcherRating(p)" size="sm" /></span></h2>
       <div class="velo">
         <div class="muted">球速</div>
         <div class="velo-num">{{ p.pitching.velocity }}<small>km/h</small></div>
@@ -209,7 +210,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
     </div>
 
     <div class="card">
-      <h2 class="grass">💪 共通の能力</h2>
+      <h2 class="grass"><GameIcon name="muscle" /> 共通の能力</h2>
       <div class="abilities">
         <AbilityBar label="チャンス" :value="p.common.clutch" />
         <AbilityBar label="調子の安定" :value="p.common.stability" />
@@ -219,7 +220,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
     </div>
 
     <div class="card">
-      <h2 class="sun">✨ 特殊能力</h2>
+      <h2 class="sun"><GameIcon name="sparkle" /> 特殊能力</h2>
       <div v-if="p.skills.length" class="skills">
         <div v-for="id in p.skills" :key="id" class="skill" :class="getSkill(id)?.good ? 'good' : 'bad'">
           <div class="skill-name">{{ getSkill(id)?.name }}</div>
@@ -230,7 +231,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
     </div>
 
     <div v-if="isOwn && !p.retired" class="card stack">
-      <h2 class="grass">📋 監督の指示</h2>
+      <h2 class="grass"><GameIcon name="clipboard" /> 監督の指示</h2>
       <label>
         <div class="muted">練習メニュー</div>
         <select :value="p.practiceMenu" @change="changeMenu">

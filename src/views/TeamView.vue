@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GameIcon from '@/components/GameIcon.vue'
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { POSITIONS, POSITION_NAME, PRACTICE_NAME } from '@/game/constants'
@@ -26,7 +27,7 @@ const menuCount = computed(() => {
 <template>
   <div class="page">
     <div class="card">
-      <h2 class="orange">⚾ ポジション別の部員</h2>
+      <h2 class="orange"><GameIcon name="glove" /> ポジション別の部員</h2>
       <div v-for="row in byPosition" :key="row.pos" class="row line">
         <span class="pos">{{ POSITION_NAME[row.pos] }}</span>
         <span class="count">{{ row.count }}人</span>
@@ -39,7 +40,7 @@ const menuCount = computed(() => {
     </div>
 
     <div class="card">
-      <h2 class="grass">🏃 練習メニューの割り当て</h2>
+      <h2 class="grass"><GameIcon name="run" /> 練習メニューの割り当て</h2>
       <div class="grid2">
         <div v-for="(label, key) in PRACTICE_NAME" :key="key">{{ label }}：{{ menuCount[key] }}人</div>
       </div>
@@ -47,8 +48,8 @@ const menuCount = computed(() => {
     </div>
 
     <div class="card">
-      <h2>📝 オーダー</h2>
-      <p class="muted">打順・守備位置・ベンチ入り・投手の起用順を決める画面は、試合と一緒に開発段階2で追加します。</p>
+      <h2><GameIcon name="clipboard" /> オーダー <span class="soon">準備中</span></h2>
+      <p class="muted">打順・守備位置・ベンチ入り・投手の起用順を決める画面です。試合の機能と一緒に追加します。</p>
     </div>
   </div>
 </template>

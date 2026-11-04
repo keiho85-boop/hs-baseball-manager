@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GameIcon from '@/components/GameIcon.vue'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
@@ -80,12 +81,11 @@ async function next(): Promise<void> {
     <div class="page">
       <button class="sun go" :disabled="game.busy" @click="next">
         <span class="go-main">{{ game.busy ? '練習中…' : '1週間 練習する' }}</span>
-        <span class="go-sub">▶ 次の週へ</span>
+        <span class="go-sub"><GameIcon name="play" :size="12" /> 次の週へ</span>
       </button>
-      <p class="muted note">※ すごろく形式の練習は開発段階3で追加します。今は通常の練習で1週進みます。</p>
 
       <div class="card">
-        <h2 class="grass">🧢 チームの様子</h2>
+        <h2 class="grass"><GameIcon name="cap" /> チームの様子</h2>
         <div class="stats">
           <div class="stat">
             <div class="num">{{ summary.count }}<small>人</small></div>
@@ -109,7 +109,7 @@ async function next(): Promise<void> {
       </div>
 
       <div v-if="summary.top.length" class="card">
-        <h2 class="orange">⭐ 注目の選手</h2>
+        <h2 class="orange"><GameIcon name="star" /> 注目の選手</h2>
         <button v-for="(p, i) in summary.top" :key="p.id" class="star" @click="router.push({ name: 'player', params: { id: p.id } })">
           <span class="medal" :class="`m${i}`">{{ i + 1 }}</span>
           <FaceIcon :face="p.face" :size="42" />
@@ -122,7 +122,7 @@ async function next(): Promise<void> {
       </div>
 
       <div class="card">
-        <h2>📣 最近の出来事</h2>
+        <h2><GameIcon name="megaphone" /> 最近の出来事</h2>
         <ul class="log">
           <li v-for="(l, i) in recentLog" :key="i">
             <span class="muted">{{ formatWeek(l.year, l.week) }}</span>
@@ -192,6 +192,20 @@ async function next(): Promise<void> {
   z-index: 2;
   box-shadow: 0 6px 0 var(--sun-deep), 0 10px 18px rgba(0, 0, 0, 0.18);
 }
+.go {
+  overflow: hidden;
+}
+.go::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 30%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.55) 50%, rgba(255, 255, 255, 0) 100%);
+  animation: shine 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
 .go-main {
   font-size: 21px;
   font-weight: 900;
@@ -200,9 +214,8 @@ async function next(): Promise<void> {
   font-size: 12px;
   opacity: 0.85;
 }
-.note {
-  margin: 10px 2px 14px;
-  font-size: 12px;
+.go + .card {
+  margin-top: 22px;
 }
 .stats {
   display: grid;
