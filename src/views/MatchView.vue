@@ -4,12 +4,14 @@ import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import { POSITION_LABEL, velocityScore } from '@/game/constants'
-import { battingTeam, currentBatterId, fieldingTeam, score, situation } from '@/game/match/engine'
+import { battingTeam, currentBatterId, fieldingTeam, score, situation, activeSkills } from '@/game/match/engine'
 import { canPitch } from '@/game/match/lineup'
 import type { BattingOrder, DefenseShift, FieldPos, PitchPlan, PitchingOrder, TeamState } from '@/game/match/types'
 import type { Player } from '@/game/types'
 import FieldPerspective from '@/components/match/FieldPerspective.vue'
 import { shortResult, isGoodResult } from '@/game/match/labels'
+import { getSkill } from '@/game/skills'
+import { rankOf } from '@/game/constants'
 import CutIn from '@/components/match/CutIn.vue'
 import FaceIcon from '@/components/FaceIcon.vue'
 import RankBadge from '@/components/RankBadge.vue'
@@ -144,25 +146,39 @@ const names = computed(() => {
   return out
 })
 
-const orderLabel = computed(() => {
-  const s = m.value
-  if (!s) return ''
-  if (ownBatting.value) return BAT_ORDERS.find((o) => o.value === s.pending.batting)?.label ?? ''
-  return PITCH_ORDERS.find((o) => o.value === s.pending.pitching)?.label ?? ''
-})
-
 const pitchCountLabel = computed(() => {
   const s = m.value
   if (!s) return ''
   return s.count.balls === 0 && s.count.strikes === 0 ? '' : `${s.count.balls}-${s.count.strikes}`
 })
 
-function chooseBatOrder(o: BattingOrder): void {
-  void game.setMatchOrders({ batting: o })
-  sheet.value = null
-}
 function choosePitchOrder(o: PitchingOrder): void {
   void game.setMatchOrders({ pitching: o })
+}
+
+const PITCH_SHORT: Record<string, string> = {
+  slider: 'スラ',
+  curve: 'カーブ',
+  fork: 'フォーク',
+  changeup: 'チェンジ',
+  shoot: 'シュート',
+  sinker: 'シンカー',
+  cutter: 'カット',
+  splitter: 'スプリット',
+}
+
+/** いま効いている特殊能力（投手・打者） */
+const skillsNow = computed(() => {
+  const s = m.value
+  if (!s) return { pitcher: [], batter: [] }
+  const r = activeSkills(s, players.value)
+  const view = (ids: string[]) =>
+    ids.map((id) => getSkill(id)).filter((x): x is NonNullable<typeof x> => !!x).map((x) => ({ name: x.name, good: x.good, desc: x.description }))
+  return { pitcher: view(r.pitcher), batter: view(r.batter) }
+})
+
+function showSkill(sk: { name: string; desc: string }): void {
+  ui.showToast(`${sk.name}：${sk.desc}`)
 }
 
 // ---- 進行 ----
@@ -221,7 +237,7 @@ function closeCutin(): void {
 }
 
 // ---- 選手交代 ----
-const sheet = ref<'pitcher' | 'sub' | 'orders' | 'log' | 'lineup' | null>(null)
+const sheet = ref<'pitcher' | 'sub' | 'log' | 'lineup' | null>(null)
 const subTarget = ref<string | null>(null)
 
 const benchPitchers = computed(() => {
@@ -287,6 +303,10 @@ if (!game.match) router.replace({ name: 'home' })
         <div class="vs">{{ m.away.name }} <small>vs</small> {{ m.home.name }}</div>
         <div class="label">{{ m.options.label }}</div>
       </div>
+      <div class="top-tools">
+        <button class="tool" @click="sheet = 'log'"><GameIcon name="megaphone" :size="16" />実況</button>
+        <button class="tool" @click="sheet = 'lineup'"><GameIcon name="clipboard" :size="16" />オーダー</button>
+      </div>
     </div>
 
     <!-- スコアボード -->
@@ -332,27 +352,44 @@ if (!game.match) router.replace({ name: 'home' })
     <!-- グラウンド（左右に作戦などのボタン） -->
     <div class="field">
       <FieldPerspective :bases="m.bases" :names="names" :last-event="newPA ? lastEvent : null" :own-batting="ownBatting" />
-      <div class="side left">
-        <button class="side-btn" :disabled="m.finished" @click="sheet = 'orders'">
-          <GameIcon :name="ownBatting ? 'bat' : 'glove'" :size="22" />
-          <span>作戦</span>
-          <em v-if="orderLabel && orderLabel !== 'おまかせ'">{{ orderLabel }}</em>
-        </button>
-        <button class="side-btn" :disabled="m.finished" @click="sheet = ownBatting ? 'sub' : 'pitcher'">
-          <GameIcon :name="ownBatting ? 'cap' : 'flame'" :size="22" />
-          <span>{{ ownBatting ? '代打・代走' : '継投' }}</span>
-        </button>
-      </div>
-      <div class="side right">
-        <button class="side-btn" @click="sheet = 'log'">
-          <GameIcon name="megaphone" :size="22" />
-          <span>実況</span>
-        </button>
-        <button class="side-btn" @click="sheet = 'lineup'">
-          <GameIcon name="clipboard" :size="22" />
-          <span>オーダー</span>
-        </button>
-      </div>
+    </div>
+
+    <!-- 作戦コマンド（その場で選ぶ） -->
+    <div v-if="!m.finished" class="command">
+      <template v-if="ownBatting">
+        <div class="cmd-grid">
+          <button
+            v-for="o in BAT_ORDERS"
+            :key="o.value"
+            class="cmd"
+            :class="{ on: m.pending.batting === o.value }"
+            :disabled="orderDisabled(o.value) || (o.value === 'bunt' && !newPA && m.pending.batting !== 'bunt')"
+            @click="game.setMatchOrders({ batting: o.value })"
+          >
+            {{ o.label }}
+          </button>
+          <button class="cmd sub" @click="sheet = 'sub'">代打・代走</button>
+        </div>
+      </template>
+      <template v-else>
+        <div class="cmd-grid five">
+          <button
+            v-for="o in PITCH_ORDERS"
+            :key="o.value"
+            class="cmd"
+            :class="{ on: m.pending.pitching === o.value }"
+            :disabled="o.value === 'walk' && !newPA"
+            @click="choosePitchOrder(o.value)"
+          >
+            {{ o.label }}
+          </button>
+          <button class="cmd" :class="{ on: m.pending.shift === 'infieldIn' }" @click="game.setMatchOrders({ shift: m.pending.shift === 'infieldIn' ? 'normal' : 'infieldIn' })">前進守備</button>
+          <button class="cmd sub" @click="sheet = 'pitcher'">継投</button>
+          <button v-for="o in PLANS" :key="o.value" class="cmd plan" :class="{ on: m.pending.plan === o.value }" @click="game.setMatchOrders({ plan: o.value })">
+            {{ o.value === 'auto' ? '配球任せ' : o.label }}
+          </button>
+        </div>
+      </template>
     </div>
 
     <!-- 投手と打者 -->
@@ -362,6 +399,16 @@ if (!game.match) router.replace({ name: 'home' })
           <span class="role">投手</span>
           <span class="pname">{{ pitcher.surname }}</span>
           <span class="hand" :class="pitcher.throws">{{ pitcher.throws === 'L' ? '左投' : '右投' }}</span>
+        </div>
+        <div class="abil">
+          <span class="velo">{{ pitcher.pitching.velocity }}<small>km</small></span>
+          <span class="ab"><small>コン</small><b :class="`k-${rankOf(pitcher.pitching.control)}`">{{ rankOf(pitcher.pitching.control) }}</b></span>
+          <span class="ab"><small>スタ</small><b :class="`k-${rankOf(pitcher.pitching.stamina)}`">{{ rankOf(pitcher.pitching.stamina) }}</b></span>
+          <span class="ab"><small>キレ</small><b :class="`k-${rankOf(pitcher.pitching.kire)}`">{{ rankOf(pitcher.pitching.kire) }}</b></span>
+        </div>
+        <div class="pitches">
+          <span v-for="pt in pitcher.pitching.pitches" :key="pt.type">{{ PITCH_SHORT[pt.type] }}<b>{{ pt.level }}</b></span>
+          <span v-if="pitcher.pitching.pitches.length === 0" class="none">変化球なし</span>
         </div>
         <div class="tbl">
           <div><small>防</small>{{ pitcherStats.era }}</div>
@@ -374,12 +421,21 @@ if (!game.match) router.replace({ name: 'home' })
           <div><small>失</small>{{ pitcherStats.r }}</div>
         </div>
         <div class="stamina"><div class="fill" :class="{ low: pitcherStats.fatigue > 0.6 }" :style="{ width: `${Math.max(4, 100 - pitcherStats.fatigue * 70)}%` }" /></div>
+        <div class="skills">
+          <button v-for="sk in skillsNow.pitcher" :key="sk.name" class="skill" :class="sk.good ? 'good' : 'bad'" @click="showSkill(sk)">{{ sk.name }}</button>
+        </div>
       </div>
       <div v-if="batter && batterStats" class="panel" :class="{ own: ownBatting }">
         <div class="ph">
           <span class="role">{{ batterSlot?.order }}番 {{ batterSlot ? posLabel(batterSlot.pos) : '' }}</span>
           <span class="pname">{{ batter.surname }}</span>
           <span class="hand" :class="batter.bats === 'L' ? 'L' : 'R'">{{ batter.bats === 'L' ? '左打' : batter.bats === 'S' ? '両打' : '右打' }}</span>
+        </div>
+        <div class="abil">
+          <span class="traj"><small>弾道</small>{{ '▲'.repeat(batter.batting.trajectory) }}</span>
+          <span class="ab"><small>ミート</small><b :class="`k-${rankOf(batter.batting.contact)}`">{{ rankOf(batter.batting.contact) }}</b></span>
+          <span class="ab"><small>パワー</small><b :class="`k-${rankOf(batter.batting.power)}`">{{ rankOf(batter.batting.power) }}</b></span>
+          <span class="ab"><small>走力</small><b :class="`k-${rankOf(batter.running.speed)}`">{{ rankOf(batter.running.speed) }}</b></span>
         </div>
         <div class="bt">
           <div class="tbl small">
@@ -392,6 +448,9 @@ if (!game.match) router.replace({ name: 'home' })
             <li v-for="(r, i) in batterStats.results" :key="i" :class="{ good: r.good }">{{ r.label }}</li>
             <li v-if="batterStats.results.length === 0" class="none">第1打席</li>
           </ol>
+        </div>
+        <div class="skills">
+          <button v-for="sk in skillsNow.batter" :key="sk.name" class="skill" :class="sk.good ? 'good' : 'bad'" @click="showSkill(sk)">{{ sk.name }}</button>
         </div>
       </div>
     </div>
@@ -418,42 +477,7 @@ if (!game.match) router.replace({ name: 'home' })
     <!-- ポップアップ -->
     <div v-if="sheet" class="sheet-backdrop" @click.self="sheet = null">
       <div class="sheet card">
-        <template v-if="sheet === 'orders'">
-          <template v-if="ownBatting">
-            <h2 class="orange"><GameIcon name="bat" /> 攻撃の作戦</h2>
-            <div class="chips">
-              <button
-                v-for="o in BAT_ORDERS"
-                :key="o.value"
-                :class="m.pending.batting === o.value ? 'sun' : 'secondary'"
-                :disabled="orderDisabled(o.value) || (o.value === 'bunt' && !newPA && m.pending.batting !== 'bunt')"
-                @click="chooseBatOrder(o.value)"
-              >
-                {{ o.label }}
-              </button>
-            </div>
-            <p class="muted">作戦はこの打席だけ有効です。打者が替わると「おまかせ」に戻ります。</p>
-          </template>
-          <template v-else>
-            <h2><GameIcon name="glove" /> 守備の作戦</h2>
-            <div class="sub-label">投球</div>
-            <div class="chips">
-              <button v-for="o in PITCH_ORDERS" :key="o.value" :class="m.pending.pitching === o.value ? 'sun' : 'secondary'" :disabled="o.value === 'walk' && !newPA" @click="choosePitchOrder(o.value)">
-                {{ o.label }}
-              </button>
-            </div>
-            <div class="sub-label">配球</div>
-            <div class="chips">
-              <button v-for="o in PLANS" :key="o.value" :class="m.pending.plan === o.value ? 'sky' : 'secondary'" @click="game.setMatchOrders({ plan: o.value })">{{ o.label }}</button>
-            </div>
-            <div class="sub-label">守備位置</div>
-            <div class="chips">
-              <button v-for="o in SHIFTS" :key="o.value" :class="m.pending.shift === o.value ? 'sky' : 'secondary'" @click="game.setMatchOrders({ shift: o.value })">{{ o.label }}</button>
-            </div>
-          </template>
-        </template>
-
-        <template v-else-if="sheet === 'pitcher'">
+        <template v-if="sheet === 'pitcher'">
           <h2 class="red"><GameIcon name="flame" /> 継投（ブルペン）</h2>
           <p v-if="benchPitchers.length === 0" class="muted">交代できる投手がいません。</p>
           <button v-for="p in benchPitchers" :key="p.id" class="pick" @click="pickPitcher(p.id)">
@@ -673,9 +697,173 @@ if (!game.match) router.replace({ name: 'home' })
   background: #ef4444;
   box-shadow: 0 0 6px #ef4444;
 }
+.top-tools {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.tool {
+  padding: 5px 8px;
+  border-radius: 9px;
+  background: #1b2d47;
+  box-shadow: inset 0 0 0 1.5px #3a5478;
+  color: #e6eef8;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  text-shadow: none;
+}
+.command {
+  padding: 4px 8px 2px;
+}
+.cmd-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+.cmd-grid.five {
+  grid-template-columns: repeat(5, 1fr);
+}
+.cmd {
+  padding: 8px 0;
+  border-radius: 9px;
+  background: #1b2d47;
+  box-shadow: inset 0 0 0 1.5px #34506f;
+  color: #e6eef8;
+  font-size: 12px;
+  font-weight: 900;
+  text-shadow: none;
+  white-space: nowrap;
+}
+.cmd.plan {
+  padding: 6px 0;
+  font-size: 11px;
+}
+.cmd.on {
+  background: linear-gradient(180deg, #ffd96b, #f6b21c);
+  color: #3a2600;
+  box-shadow: 0 0 8px rgba(255, 211, 107, 0.5);
+}
+.cmd.plan.on {
+  background: linear-gradient(180deg, #7cc8ff, #3aa8f0);
+  color: #062038;
+}
+.cmd.sub {
+  color: #ffd36b;
+  box-shadow: inset 0 0 0 1.5px #ffd36b88;
+}
+.cmd:disabled {
+  opacity: 0.35;
+}
+.abil {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  margin-bottom: 3px;
+}
+.velo {
+  font-size: 17px;
+  font-weight: 900;
+  font-style: italic;
+  color: #ff8a80;
+  line-height: 1;
+}
+.velo small {
+  font-size: 9px;
+  margin-left: 1px;
+}
+.ab,
+.traj {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+}
+.ab small,
+.traj small {
+  font-size: 9px;
+  color: #8ea3bd;
+  font-weight: 700;
+}
+.traj {
+  font-size: 10px;
+  color: #ff9f43;
+}
+.ab b {
+  font-size: 16px;
+  font-weight: 900;
+  font-style: italic;
+}
+.k-S {
+  color: #ff5bd0;
+}
+.k-A {
+  color: #ff5a5f;
+}
+.k-B {
+  color: #ff9f43;
+}
+.k-C {
+  color: #5fd36a;
+}
+.k-D {
+  color: #3fd2c7;
+}
+.k-E {
+  color: #6aa5ff;
+}
+.k-F,
+.k-G {
+  color: #9aa7b8;
+}
+.pitches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 7px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #cfe0f2;
+  margin-bottom: 4px;
+  min-height: 15px;
+}
+.pitches b {
+  color: #ffd36b;
+  margin-left: 1px;
+}
+.pitches .none {
+  color: #8ea3bd;
+}
+.skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+  min-height: 0;
+}
+.skill {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  text-shadow: none;
+  box-shadow: none;
+  animation: pop-in 0.25s ease-out;
+}
+.skill.good {
+  background: #ffd36b;
+  color: #3a2600;
+}
+.skill.bad {
+  background: #5a6b82;
+  color: #e6eef8;
+}
 .field {
   flex: 1;
-  min-height: 140px;
+  min-height: 80px;
   position: relative;
 }
 .field > :deep(.fp) {

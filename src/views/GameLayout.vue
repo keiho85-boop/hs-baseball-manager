@@ -5,7 +5,8 @@ import { useRouter } from 'vue-router'
 import TabBar from '@/components/TabBar.vue'
 import GrowthPopup from '@/components/GrowthPopup.vue'
 import { useGameStore } from '@/stores/game'
-import { weekToDate } from '@/game/constants'
+import { SEASON_WEEKS, WEEKS_PER_YEAR, weekToDate } from '@/game/constants'
+import RankBadge from '@/components/RankBadge.vue'
 
 const game = useGameStore()
 const router = useRouter()
@@ -15,6 +16,23 @@ const date = computed(() => {
   const s = game.save
   if (!s) return null
   return { year: s.calendar.year, ...weekToDate(s.calendar.week) }
+})
+
+/** 次の節目までの週数（引退・卒業式・新年度） */
+const milestone = computed(() => {
+  void game.rev
+  const week = game.save?.calendar.week ?? 1
+  const items = [
+    { week: SEASON_WEEKS.thirdYearRetire, label: '3年生の引退' },
+    { week: SEASON_WEEKS.graduation, label: '卒業式' },
+    { week: WEEKS_PER_YEAR + 1, label: '新年度' },
+  ]
+  const next = items.find((i) => i.week >= week) ?? items[items.length - 1]!
+  return { label: next.label, weeks: next.week - week }
+})
+const overall = computed(() => {
+  void game.rev
+  return game.ownSchool()?.overall ?? null
 })
 </script>
 
@@ -29,6 +47,11 @@ const date = computed(() => {
       <div class="title">
         <div class="pref muted-light">{{ game.ownSchool()?.kind === 'private' ? '私立' : '公立' }}</div>
         <div class="school">{{ game.ownSchool()?.name }}</div>
+        <div class="milestone">{{ milestone.label }}まで <b>あと{{ milestone.weeks }}週</b></div>
+      </div>
+      <div v-if="overall !== null" class="overall">
+        <span class="ov-label">チーム総合</span>
+        <RankBadge :value="overall" size="sm" />
       </div>
       <button class="gear" aria-label="設定" @click="router.push({ name: 'settings' })"><GameIcon name="gear" :size="24" /></button>
     </header>
@@ -56,8 +79,8 @@ const date = computed(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px 10px;
-  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+  padding: 6px 12px 7px;
+  padding-top: calc(6px + env(safe-area-inset-top, 0px));
   background:
     repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 10px, rgba(255, 255, 255, 0) 10px 20px),
     linear-gradient(180deg, #2c98e8 0%, #4fb6f4 100%);
@@ -113,6 +136,37 @@ const date = computed(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.milestone {
+  display: inline-block;
+  margin-top: 2px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 1px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.milestone b {
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 900;
+}
+.overall {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 3px 7px 4px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+.ov-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--ink-soft);
 }
 .gear {
   width: 42px;

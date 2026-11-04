@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import { POSITION_LABEL, SEASON_WEEKS, WEEKS_PER_YEAR, formatWeek, weekToDate } from '@/game/constants'
-import { playerRating } from '@/game/player'
+import { fielderRating, pitcherRating, playerRating } from '@/game/player'
 import RankBadge from '@/components/RankBadge.vue'
 import FaceIcon from '@/components/FaceIcon.vue'
 import FieldScene from '@/components/FieldScene.vue'
@@ -67,6 +67,26 @@ const summary = computed(() => {
   const top = [...list].sort((a, b) => playerRating(b) - playerRating(a)).slice(0, 3)
   const goodForm = list.filter((p) => p.condition.form >= 4).length
   return { count: list.length, injured, byGrade, helpers, top, goodForm }
+})
+
+/** チームとしての主な能力（レギュラー格の野手9人の平均と、エース投手）とチームの体力 */
+const teamPower = computed(() => {
+  const list = members.value
+  const fielders = list.filter((p) => p.mainPosition !== 'P').sort((a, b) => fielderRating(b) - fielderRating(a)).slice(0, 9)
+  const base = fielders.length ? fielders : list
+  const avg = (f: (p: (typeof list)[number]) => number) => (base.length ? Math.round(base.reduce((a, p) => a + f(p), 0) / base.length) : 0)
+  const ace = [...list].sort((a, b) => pitcherRating(b) - pitcherRating(a))[0]
+  const stamina = list.length ? Math.round(list.reduce((a, p) => a + p.condition.stamina, 0) / list.length) : 0
+  return {
+    items: [
+      { label: 'ミート', value: avg((p) => p.batting.contact) },
+      { label: 'パワー', value: avg((p) => p.batting.power) },
+      { label: '走力', value: avg((p) => p.running.speed) },
+      { label: '守備', value: avg((p) => (p.fielding.range + p.fielding.catching + p.fielding.arm + p.fielding.throwing) / 4) },
+      { label: '投手', value: ace ? pitcherRating(ace) : 0 },
+    ],
+    stamina,
+  }
 })
 
 const recentLog = computed(() => {
@@ -174,10 +194,14 @@ const specialCandidates = computed(() =>
     <div class="stage">
       <FieldScene :height="84" :evening="evening" />
       <div class="strip">
-        <div class="bubble">{{ milestone.label }}まで <b>あと{{ milestone.weeks }}週</b></div>
-        <div class="overall">
-          <span class="overall-label">チーム総合</span>
-          <RankBadge v-if="school" :value="school.overall" />
+        <div v-for="it in teamPower.items" :key="it.label" class="tp">
+          <small>{{ it.label }}</small>
+          <RankBadge :value="it.value" size="sm" />
+        </div>
+        <div class="tp stam">
+          <small>チーム体力</small>
+          <b :class="{ low: teamPower.stamina < 50 }">{{ teamPower.stamina }}</b>
+          <span class="bar"><i :style="{ width: `${teamPower.stamina}%` }" :class="{ low: teamPower.stamina < 50 }" /></span>
         </div>
       </div>
     </div>
@@ -333,39 +357,58 @@ const specialCandidates = computed(() =>
   position: absolute;
   left: 10px;
   right: 10px;
-  top: 26px;
+  top: 24px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.bubble {
-  background: #fff;
-  border-radius: 999px;
-  padding: 4px 12px;
-  font-size: 12px;
-  font-weight: 800;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
-  white-space: nowrap;
-}
-.bubble b {
-  font-size: 16px;
-  color: var(--red);
-  font-weight: 900;
-}
-.overall {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 999px;
-  padding: 2px 10px 2px 12px;
+  align-items: stretch;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 14px;
+  padding: 3px 6px;
   box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
 }
-.overall-label {
-  font-size: 11px;
+.tp {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+}
+.tp > small {
+  font-size: 9px;
   font-weight: 800;
   color: var(--ink-soft);
+  white-space: nowrap;
+}
+.tp.stam {
+  flex: 1.6;
+  border-left: 2px dashed #e2eef8;
+  padding-left: 4px;
+}
+.stam b {
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--grass-deep, #2a9137);
+}
+.stam b.low {
+  color: var(--red);
+}
+.bar {
+  width: 100%;
+  height: 5px;
+  border-radius: 9px;
+  background: #e2eef8;
+  overflow: hidden;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #6ad66f, #2f9e3a);
+}
+.bar i.low {
+  background: linear-gradient(90deg, #ff9f43, #e0353b);
 }
 .go {
   width: 100%;

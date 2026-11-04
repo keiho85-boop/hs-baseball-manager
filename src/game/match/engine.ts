@@ -171,6 +171,60 @@ export function situation(s: MatchState): Situation {
   return battingTeam(s).schoolId === user ? 'chance' : 'pinch'
 }
 
+/**
+ * いまの場面で効いている特殊能力（画面表示用）。
+ * 試合の計算（pitcherNow / batterNow など）と同じ条件で判定する。
+ */
+export function activeSkills(s: MatchState, players: Record<string, Player>): { pitcher: string[]; batter: string[] } {
+  const p = players[fieldingTeam(s).pitcherId]
+  const b = s.finished ? undefined : players[currentBatterId(s)]
+  const out = { pitcher: [] as string[], batter: [] as string[] }
+  const [a, h] = score(s)
+  const diff = s.top ? a - h : h - a
+  const runner = s.bases.some((x) => x !== null)
+  const on = (list: string[], who: Player | undefined, id: string, cond: boolean) => {
+    if (cond && has(who, id)) list.push(id)
+  }
+  // 投手
+  on(out.pitcher, p, 'full_throttle', s.inning === 1)
+  on(out.pitcher, p, 'slow_starter', s.inning === 1)
+  on(out.pitcher, p, 'gear_change', s.inning >= 6)
+  on(out.pitcher, p, 'out_of_gas', s.inning >= 7)
+  on(out.pitcher, p, 'steel_heart', !!s.options.bigStage)
+  on(out.pitcher, p, 'nervous', !!s.options.bigStage)
+  on(out.pitcher, p, 'glass_heart', recentHits(s) >= 2)
+  on(out.pitcher, p, 'finisher', s.count.strikes === 2)
+  on(out.pitcher, p, 'groundball', true)
+  on(out.pitcher, p, 'tempo', true)
+  on(out.pitcher, p, 'meatball', true)
+  on(out.pitcher, p, 'no_steal', runner)
+  // 打者
+  const late = s.inning >= s.options.innings - 1
+  const last = s.events[s.events.length - 1]
+  on(out.batter, b, 'first_pitch', s.count.balls === 0 && s.count.strikes === 0)
+  on(out.batter, b, 'persistent', s.count.strikes === 2)
+  on(out.batter, b, 'late_hero', late && Math.abs(diff) <= 1)
+  on(out.batter, b, 'leadoff', s.outs === 0 && !runner)
+  on(out.batter, b, 'bases_loaded', s.bases.every((x) => x !== null))
+  on(out.batter, b, 'walkoff', !s.top && s.inning >= s.options.innings && diff <= 0 && diff >= -3)
+  on(
+    out.batter,
+    b,
+    'momentum',
+    !!last && last.top === s.top && last.inning === s.inning && ['single', 'double', 'triple'].includes(last.kind),
+  )
+  on(out.batter, b, 'counterattack', diff < 0)
+  on(out.batter, b, 'steel_heart', !!s.options.bigStage)
+  on(out.batter, b, 'nervous', !!s.options.bigStage)
+  on(out.batter, b, 'heat_weak', !!s.options.summer)
+  on(out.batter, b, 'summer_child', !!s.options.summer)
+  on(out.batter, b, 'all_fields', true)
+  on(out.batter, b, 'double_play', s.bases[0] !== null && s.outs < 2)
+  on(out.batter, b, 'bunt', s.pending.batting === 'bunt')
+  on(out.batter, b, 'sign_lost', s.pending.batting === 'bunt')
+  return out
+}
+
 // ---------------------------------------------------------------- 能力の補正
 
 interface PitcherNow {

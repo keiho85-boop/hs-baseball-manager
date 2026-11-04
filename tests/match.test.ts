@@ -4,7 +4,10 @@ import { createNewGame } from '../src/game/world'
 import { activeMembers, advanceWeek } from '../src/game/season'
 import { autoLineup, lineupValid } from '../src/game/match/lineup'
 import {
+  activeSkills,
   createMatch,
+  currentBatterId,
+  fieldingTeam,
   defaultOptions,
   score,
   simulatePlateAppearance,
@@ -150,5 +153,21 @@ describe('試合のバランス', () => {
     expect(r.kRate).toBeGreaterThan(0.08)
     expect(r.kRate).toBeLessThan(0.25)
     expect(r.bbRate).toBeGreaterThan(0.04)
+  })
+})
+
+describe('いま効いている特殊能力', () => {
+  it('場面の条件を満たしたものだけが挙がる', () => {
+    const save = world(5)
+    const { m } = newMatch(save, 9)
+    const batter = save.players[currentBatterId(m)]!
+    const pitcher = save.players[fieldingTeam(m).pitcherId]!
+    batter.skills = ['first_pitch', 'bases_loaded']
+    pitcher.skills = ['full_throttle', 'gear_change']
+    const r = activeSkills(m, save.players)
+    expect(r.batter).toEqual(['first_pitch'])
+    expect(r.pitcher).toEqual(['full_throttle'])
+    m.count.balls = 1
+    expect(activeSkills(m, save.players).batter).toEqual([])
   })
 })
