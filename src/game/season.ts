@@ -1,11 +1,12 @@
 // 週の進行と、年度の節目（引退・卒業・入部）
 
 import { Rng, clamp } from './rng'
-import { MIN_ROSTER, SEASON_WEEKS, WEEKS_PER_YEAR } from './constants'
+import { MIN_ROSTER, SEASON_WEEKS, WEEKS_PER_YEAR, weekToDate } from './constants'
+import { applyOwnWeek, refreshBoard } from './sugoroku'
 import { estimateTalent, fullName, generatePlayer, growWeekly, newStats, playerRating, strengthsOf } from './player'
 import { computeOverall, newId, schoolStrength } from './world'
 import { armRestNeeded } from './match/results'
-import type { AlumniRecord, Player, SaveData, School } from './types'
+import type { AlumniRecord, Player, SaveData, School, WeekPlan } from './types'
 
 export interface WeekResult {
   /** この週に起きた主な出来事（画面に出す） */
@@ -31,6 +32,29 @@ export function activeMembers(save: SaveData, school: School): Player[] {
   return schoolMembers(save, school).filter((p) => !p.retired)
 }
 
+function members(save: SaveData, school: School): Player[] {
+  return activeMembers(save, school)
+}
+
+/** 季節の行事（合宿・テスト・文化祭） */
+function seasonalEvents(save: SaveData, rng: Rng, list: Player[], messages: string[]): void {
+  const week = save.calendar.week
+  if (week === 19 && save.sugoroku) {
+    save.sugoroku.campWeeks = 2
+    log(save, '夏合宿が始まった！（2週間、練習の効果と疲れが大きくなる）', messages)
+  }
+  if (week === 13 || week === 38) {
+    const n = Math.min(list.length, rng.int(1, 3))
+    const names = rng.shuffle([...list]).slice(0, n)
+    for (const p of names) p.condition.motivation = clamp(p.condition.motivation - 5, 0, 100)
+    log(save, `期末テスト。${names.map((p) => p.surname).join('・')}が補習で練習に身が入らない…`, messages)
+  }
+  if (week === 29) {
+    for (const p of list) p.condition.motivation = clamp(p.condition.motivation + 10, 0, 100)
+    log(save, '文化祭で部員たちが盛り上がった！（全員のやる気が上がった）', messages)
+  }
+}
+
 /** 練習の濃さ。設備が整っているほど伸びやすい */
 function practiceIntensity(school: School): number {
   const f = school.facilities
@@ -38,8 +62,8 @@ function practiceIntensity(school: School): number {
   return 0.85 + avg * 0.06
 }
 
-/** 1週間進める */
-export function advanceWeek(save: SaveData): WeekResult {
+/** 1週間進める。plan は自校のその週の過ごし方（すごろくのマス、練習試合など） */
+export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekResult {
   const rng = new Rng(save.rngState)
   const messages: string[] = []
   let newYear = false
@@ -50,10 +74,22 @@ export function advanceWeek(save: SaveData): WeekResult {
   for (const school of Object.values(save.schools)) {
     if (!school.detailed) continue
     const intensity = practiceIntensity(school)
-    for (const p of activeMembers(save, school)) {
-      weeklyCondition(rng, p, school.id === own.id ? messages : null)
-      growWeekly(rng, p, intensity)
+    const members = activeMembers(save, school)
+    if (school.id === own.id) {
+      // 自校：すごろくのマスとカードで練習の効果・疲れ・ケガが決まる
+      applyOwnWeek(save, rng, plan, members, intensity, messages)
+      for (const p of members) weeklyCondition(rng, p, messages)
+    } else {
+      for (const p of members) {
+        weeklyCondition(rng, p, null)
+        growWeekly(rng, p, intensity)
+      }
     }
+  }
+  seasonalEvents(save, rng, members(save, own), messages)
+  if (save.sugoroku) {
+    if (save.sugoroku.campWeeks > 0) save.sugoroku.campWeeks -= 1
+    save.sugoroku.pending = null
   }
 
   // 2. 節目の処理
@@ -76,6 +112,8 @@ export function advanceWeek(save: SaveData): WeekResult {
 
   // 4. 部員不足の確認（助っ人）
   ensureMinimumRoster(save, rng, own, messages)
+  // 5. 月が変わったら、すごろくの盤面を作り直す
+  if (save.sugoroku && refreshBoard(save, rng)) messages.push(`${weekToDate(save.calendar.week).month}月になり、練習の盤面が新しくなった。`)
 
   save.rngState = rng.getState()
   save.updatedAt = new Date().toISOString()

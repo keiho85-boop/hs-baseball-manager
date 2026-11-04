@@ -20,7 +20,9 @@ import {
 import type { MatchState } from '@/game/match/types'
 import { exportToBlob, importFromBlob } from '@/game/serialize'
 import { diffSnapshot, takeSnapshot, type GrowthEntry } from '@/game/growth'
-import type { LineupConfig, Player, SaveData, SaveSummary, School } from '@/game/types'
+import { ensureSugoroku, playCard } from '@/game/sugoroku'
+import { applyOps, buildEvent } from '@/game/events'
+import type { LineupConfig, Player, SaveData, SaveSummary, School, SquareType } from '@/game/types'
 
 export const useGameStore = defineStore('game', () => {
   const save = shallowRef<SaveData | null>(null)
@@ -57,6 +59,7 @@ export const useGameStore = defineStore('game', () => {
       // 少し待って画面に「作成中」を表示してから重い処理をする
       await new Promise((r) => setTimeout(r, 30))
       const data = createNewGame({ ...input, seed: (Math.random() * 2 ** 32) >>> 0 })
+      ensureSugoroku(data)
       save.value = markRaw(data)
       await writeSave(data)
       lastResult.value = null
@@ -74,6 +77,7 @@ export const useGameStore = defineStore('game', () => {
       await ensurePersistence()
       const result = await readSave(slot)
       if (!result.save) throw new Error('セーブデータを読み込めませんでした。')
+      ensureSugoroku(result.save)
       save.value = markRaw(result.save)
       lastResult.value = null
       const rec = await readMatch(slot)
@@ -164,7 +168,7 @@ export const useGameStore = defineStore('game', () => {
 
   async function startPracticeMatch(opponentId: string): Promise<void> {
     const s = save.value
-    if (!s || busy.value) return
+    if (!s || busy.value || s.sugoroku?.pending) return
     busy.value = true
     try {
       matchRng = new Rng(s.rngState)
@@ -231,13 +235,61 @@ export const useGameStore = defineStore('game', () => {
       match.value = null
       matchRng = null
       const before = takeSnapshot(ownPlayers())
-      const week = advanceWeek(s)
+      const week = advanceWeek(s, { kind: 'match' })
       lastResult.value = week
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
       touch()
       await writeSave(s)
       await clearMatch(s.slot)
       return { finish, week }
+    } finally {
+      busy.value = false
+    }
+  }
+
+  // ---- すごろく ----
+
+  /** カードを使って進む。止まったマスと通ったマスを返す */
+  async function useCard(index: number): Promise<{ square: SquareType; path: number[] } | null> {
+    const s = save.value
+    if (!s || busy.value || match.value || s.sugoroku?.pending) return null
+    busy.value = true
+    try {
+      const rng = new Rng(s.rngState)
+      const result = playCard(s, rng, index)
+      const pending = s.sugoroku!.pending!
+      pending.event = buildEvent(s, rng, result.square)
+      s.rngState = rng.getState()
+      touch()
+      await writeSave(s)
+      return result
+    } finally {
+      busy.value = false
+    }
+  }
+
+  /** 止まったマスの処理をして、1週間進める */
+  async function finishSquare(opts: { choice?: number; specialPlayerId?: string } = {}): Promise<{ week: WeekResult; eventResult: string | null } | null> {
+    const s = save.value
+    const pending = s?.sugoroku?.pending
+    if (!s || !pending || busy.value) return null
+    busy.value = true
+    try {
+      let eventResult: string | null = null
+      if (pending.event) {
+        const choice = pending.event.choices[opts.choice ?? 0] ?? pending.event.choices[0]!
+        applyOps(s, choice.ops)
+        eventResult = choice.result
+        s.log.push({ year: s.calendar.year, week: s.calendar.week, text: `${pending.event.title}：${choice.result}` })
+      }
+      const before = takeSnapshot(ownPlayers())
+      const week = advanceWeek(s, { kind: 'square', square: pending.square, card: pending.card, specialPlayerId: opts.specialPlayerId })
+      lastResult.value = week
+      lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
+      showGrowth.value = lastGrowth.value.length > 0
+      touch()
+      await writeSave(s)
+      return { week, eventResult }
     } finally {
       busy.value = false
     }
@@ -287,6 +339,8 @@ export const useGameStore = defineStore('game', () => {
     substituteOwn,
     endMatch,
     saveLineup,
+    useCard,
+    finishSquare,
     refreshSlots,
     startNewGame,
     loadSlot,

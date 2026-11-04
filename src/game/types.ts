@@ -276,7 +276,89 @@ export interface SaveData {
   nextId: number
   /** 自校のオーダー（未設定なら自動で組む） */
   lineup?: LineupConfig | null
+  /** すごろく（はじめて開いたときに作る） */
+  sugoroku?: SugorokuState
 }
+
+// ---------------------------------------------------------------- すごろく・イベント
+
+export type SquareType =
+  | 'batting'
+  | 'power'
+  | 'pitching'
+  | 'fitness'
+  | 'fielding'
+  | 'running'
+  | 'practical'
+  | 'rest'
+  | 'special'
+  | 'event'
+  | 'manager'
+  | 'funds'
+  | 'scout'
+  | 'rain'
+  | 'school'
+
+export type CardEffect = 'none' | 'hot' | 'light' | 'all'
+
+export interface Card {
+  value: number // 1-6
+  effect: CardEffect
+}
+
+/** イベントの話し手 */
+export type Speaker =
+  | { kind: 'player'; playerId: string }
+  | { kind: 'manager' | 'coach' | 'principal' | 'ob' | 'narration' | 'local'; name: string }
+
+/** イベントの効果（保存できるよう、データとして持つ） */
+export type EffectOp =
+  | { op: 'ability'; playerId: string; key: string; delta: number }
+  | { op: 'condition'; playerId: string | 'all'; key: 'stamina' | 'motivation' | 'form'; delta: number }
+  | { op: 'school'; key: 'funds' | 'reputation'; delta: number }
+  | { op: 'skill'; playerId: string; add?: string; remove?: string }
+  | { op: 'position'; playerId: string; position: Position }
+  | { op: 'camp'; weeks: number }
+
+export interface EventChoice {
+  label: string
+  /** 選んだあとに出す文 */
+  result: string
+  ops: EffectOp[]
+}
+
+export interface EventInstance {
+  id: string
+  title: string
+  speaker: Speaker
+  lines: string[]
+  choices: EventChoice[]
+}
+
+/** マスに止まったあと、まだ週を終えていない状態（中断しても再開できるよう保存する） */
+export interface PendingWeek {
+  square: SquareType
+  card: Card
+  event: EventInstance | null
+  /** 特訓マス：選手を選ぶ必要がある */
+  needsPlayer: boolean
+}
+
+export interface SugorokuState {
+  board: SquareType[]
+  position: number
+  hand: Card[]
+  /** 盤面を作った月（月が変わると並びが変わる） */
+  boardMonth: number
+  pending: PendingWeek | null
+  /** 合宿の残り週数（練習の効果と疲れが大きくなる） */
+  campWeeks: number
+}
+
+/** 自校のその週の過ごし方（週を進めるときに渡す） */
+export type WeekPlan =
+  | { kind: 'square'; square: SquareType; card: Card; specialPlayerId?: string }
+  | { kind: 'match' }
 
 /** 途中の試合の保存データ（セーブデータ本体とは別に、1打席ごとに小さく保存する） */
 export interface MatchRecord {

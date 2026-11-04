@@ -9,6 +9,11 @@ import { playerRating } from '@/game/player'
 import RankBadge from '@/components/RankBadge.vue'
 import FaceIcon from '@/components/FaceIcon.vue'
 import FieldScene from '@/components/FieldScene.vue'
+import SugorokuBoard from '@/components/sugoroku/SugorokuBoard.vue'
+import CardHand from '@/components/sugoroku/CardHand.vue'
+import EventDialog from '@/components/sugoroku/EventDialog.vue'
+import { BOARD_SIZE, CARD_EFFECT_DESC, SQUARES } from '@/game/sugoroku'
+import type { SquareType } from '@/game/types'
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -68,11 +73,83 @@ const recentLog = computed(() => {
   return [...(game.save?.log ?? [])].reverse().slice(0, 5)
 })
 
-async function next(): Promise<void> {
-  const result = await game.nextWeek()
-  if (!result) return
-  if (result.messages.length > 0) ui.showToast(result.messages[result.messages.length - 1]!)
-  if (result.backupPrompt) {
+const sg = computed(() => {
+  void game.rev
+  return game.save?.sugoroku ?? null
+})
+const selected = ref<number | null>(null)
+const displayPos = ref<number | null>(null)
+const moving = ref(false)
+const eventOpen = ref(false)
+const specialOpen = ref(false)
+
+const preview = computed(() => {
+  const s = sg.value
+  if (!s || selected.value === null) return null
+  const c = s.hand[selected.value]
+  return c ? (s.position + c.value) % BOARD_SIZE : null
+})
+
+function squareName(sq: SquareType): string {
+  return SQUARES[sq].label
+}
+
+function selectCard(i: number): void {
+  selected.value = selected.value === i ? null : i
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+async function go(): Promise<void> {
+  if (selected.value === null || moving.value) return
+  const idx = selected.value
+  selected.value = null
+  const start = sg.value?.position ?? 0
+  moving.value = true
+  displayPos.value = start
+  const r = await game.useCard(idx)
+  if (!r) {
+    moving.value = false
+    displayPos.value = null
+    return
+  }
+  for (const pos of r.path) {
+    displayPos.value = pos
+    await sleep(170)
+  }
+  await sleep(250)
+  moving.value = false
+  displayPos.value = null
+  afterLand()
+}
+
+function afterLand(): void {
+  const pending = sg.value?.pending
+  if (!pending) return
+  if (pending.event) eventOpen.value = true
+  else if (pending.needsPlayer) specialOpen.value = true
+  else void finish({})
+}
+
+async function onEventDone(choice: number): Promise<void> {
+  eventOpen.value = false
+  await finish({ choice })
+}
+
+async function onSpecial(id: string): Promise<void> {
+  specialOpen.value = false
+  await finish({ specialPlayerId: id })
+}
+
+const IMPORTANT = ['特殊能力', '克服', '違和感', '悪化', '全治', '入部した']
+
+async function finish(opts: { choice?: number; specialPlayerId?: string }): Promise<void> {
+  const r = await game.finishSquare(opts)
+  if (!r) return
+  const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
+  if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
+  else if (r.week.messages.length > 0) ui.showToast(r.week.messages[r.week.messages.length - 1]!)
+  if (r.week.backupPrompt) {
     const ok = await ui.confirm(
       '新しい年度になりました。\nスマホの故障や機種変更に備えて、セーブデータを書き出しておきませんか？',
       { title: 'バックアップのおすすめ', okLabel: '書き出す', cancelLabel: 'あとで' },
@@ -80,12 +157,19 @@ async function next(): Promise<void> {
     if (ok) await game.exportCurrent()
   }
 }
+
+const specialCandidates = computed(() =>
+  game
+    .ownPlayers()
+    .filter((p) => !p.retired && !p.condition.injury)
+    .sort((a, b) => playerRating(b) - playerRating(a)),
+)
 </script>
 
 <template>
   <div class="home">
     <div class="stage">
-      <FieldScene :height="190" :evening="evening" />
+      <FieldScene :height="150" :evening="evening" />
       <div class="bubble">
         {{ milestone.label }}まで<br /><b>あと{{ milestone.weeks }}週</b>
       </div>
@@ -100,12 +184,24 @@ async function next(): Promise<void> {
         <span class="go-main">試合の続きへ</span>
         <span class="go-sub"><GameIcon name="play" :size="12" /> {{ game.match.options.label }}</span>
       </button>
-      <template v-else>
-        <button class="sun go" :disabled="game.busy" @click="next">
-          <span class="go-main">{{ game.busy ? '練習中…' : '1週間 練習する' }}</span>
-          <span class="go-sub"><GameIcon name="play" :size="12" /> 次の週へ</span>
-        </button>
-        <button class="sky full practice-match" :disabled="game.busy" @click="picking = true">
+      <template v-else-if="sg">
+        <div class="card board-card">
+          <h2 class="grass"><GameIcon name="run" /> 今週の練習 <span class="h-note">カードを選んで進もう</span></h2>
+          <SugorokuBoard :board="sg.board" :position="displayPos ?? sg.position" :preview="moving ? null : preview" :month="sg.boardMonth" :camp="sg.campWeeks > 0" />
+          <template v-if="sg.pending && !moving">
+            <button class="sun full go-btn" :disabled="game.busy" @click="afterLand">{{ squareName(sg.pending.square) }}マスの続きをする</button>
+          </template>
+          <template v-else>
+            <div class="hand-wrap">
+              <CardHand :hand="sg.hand" :selected="selected" :disabled="moving || game.busy" @select="selectCard" />
+            </div>
+            <p v-if="selected !== null && sg.hand[selected]?.effect !== 'none'" class="muted card-desc">{{ CARD_EFFECT_DESC[sg.hand[selected]!.effect] }}</p>
+            <button class="sun full go-btn" :disabled="selected === null || moving || game.busy" @click="go">
+              <GameIcon name="play" :size="14" /> {{ selected === null ? 'カードを選んでください' : `${sg.hand[selected]!.value}マス進む` }}
+            </button>
+          </template>
+        </div>
+        <button class="sky full practice-match" :disabled="game.busy || moving || !!sg.pending" @click="picking = true">
           <GameIcon name="ball" :size="18" /> 今週は練習試合をする
         </button>
       </template>
@@ -155,6 +251,20 @@ async function next(): Promise<void> {
             <div>{{ l.text }}</div>
           </li>
         </ul>
+      </div>
+    </div>
+    <EventDialog v-if="eventOpen && sg?.pending?.event" :event="sg.pending.event" @done="onEventDone" />
+    <div v-if="specialOpen" class="picker-backdrop">
+      <div class="picker card">
+        <h2 class="red"><GameIcon name="flame" /> 特訓する選手を選ぶ</h2>
+        <p class="muted">選んだ選手は大きく伸び、特殊能力を覚えることもあります。そのぶん疲れます。</p>
+        <div class="opp-list">
+          <button v-for="p in specialCandidates" :key="p.id" class="opp" @click="onSpecial(p.id)">
+            <FaceIcon :face="p.face" :size="34" />
+            <span class="opp-name">{{ p.surname }} {{ p.givenName }}<small>{{ p.grade }}年・{{ POSITION_LABEL[p.mainPosition] }}・体力{{ p.condition.stamina }}</small></span>
+            <RankBadge :value="playerRating(p)" size="sm" />
+          </button>
+        </div>
       </div>
     </div>
     <div v-if="picking" class="picker-backdrop" @click.self="picking = false">
@@ -253,8 +363,29 @@ async function next(): Promise<void> {
   font-size: 12px;
   opacity: 0.85;
 }
+.board-card {
+  margin-top: -30px;
+  z-index: 2;
+}
+.h-note {
+  margin-left: auto;
+  font-size: 11px;
+  opacity: 0.9;
+}
+.hand-wrap {
+  margin-top: 18px;
+}
+.card-desc {
+  text-align: center;
+  margin: 8px 0 0;
+}
+.go-btn {
+  margin-top: 12px;
+  padding: 13px;
+  font-size: 16px;
+}
 .practice-match {
-  margin-top: 14px;
+  margin-top: 0;
   padding: 11px;
 }
 .go + .card,
