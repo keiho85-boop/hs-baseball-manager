@@ -5,8 +5,11 @@ import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // GitHub Pages では https://<アカウント>.github.io/hs-baseball-manager/ で公開されるため base を合わせる
-export default defineConfig({
-  base: '/hs-baseball-manager/',
+// mode が app のときは、Androidアプリ（Capacitor）に入れる版を作る（サーバー上の場所に依存せず、オフライン保存の仕組みも使わない）
+export default defineConfig(({ mode }) => ({
+  base: mode === 'app' ? './' : '/hs-baseball-manager/',
+  build: { outDir: mode === 'app' ? 'dist-app' : 'dist' },
+  define: { __APP_BUILD__: JSON.stringify(mode === 'app') },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -14,6 +17,7 @@ export default defineConfig({
   },
   plugins: [
     vue(),
+    mode !== 'app' &&
     VitePWA({
       // 更新はタイトル画面に戻ったときだけ反映する（プレイ中は切り替えない）
       registerType: 'prompt',
@@ -63,4 +67,4 @@ export default defineConfig({
   test: {
     environment: 'node',
   },
-})
+}))

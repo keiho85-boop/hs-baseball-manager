@@ -12,6 +12,7 @@ import Field3D from '@/components/match/Field3D.vue'
 import MatchResult from '@/components/match/MatchResult.vue'
 import FormIcon from '@/components/FormIcon.vue'
 import { play } from '@/sound'
+import { hideBanner } from '@/ads'
 import { shortResult, isGoodResult, bigResult } from '@/game/match/labels'
 import { getSkill } from '@/game/skills'
 import { rankOf } from '@/game/constants'
@@ -258,6 +259,9 @@ function scheduleAuto(): void {
 
 watch(auto, (on) => (on ? scheduleAuto() : clearTimeout(timer)))
 onBeforeUnmount(() => clearTimeout(timer))
+// 試合中は画面を広く使うため、広告を隠す
+void hideBanner(true)
+onBeforeUnmount(() => void hideBanner(false))
 
 // ---- カットイン ----
 const cutin = ref<{ kind: 'chance' | 'pinch'; player: Player; sub: string } | null>(null)

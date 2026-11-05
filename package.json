@@ -10,13 +10,18 @@
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run --exclude \"tests/**/*.run.test.ts\"",
-    "balance": "vitest run tests/balance.run.test.ts"
+    "balance": "vitest run tests/balance.run.test.ts",
+    "build:app": "vue-tsc --noEmit && vite build --mode app",
+    "cap:sync": "npm run build:app && npx cap sync android"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/keiho85-boop/hs-baseball-manager.git"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.3.0",
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
     "@fontsource/m-plus-rounded-1c": "^5.3.0",
     "@types/three": "^0.187.0",
     "idb": "^8.0.4",
@@ -27,6 +32,7 @@
     "workbox-window": "^7.4.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@types/node": "^26.6.6",
     "@vitejs/plugin-vue": "^6.0.10",
     "typescript": "^6.0.3",
