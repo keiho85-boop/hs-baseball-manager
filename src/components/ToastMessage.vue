@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 画面中央に少しのあいだ出る知らせ（色付きの帯とアイコン、残り時間のバー）
+// 画面中央に出る知らせ（色付きの帯とアイコン）。OKを押すまで表示する
 import { useUiStore } from '@/stores/ui'
 
 const ui = useUiStore()
@@ -7,7 +7,7 @@ const ui = useUiStore()
 
 <template>
   <Transition name="nt">
-    <div v-if="ui.notice" :key="ui.notice.id" class="nt-wrap" @click="ui.closeNotice()">
+    <div v-if="ui.notice" :key="ui.notice.id" class="nt-wrap">
       <div class="nt" :class="ui.notice.tone">
         <div class="medal">
           <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
@@ -26,7 +26,7 @@ const ui = useUiStore()
           <span class="hl-value" :class="h.rank ? `rk-${h.rank}` : ''" :style="{ animationDelay: `${0.1 + i * 0.25}s` }">{{ h.value }}</span>
         </div>
         <div class="msg">{{ ui.notice.message }}</div>
-        <div class="timer"><i :style="{ animationDuration: `${ui.notice.duration}ms` }" /></div>
+        <button class="ok" @click="ui.closeNotice()">OK</button>
       </div>
     </div>
   </Transition>
@@ -40,7 +40,7 @@ const ui = useUiStore()
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+  background: rgba(10, 30, 60, 0.35);
 }
 .nt {
   --c: #2fa84a;
@@ -124,6 +124,22 @@ const ui = useUiStore()
   font-weight: 700;
   color: var(--ink);
   line-height: 1.5;
+}
+.ok {
+  margin-top: 12px;
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+  font-weight: 900;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(180deg, var(--c), var(--d));
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+.ok:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
 }
 .timer {
   margin-top: 12px;

@@ -35,7 +35,6 @@ export const useUiStore = defineStore('ui', () => {
   const playerNav = ref<string[]>([])
   /** 選手詳細で最後に開いていたタブ（次の選手に移っても同じタブを開く） */
   const playerTab = ref<string | null>(null)
-  let toastTimer: ReturnType<typeof setTimeout> | undefined
   let applyUpdate: (() => Promise<void>) | null = null
 
   function confirm(
@@ -82,11 +81,8 @@ export const useUiStore = defineStore('ui', () => {
       highlights: n.highlights ?? (n.highlight ? [n.highlight] : undefined),
       duration: n.duration ?? (n.highlight || n.highlights ? 3200 : 2200),
     }
-    clearTimeout(toastTimer)
-    toastTimer = setTimeout(() => (notice.value = null), notice.value.duration)
   }
   function closeNotice(): void {
-    clearTimeout(toastTimer)
     notice.value = null
   }
   /** 以前からの呼び方。文字だけの知らせも、中央のポップアップで出す */
