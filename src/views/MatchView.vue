@@ -11,6 +11,7 @@ import type { Player } from '@/game/types'
 import Field3D from '@/components/match/Field3D.vue'
 import MatchResult from '@/components/match/MatchResult.vue'
 import FormIcon from '@/components/FormIcon.vue'
+import { play } from '@/sound'
 import { shortResult, isGoodResult, bigResult } from '@/game/match/labels'
 import { getSkill } from '@/game/skills'
 import { rankOf } from '@/game/constants'
@@ -200,8 +201,34 @@ async function step(kind: 'pitch' | 'pa' | 'inning' | 'end'): Promise<void> {
     busyStep.value = false
   }
   const s = m.value
-  if (s && !s.finished && kind !== 'end' && s.events.length > before) flashResult(s.events[s.events.length - 1]!)
+  if (s && kind !== 'end' && s.events.length > before) {
+    const e = s.events[s.events.length - 1]!
+    if (!s.finished) flashResult(e)
+    playFor(e)
+  } else if (s && kind === 'pitch') {
+    // 1球だけ進めたとき：打球にならなかった球はミットの音
+    if (/空振り|見逃し|ボール/.test(s.lastPitch)) play('miss')
+    else if (/ファウル/.test(s.lastPitch)) play('hit')
+  }
+  if (s?.finished) {
+    const ownHome = s.home.schoolId === ownId.value
+    const won = s.winner === null ? null : (s.winner === 'home') === ownHome
+    setTimeout(() => play(won ? 'win' : 'lose'), 600)
+  }
   checkCutin()
+}
+
+/** 打席の結果に合わせた効果音 */
+function playFor(e: PlayEvent): void {
+  if (e.kind === 'homerun') play('homerun')
+  else if (['single', 'double', 'triple', 'error'].includes(e.kind)) play('hit')
+  else if (e.kind === 'strikeout') play('miss')
+  else if (['walk', 'hbp'].includes(e.kind)) play('catch')
+  else if (['groundout', 'flyout', 'lineout', 'popout', 'doubleplay', 'sacbunt', 'sacfly', 'fielderschoice', 'buntfail'].includes(e.kind)) {
+    play('hit')
+    setTimeout(() => play('out'), 350)
+  } else if (e.kind === 'steal') play('cheer')
+  else play('catch')
 }
 
 // ---- 打席結果の演出（画面中央に一時的に出す） ----
@@ -302,6 +329,7 @@ function back(): void {
 }
 
 if (!game.match) router.replace({ name: 'home' })
+else if (game.match.events.length === 0 && game.match.count.balls + game.match.count.strikes === 0) play('whistle')
 </script>
 
 <template>

@@ -59,9 +59,19 @@ function randomFace(rng: Rng): FaceParts {
     skin: rng.int(0, 3),
     hair: rng.int(0, 7),
     hairColor: rng.int(0, 2),
-    brows: rng.int(0, 3),
-    eyes: rng.int(0, 5),
-    mouth: rng.int(0, 4),
+    brows: rng.int(0, 6),
+    eyes: rng.int(0, 9),
+    mouth: rng.int(0, 7),
+    nose: rng.int(0, 3),
+    extra: rng.weighted([
+      { value: 0, weight: 62 },
+      { value: 1, weight: 9 },
+      { value: 2, weight: 6 },
+      { value: 3, weight: 6 },
+      { value: 4, weight: 6 },
+      { value: 5, weight: 9 },
+      { value: 6, weight: 2 },
+    ]),
   }
 }
 

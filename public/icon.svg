@@ -1,6 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#1f5130"/>
-  <circle cx="256" cy="256" r="150" fill="#f4f1ea"/>
-  <path d="M156 160c40 40 40 152 0 192" fill="none" stroke="#c0392b" stroke-width="14" stroke-linecap="round"/>
-  <path d="M356 160c-40 40-40 152 0 192" fill="none" stroke="#c0392b" stroke-width="14" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d4f9e"/><stop offset="0.6" stop-color="#0f2c63"/><stop offset="1" stop-color="#0a1f47"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="38%" r="55%">
+      <stop offset="0" stop-color="#ffe9a0" stop-opacity="0.55"/><stop offset="1" stop-color="#ffe9a0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ball" cx="36%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="0.65" stop-color="#eef2f7"/><stop offset="1" stop-color="#aebbcc"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff3b0"/><stop offset="0.5" stop-color="#ffd23d"/><stop offset="1" stop-color="#e99a00"/>
+    </linearGradient>
+    <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5fca5f"/><stop offset="1" stop-color="#2a9137"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <path d="M0 400 Q256 330 512 400 V512 H0Z" fill="url(#grass)"/>
+  <path d="M256 352 L346 412 L256 470 L166 412Z" fill="#d7a26b"/>
+  <path d="M256 372 L318 412 L256 452 L194 412Z" fill="#4cbf58"/>
+  <g transform="translate(256 240)">
+    <circle r="118" fill="url(#ball)" stroke="#8a98ab" stroke-width="4"/>
+    <path d="M-72 -92 Q-30 0 -72 92" fill="none" stroke="#e5363d" stroke-width="9" stroke-dasharray="15 11" stroke-linecap="round"/>
+    <path d="M72 -92 Q30 0 72 92" fill="none" stroke="#e5363d" stroke-width="9" stroke-dasharray="15 11" stroke-linecap="round"/>
+    <ellipse cx="-40" cy="-58" rx="38" ry="20" fill="#fff" opacity="0.85" transform="rotate(-30 -40 -58)"/>
+  </g>
+  <g transform="translate(0 -36) scale(1)"><path d="M256 70 l14 30 33 4 -24 22 6 33 -29 -16 -29 16 6 -33 -24 -22 33 -4z" fill="url(#gold)" stroke="#8a5200" stroke-width="3" stroke-linejoin="round"/></g>
 </svg>

@@ -1,8 +1,14 @@
 <script setup lang="ts">
 // 画面中央に出る知らせ（色付きの帯とアイコン）。OKを押すまで表示する
+import { watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
+import { play } from '@/sound'
 
 const ui = useUiStore()
+watch(
+  () => ui.notice?.id,
+  (id) => id && play(ui.notice?.tone === 'warn' || ui.notice?.tone === 'bad' ? 'catch' : 'notice'),
+)
 </script>
 
 <template>

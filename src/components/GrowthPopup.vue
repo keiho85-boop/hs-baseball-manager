@@ -6,6 +6,8 @@ import { POSITION_LABEL, rankOf, velocityScore } from '@/game/constants'
 import type { Player } from '@/game/types'
 import type { GrowthEntry } from '@/game/growth'
 import FaceIcon from './FaceIcon.vue'
+import { watch } from 'vue'
+import { play } from '@/sound'
 
 const game = useGameStore()
 
@@ -65,6 +67,11 @@ const rows = computed<Row[]>(() => {
   }
   return list
 })
+
+watch(
+  () => game.showGrowth,
+  (v) => v && play('up'),
+)
 
 function close(): void {
   game.showGrowth = false

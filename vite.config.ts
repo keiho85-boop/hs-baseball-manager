@@ -17,7 +17,7 @@ export default defineConfig({
     VitePWA({
       // 更新はタイトル画面に戻ったときだけ反映する（プレイ中は切り替えない）
       registerType: 'prompt',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
       manifest: {
         name: '高校野球監督ゲーム（仮）',
         short_name: '監督ゲーム',
@@ -29,21 +29,24 @@ export default defineConfig({
         display: 'fullscreen',
         display_override: ['fullscreen', 'standalone'],
         orientation: 'portrait',
-        background_color: '#f4f1ea',
-        theme_color: '#1f5130',
+        background_color: '#0a1426',
+        theme_color: '#1d4f9e',
+        // Google Play（TWA）や Android のホーム画面では PNG のアイコンが必要
         icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
         ],
       },
       workbox: {
         // フォントは文字の範囲ごとに細かく分かれていて数が多いため、最初にまとめて保存せず、
         // 使った分だけ保存する（一度表示した文字は通信なしでも表示できる）
         globPatterns: ['**/*.{js,css,html,svg,png}'],
-        globIgnores: ['intro/**'],
+        globIgnores: ['intro/**', 'privacy/**'],
         navigateFallback: '/hs-baseball-manager/index.html',
         // 紹介ページはゲーム本体とは別のページとして開く
-        navigateFallbackDenylist: [/\/intro\//],
+        navigateFallbackDenylist: [/\/intro\//, /\/privacy\//],
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.destination === 'font',

@@ -145,6 +145,7 @@ async function remove(slot: number): Promise<void> {
       </p>
       <p v-if="game.busy" class="muted">読み込み中…</p>
       <a class="intro-link" href="./intro/">ゲーム紹介ページ（友達に紹介する）</a>
+      <a class="intro-link small" href="./privacy/">プライバシーポリシー</a>
       <input ref="fileInput" type="file" accept=".hsbm,application/gzip,application/octet-stream" hidden @change="onFile" />
     </div>
   </div>
@@ -315,6 +316,11 @@ async function remove(slot: number): Promise<void> {
   color: #ffd36b;
   font-size: 13px;
   font-weight: 800;
+}
+.intro-link.small {
+  margin-top: 0;
+  font-size: 11px;
+  color: #9fb4cc;
 }
 .head {
   justify-content: space-between;

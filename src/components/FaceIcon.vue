@@ -45,23 +45,44 @@ const BROWS = [
   'M35 50 L45 46.5 M55 46.5 L65 50',
   'M35 47.5 L45 49.5 M55 49.5 L65 47.5',
   'M35 49 Q40 45.5 45 48.5 M55 48.5 Q60 45.5 65 49',
+  // 太眉
+  'M34 49.5 Q40 46 46 48 M54 48 Q60 46 66 49.5',
+  // 困り眉
+  'M35 47 Q40 48.5 45 50 M55 50 Q60 48.5 65 47',
+  // きりっと短い
+  'M37 49 L44 47 M56 47 L63 49',
 ]
+/** 太い眉は線を太く描く */
+const BROW_WIDTH = [2.8, 2.8, 2.8, 2.8, 4.2, 2.6, 3.2]
 const MOUTHS = [
   'M44 69 Q50 73.5 56 69',
   'M45 70.5 L55 70.5',
   'M43 68 Q50 76 57 68 Z',
   'M45 71.5 Q50 68.5 55 71.5',
   'M43.5 69.5 Q50 72.5 57 68',
+  // 歯を見せて笑う
+  'M42.5 67.5 Q50 77 57.5 67.5 Z',
+  // 口をとがらせる
+  'M47 70 Q50 68.5 53 70 Q50 72.5 47 70Z',
+  // 大きく「へ」の字
+  'M43 72 Q50 67.5 57 72',
 ]
+const OPEN_MOUTHS = [2, 5, 6]
+const NOSES = ['M50.5 61 Q52.5 64 50 65', 'M49 63.5 Q50 65.5 51.5 63.5', 'M50 60 L52 64.5 L49 65', 'M48.5 64 Q50 66 51.5 64 M50 60 V63']
 
 const skin = computed(() => SKINS[props.face.skin % SKINS.length]!)
 const hairColor = computed(() => HAIR_COLORS[props.face.hairColor % HAIR_COLORS.length])
 const outline = computed(() => OUTLINES[props.face.outline % OUTLINES.length])
 const hair = computed(() => HAIRS[props.face.hair % HAIRS.length])
 const brows = computed(() => BROWS[props.face.brows % BROWS.length])
+const browWidth = computed(() => BROW_WIDTH[props.face.brows % BROWS.length])
 const mouth = computed(() => MOUTHS[props.face.mouth % MOUTHS.length])
-const eyeType = computed(() => props.face.eyes % 6)
-const openMouth = computed(() => props.face.mouth % MOUTHS.length === 2)
+const eyeType = computed(() => props.face.eyes % 10)
+const openMouth = computed(() => OPEN_MOUTHS.includes(props.face.mouth % MOUTHS.length))
+const teeth = computed(() => props.face.mouth % MOUTHS.length === 5)
+// 以前の版のデータには鼻と小物がないので、ほかの部品から決める（毎回同じになる）
+const nose = computed(() => NOSES[(props.face.nose ?? props.face.eyes * 7 + props.face.mouth * 3) % NOSES.length])
+const extra = computed(() => props.face.extra ?? [0, 0, 0, 5, 0, 1, 0, 4, 0, 3][(props.face.outline * 5 + props.face.hair * 3 + props.face.brows) % 10]!)
 </script>
 
 <template>
@@ -140,7 +161,7 @@ const openMouth = computed(() => props.face.mouth % MOUTHS.length === 2)
       <circle cx="50" cy="27" r="6" fill="#fff" />
       <path d="M47 24 L50 30 L53 24" fill="none" :stroke="capColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       <!-- 眉 -->
-      <path :d="brows" :stroke="hairColor" stroke-width="2.8" stroke-linecap="round" fill="none" />
+      <path :d="brows" :stroke="hairColor" :stroke-width="browWidth" stroke-linecap="round" fill="none" />
       <!-- 目 -->
       <g v-if="eyeType === 0 || eyeType === 4">
         <ellipse cx="40" cy="57" :rx="eyeType === 4 ? 5 : 4.2" :ry="eyeType === 4 ? 5.6 : 4.8" fill="#fff" />
@@ -164,17 +185,61 @@ const openMouth = computed(() => props.face.mouth % MOUTHS.length === 2)
         <path d="M65 55 L55 56.5 L56 58.5 Q60 60 64 57.5Z" fill="#20160f" />
         <circle cx="41.5" cy="57" r="0.9" fill="#fff" /><circle cx="58.5" cy="57" r="0.9" fill="#fff" />
       </g>
-      <g v-else>
+      <g v-else-if="eyeType === 5">
         <path d="M35.5 56 Q40 59 44.5 56" stroke="#20160f" stroke-width="2.4" fill="none" stroke-linecap="round" />
         <path d="M55.5 56 Q60 59 64.5 56" stroke="#20160f" stroke-width="2.4" fill="none" stroke-linecap="round" />
+      </g>
+      <!-- つり目 -->
+      <g v-else-if="eyeType === 6">
+        <path d="M35 58.5 Q39 53.5 45 55.5 Q43 59.5 38 59.5Z" fill="#fff" stroke="#20160f" stroke-width="1.4" />
+        <path d="M65 58.5 Q61 53.5 55 55.5 Q57 59.5 62 59.5Z" fill="#fff" stroke="#20160f" stroke-width="1.4" />
+        <circle cx="40.8" cy="57.3" r="2" fill="#20160f" /><circle cx="59.2" cy="57.3" r="2" fill="#20160f" />
+      </g>
+      <!-- たれ目 -->
+      <g v-else-if="eyeType === 7">
+        <path d="M35 55.5 Q41 53.5 45 58.5 Q40 60 36.5 58Z" fill="#fff" stroke="#20160f" stroke-width="1.4" />
+        <path d="M65 55.5 Q59 53.5 55 58.5 Q60 60 63.5 58Z" fill="#fff" stroke="#20160f" stroke-width="1.4" />
+        <circle cx="40.5" cy="57.2" r="2.1" fill="#20160f" /><circle cx="59.5" cy="57.2" r="2.1" fill="#20160f" />
+        <circle cx="41.2" cy="56.5" r="0.7" fill="#fff" /><circle cx="60.2" cy="56.5" r="0.7" fill="#fff" />
+      </g>
+      <!-- 大きな丸い目 -->
+      <g v-else-if="eyeType === 8">
+        <circle cx="40" cy="57" r="5.2" fill="#fff" stroke="#20160f" stroke-width="1.3" />
+        <circle cx="60" cy="57" r="5.2" fill="#fff" stroke="#20160f" stroke-width="1.3" />
+        <circle cx="40.5" cy="57.5" r="2.8" :fill="`url(#${id('iris')})`" /><circle cx="59.5" cy="57.5" r="2.8" :fill="`url(#${id('iris')})`" />
+        <circle cx="41.5" cy="56.2" r="1.1" fill="#fff" /><circle cx="60.5" cy="56.2" r="1.1" fill="#fff" />
+      </g>
+      <!-- 細いきりっとした目 -->
+      <g v-else>
+        <path d="M35 57 L45 56" stroke="#20160f" stroke-width="2.6" stroke-linecap="round" />
+        <path d="M55 56 L65 57" stroke="#20160f" stroke-width="2.6" stroke-linecap="round" />
+        <circle cx="40.5" cy="57.6" r="1.3" fill="#20160f" /><circle cx="59.5" cy="57.6" r="1.3" fill="#20160f" />
       </g>
       <!-- ほお -->
       <ellipse cx="34" cy="65" rx="4.5" ry="2.4" fill="#ff8f8f" opacity="0.28" />
       <ellipse cx="66" cy="65" rx="4.5" ry="2.4" fill="#ff8f8f" opacity="0.28" />
       <!-- 鼻 -->
-      <path d="M50.5 61 Q52.5 64 50 65" :stroke="skin[1]" stroke-width="1.8" fill="none" stroke-linecap="round" />
+      <path :d="nose" :stroke="skin[1]" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" />
       <!-- 口 -->
       <path :d="mouth" stroke="#8a3b2e" stroke-width="2.2" :fill="openMouth ? '#b34a3c' : 'none'" stroke-linecap="round" stroke-linejoin="round" />
+      <path v-if="teeth" d="M44.5 68.6 Q50 70.2 55.5 68.6 L55 70.2 Q50 71.4 45 70.2Z" fill="#fff" />
+      <!-- 小物・特徴 -->
+      <g v-if="extra === 1" fill="none" stroke="#2b3445" stroke-width="1.6">
+        <rect x="33.5" y="52" width="13" height="10" rx="3.5" fill="#bfe3ff" fill-opacity="0.25" />
+        <rect x="53.5" y="52" width="13" height="10" rx="3.5" fill="#bfe3ff" fill-opacity="0.25" />
+        <path d="M46.5 56 Q50 54.5 53.5 56 M33.5 55 L27 53.5 M66.5 55 L73 53.5" />
+      </g>
+      <g v-else-if="extra === 2">
+        <rect x="60" y="63" width="9" height="4.5" rx="1.5" fill="#f3d6b0" stroke="#d7b48a" stroke-width="0.8" transform="rotate(-18 64.5 65.2)" />
+        <path d="M62.5 64.8 L66.5 63.5" stroke="#d7b48a" stroke-width="0.6" />
+      </g>
+      <circle v-else-if="extra === 3" cx="58.5" cy="67.5" r="0.9" fill="#4a2f22" />
+      <g v-else-if="extra === 4" fill="#b8784e" opacity="0.65">
+        <circle cx="34" cy="63.5" r="0.7" /><circle cx="36.5" cy="65" r="0.7" /><circle cx="33" cy="66" r="0.6" />
+        <circle cx="66" cy="63.5" r="0.7" /><circle cx="63.5" cy="65" r="0.7" /><circle cx="67" cy="66" r="0.6" />
+      </g>
+      <ellipse v-else-if="extra === 5" cx="50" cy="62.5" rx="17" ry="3.2" fill="#c86a3d" opacity="0.18" />
+      <path v-else-if="extra === 6" d="M60 46 L63.5 51" stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity="0.9" />
     </g>
     <circle cx="50" cy="50" r="47.5" fill="none" stroke="#9fc8ea" stroke-width="2" />
     <!-- 丸い枠に光沢（ガラス玉のような立体感） -->

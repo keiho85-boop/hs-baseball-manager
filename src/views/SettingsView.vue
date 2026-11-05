@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui'
 import type { Difficulty } from '@/game/types'
 import { ref } from 'vue'
 import { fullscreenEnabled, setFullscreenEnabled } from '@/fullscreen'
+import { play, setSoundEnabled, soundEnabled } from '@/sound'
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -18,6 +19,12 @@ const settings = computed(() => {
 })
 
 const fullscreen = ref(fullscreenEnabled())
+const sound = ref(soundEnabled())
+function toggleSound(): void {
+  sound.value = !sound.value
+  setSoundEnabled(sound.value)
+  if (sound.value) play('hit')
+}
 function toggleFullscreen(): void {
   fullscreen.value = !fullscreen.value
   setFullscreenEnabled(fullscreen.value)
@@ -68,6 +75,10 @@ async function backToTitle(): Promise<void> {
         </div>
       </div>
       <label class="row">
+        <input type="checkbox" class="check" :checked="sound" @change="toggleSound" />
+        効果音を鳴らす
+      </label>
+      <label class="row">
         <input type="checkbox" class="check" :checked="fullscreen" @change="toggleFullscreen" />
         全画面で表示する
       </label>
@@ -92,10 +103,20 @@ async function backToTitle(): Promise<void> {
     </div>
 
     <button class="danger full" @click="backToTitle">タイトル画面に戻る</button>
+    <p class="links"><a href="./privacy/" target="_blank" rel="noopener">プライバシーポリシー</a>・<a href="./intro/" target="_blank" rel="noopener">ゲーム紹介</a></p>
   </div>
 </template>
 
 <style scoped>
+.links {
+  text-align: center;
+  font-size: 13px;
+  margin-top: 16px;
+}
+.links a {
+  color: var(--sky-deep);
+  font-weight: 800;
+}
 .label {
   font-size: 13px;
   font-weight: 600;

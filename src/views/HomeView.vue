@@ -19,6 +19,7 @@ import TournamentPanel from '@/components/tournament/TournamentPanel.vue'
 import BracketSheet from '@/components/tournament/BracketSheet.vue'
 import BoardRefresh from '@/components/sugoroku/BoardRefresh.vue'
 import TabIcon from '@/components/TabIcon.vue'
+import { play } from '@/sound'
 import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 
 const game = useGameStore()
@@ -176,8 +177,10 @@ async function go(): Promise<void> {
     displayPos.value = null
     return
   }
+  play('card')
   for (const pos of r.path) {
     displayPos.value = pos
+    play('step')
     await sleep(170)
   }
   await sleep(250)

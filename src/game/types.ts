@@ -30,6 +30,10 @@ export interface FaceParts {
   brows: number
   eyes: number
   mouth: number
+  /** 鼻の形（以前の版のデータにはない） */
+  nose?: number
+  /** 小物・特徴：0=なし、1=眼鏡、2=ほおの絆創膏、3=ほくろ、4=そばかす、5=日焼け、6=太い眉の傷 */
+  extra?: number
 }
 
 /** 野手の打撃能力 */
