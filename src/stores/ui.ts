@@ -12,6 +12,19 @@ export interface DialogRequest {
   resolve: (ok: boolean) => void
 }
 
+/** 画面中央に少しのあいだ出す知らせ */
+export interface Notice {
+  id: number
+  title: string
+  message: string
+  tone: 'info' | 'good' | 'warn' | 'bad'
+  icon: string
+  /** 「〇〇が判明」などの大きな見出し部分 */
+  highlight?: { label: string; value: string; rank?: string }
+  duration: number
+}
+export type NoticeInput = Partial<Omit<Notice, 'id' | 'message'>> & { message: string }
+
 export const useUiStore = defineStore('ui', () => {
   const dialog = ref<DialogRequest | null>(null)
   const toast = ref<string | null>(null)
@@ -51,10 +64,32 @@ export const useUiStore = defineStore('ui', () => {
     d?.resolve(ok)
   }
 
-  function showToast(message: string): void {
-    toast.value = message
+  const notice = ref<Notice | null>(null)
+  let noticeId = 0
+
+  /** 中央のポップアップで知らせる */
+  function notify(n: NoticeInput): void {
+    const warn = /できません|られません|足りません|ありません/.test(n.message)
+    const tone = n.tone ?? (warn ? 'warn' : 'good')
+    notice.value = {
+      id: ++noticeId,
+      title: n.title ?? (tone === 'warn' ? 'ご注意' : tone === 'bad' ? '残念…' : tone === 'info' ? 'お知らせ' : 'OK！'),
+      message: n.message,
+      tone,
+      icon: n.icon ?? (tone === 'warn' ? 'warn' : tone === 'bad' ? 'bad' : tone === 'info' ? 'info' : 'check'),
+      highlight: n.highlight,
+      duration: n.duration ?? (n.highlight ? 3000 : 2200),
+    }
     clearTimeout(toastTimer)
-    toastTimer = setTimeout(() => (toast.value = null), 2500)
+    toastTimer = setTimeout(() => (notice.value = null), notice.value.duration)
+  }
+  function closeNotice(): void {
+    clearTimeout(toastTimer)
+    notice.value = null
+  }
+  /** 以前からの呼び方。文字だけの知らせも、中央のポップアップで出す */
+  function showToast(message: string, opts: Partial<NoticeInput> = {}): void {
+    notify({ ...opts, message })
   }
 
   function setUpdater(fn: () => Promise<void>): void {
@@ -66,5 +101,5 @@ export const useUiStore = defineStore('ui', () => {
     await applyUpdate?.()
   }
 
-  return { dialog, toast, updateAvailable, playerNav, playerTab, confirm, alert, closeDialog, showToast, setUpdater, runUpdate }
+  return { dialog, toast, notice, notify, closeNotice, updateAvailable, playerNav, playerTab, confirm, alert, closeDialog, showToast, setUpdater, runUpdate }
 })

@@ -63,7 +63,7 @@ async function nextTournamentWeek(): Promise<void> {
   if (!r) return
   const important = r.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
   if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
-  else if (r.messages.length > 0) ui.showToast(r.messages[r.messages.length - 1]!)
+  else if (r.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.messages[r.messages.length - 1]!, tone: 'info' })
 }
 
 async function startMatch(id: string): Promise<void> {
@@ -211,7 +211,7 @@ async function finish(opts: { choice?: number; specialPlayerId?: string }): Prom
   if (!r) return
   const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
   if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
-  else if (r.week.messages.length > 0) ui.showToast(r.week.messages[r.week.messages.length - 1]!)
+  else if (r.week.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.week.messages[r.week.messages.length - 1]!, tone: 'info' })
   if (r.week.backupPrompt) {
     const ok = await ui.confirm(
       '新しい年度になりました。\nスマホの故障や機種変更に備えて、セーブデータを書き出しておきませんか？',

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Rng } from '../src/game/rng'
 import { createNewGame } from '../src/game/world'
 import { advanceWeek } from '../src/game/season'
-import { ensureScout, scoutRecruit, scoutVisit } from '../src/game/scout'
+import { ensureScout, knownOf, scoutRecruit, scoutVisit } from '../src/game/scout'
 import type { SaveData } from '../src/game/types'
 
 function world(seed = 11): SaveData {
@@ -27,8 +27,8 @@ describe('スカウト', () => {
     save.schools[save.playerSchoolId]!.funds = 1000
     expect(scoutVisit(save, rng, target.id)).toBeTruthy()
     expect(target.level).toBe(1)
-    for (let i = 0; i < 12; i++) scoutRecruit(save, rng, target.id)
-    expect(target.interest).toBeGreaterThanOrEqual(85)
+    for (let i = 0; i < 20; i++) scoutRecruit(save, rng, target.id)
+    expect(target.interest).toBeGreaterThanOrEqual(90)
     save.rngState = rng.getState()
     while (!(save.calendar.year === 2 && save.calendar.week === 1)) advanceWeek(save)
     // 関心が高ければほぼ確実に入部している
@@ -59,5 +59,28 @@ describe('ドラフト', () => {
     const ob = save.alumni.find((a) => a.playerId === star.id)!
     expect(ob.career).toBe('pro')
     expect(ob.achievements[0]).toContain('ドラフト')
+  })
+})
+
+describe('視察で分かること', () => {
+  it('1回目はランクか特殊能力の数だけ、回を重ねると数値や特殊能力の名前まで分かる', () => {
+    const save = world(31)
+    const rng = new Rng(save.rngState)
+    const s = ensureScout(save, rng)
+    save.schools[save.playerSchoolId]!.funds = 10000
+    for (const pr of s.prospects) {
+      const r = scoutVisit(save, rng, pr.id)!
+      const k = knownOf(pr)
+      expect(k.value.length).toBe(0)
+      expect(k.skills.length).toBe(0)
+      expect(k.rank.length + (k.skillCount ? 1 : 0)).toBe(1)
+      expect(r.label).toBeTruthy()
+      let guard = 0
+      while (pr.level < 2 && guard++ < 30) scoutVisit(save, rng, pr.id)
+      expect(pr.level).toBe(2)
+      expect(knownOf(pr).value.length).toBe(4)
+      expect(knownOf(pr).skills.length).toBe(pr.player.skills.length)
+      expect(guard).toBe(8 + pr.player.skills.length)
+    }
   })
 })

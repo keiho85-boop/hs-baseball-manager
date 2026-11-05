@@ -55,7 +55,7 @@ async function upgrade(key: keyof Facilities): Promise<void> {
   const cost = facilityCost(s.facilities[key])
   const ok = await ui.confirm(`${FACILITY_NAME[key]}を強化しますか？\n部費 ${cost}万円（残り ${s.funds}万円）`, { okLabel: '強化する', cancelLabel: 'やめる' })
   if (!ok) return
-  if (await game.upgradeFacility(key)) ui.showToast(`${FACILITY_NAME[key]}を強化しました`)
+  if (await game.upgradeFacility(key)) ui.notify({ title: '設備を強化！', message: `${FACILITY_NAME[key]}が★${school.value?.facilities[key]}になった`, icon: 'up' })
 }
 
 const history = computed(() => {

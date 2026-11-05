@@ -155,11 +155,11 @@ function swap(a: string, b: string): void {
   const pb = players.value[ib]
   if (!pa || !pb) return
   if ((needsPitcher(a) && !canPitch(pb)) || (needsPitcher(b) && !canPitch(pa))) {
-    ui.showToast('先発投手には、投げられる選手を選んでください')
+    ui.notify({ message: '先発投手には、投げられる選手を選んでください', tone: 'warn' })
     return
   }
   if ((a[0] !== 'O' && !available(pb)) || (b[0] !== 'O' && !available(pa))) {
-    ui.showToast('ケガをしている選手は入れられません')
+    ui.notify({ message: 'ケガをしている選手は入れられません', tone: 'warn' })
     return
   }
   // DHなしで、先発投手がスタメンの投手の打順以外にもいる、という状態は作らない
@@ -295,7 +295,7 @@ async function autoBuild(): Promise<void> {
   draft.value = autoLineup(members.value, draft.value.useDH)
   selected.value = null
   await commit()
-  ui.showToast('自動でオーダーを組みました')
+  ui.notify({ title: '自動編成', message: '調子と能力を見てオーダーを組みました' })
 }
 
 async function toggleDH(): Promise<void> {
@@ -308,7 +308,7 @@ async function toggleDH(): Promise<void> {
 async function setAuto(): Promise<void> {
   await game.saveLineup(null)
   selected.value = null
-  ui.showToast('毎試合、調子やケガを見て自動で組みます')
+  ui.notify({ title: 'おまかせ', message: '毎試合、調子やケガを見て自動で組みます', tone: 'info' })
 }
 
 // ---------------------------------------------------------------- 上部の選手情報

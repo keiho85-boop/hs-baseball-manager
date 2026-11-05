@@ -22,7 +22,7 @@ import { exportToBlob, importFromBlob } from '@/game/serialize'
 import { diffSnapshot, takeSnapshot, type GrowthEntry } from '@/game/growth'
 import { ensureSugoroku, playCard } from '@/game/sugoroku'
 import { applyOps, buildEvent } from '@/game/events'
-import { ensureScout, scoutRecruit as scoutRecruitLogic, scoutVisit as scoutVisitLogic } from '@/game/scout'
+import { type VisitResult, ensureScout, scoutRecruit as scoutRecruitLogic, scoutVisit as scoutVisitLogic } from '@/game/scout'
 import {
   TOURNAMENT_SPECS,
   facilityCost,
@@ -434,7 +434,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /** スカウト：視察と勧誘 */
-  async function scoutAction(kind: 'visit' | 'recruit', id: string): Promise<string | null> {
+  async function scoutAction(kind: 'visit' | 'recruit', id: string): Promise<VisitResult | string | null> {
     const s = save.value
     if (!s || busy.value) return null
     const rng = new Rng(s.rngState)

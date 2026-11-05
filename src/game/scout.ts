@@ -10,7 +10,8 @@
 // ・11月に、引退した自校の3年生のうち実力のある選手がプロ（架空のリーグ）に指名されることがある
 
 import { Rng, clamp } from './rng'
-import { prefName } from './constants'
+import { prefName, rankOf, velocityScore } from './constants'
+import { getSkill } from './skills'
 import { fullName, generatePlayer, playerRating } from './player'
 import { newId } from './world'
 import type { Player, SaveData, School } from './types'
@@ -21,8 +22,10 @@ export interface Prospect {
   player: Player
   /** 自校への関心 0-100 */
   interest: number
-  /** どこまで分かっているか：0=名前と守備位置だけ、1=能力のおおよそ、2=くわしく */
+  /** 2 になると、すべて分かった（視察済み）。以前の版では 0〜2 の段階で使っていた */
   level: 0 | 1 | 2
+  /** 視察で分かったこと：ランクが分かった能力、数値まで分かった能力、特殊能力の数、名前が分かった特殊能力 */
+  known?: { rank: string[]; value: string[]; skillCount: boolean; skills: string[] }
   /** 勧誘した回数（回数が増えるほど効き目は落ちる） */
   visits: number
   status: 'open' | 'own' | 'other'
@@ -106,14 +109,103 @@ export function canAct(save: SaveData, kind: 'visit' | 'recruit'): boolean {
   return save.schools[save.playerSchoolId]!.funds >= (kind === 'visit' ? SCOUT_COST.visitFunds : SCOUT_COST.recruitFunds)
 }
 
-/** 視察：能力が分かるようになり、関心も少し上がる */
-export function scoutVisit(save: SaveData, rng: Rng, id: string): string | null {
+/** 視察で調べる主な能力（野手と投手で違う） */
+export function scoutAbilities(p: Player): { key: string; label: string; score: number; raw: string }[] {
+  if (p.mainPosition === 'P') {
+    return [
+      { key: 'velo', label: '球速', score: velocityScore(p.pitching.velocity), raw: `${p.pitching.velocity}km` },
+      { key: 'control', label: '制球', score: p.pitching.control, raw: `${p.pitching.control}` },
+      { key: 'stamina', label: 'スタミナ', score: p.pitching.stamina, raw: `${p.pitching.stamina}` },
+      { key: 'kire', label: 'キレ', score: p.pitching.kire, raw: `${p.pitching.kire}` },
+    ]
+  }
+  return [
+    { key: 'contact', label: 'ミート', score: p.batting.contact, raw: `${p.batting.contact}` },
+    { key: 'power', label: 'パワー', score: p.batting.power, raw: `${p.batting.power}` },
+    { key: 'speed', label: '走力', score: p.running.speed, raw: `${p.running.speed}` },
+    { key: 'range', label: '守備', score: p.fielding.range, raw: `${p.fielding.range}` },
+  ]
+}
+
+/** 視察で分かったこと（以前の版のデータは、段階から作り直す） */
+export function knownOf(pr: Prospect): NonNullable<Prospect['known']> {
+  if (!pr.known) {
+    const keys = scoutAbilities(pr.player).map((a) => a.key)
+    pr.known = {
+      rank: pr.level >= 1 ? keys : [],
+      value: pr.level >= 2 ? keys : [],
+      skillCount: pr.level >= 2,
+      skills: pr.level >= 2 ? [...pr.player.skills] : [],
+    }
+  }
+  return pr.known
+}
+
+export interface VisitResult {
+  name: string
+  /** 何が分かったか（画面の演出用） */
+  label: string
+  value: string
+  rank?: string
+  done: boolean
+}
+
+/**
+ * 視察：毎回1つずつ分かる
+ * ・1回目：主な能力のどれかのランク、または特殊能力の数
+ * ・2回目以降：分かっている能力の数値、まだの能力のランク、特殊能力の数、（数が分かっていれば）特殊能力の名前
+ */
+export function scoutVisit(save: SaveData, rng: Rng, id: string): VisitResult | null {
   const pr = save.scout?.prospects.find((x) => x.id === id)
   if (!pr || pr.status !== 'open' || pr.level >= 2) return null
+  const k = knownOf(pr)
+  const abil = scoutAbilities(pr.player)
+  const first = k.rank.length === 0 && !k.skillCount
+  type Opt = { kind: 'rank' | 'value' | 'count' | 'skill'; key: string }
+  const opts: Opt[] = []
+  for (const a of abil) if (!k.rank.includes(a.key)) opts.push({ kind: 'rank', key: a.key })
+  if (!k.skillCount) opts.push({ kind: 'count', key: '' })
+  if (!first) {
+    for (const a of abil) if (k.rank.includes(a.key) && !k.value.includes(a.key)) opts.push({ kind: 'value', key: a.key })
+    if (k.skillCount) for (const sid of pr.player.skills) if (!k.skills.includes(sid)) opts.push({ kind: 'skill', key: sid })
+  }
+  if (opts.length === 0) {
+    pr.level = 2
+    return null
+  }
   if (!spend(save, SCOUT_COST.visitFunds)) return null
-  pr.level = (pr.level + 1) as 1 | 2
-  pr.interest = clamp(pr.interest + rng.int(1, 4), 0, 100)
-  return `${fullName(pr.player)}を視察した。${pr.level === 1 ? '能力のおおよそが分かった。' : '能力がくわしく分かった。'}`
+  const o = rng.pick(opts)
+  let label = ''
+  let value = ''
+  let rank: string | undefined
+  if (o.kind === 'rank' || o.kind === 'value') {
+    const a = abil.find((x) => x.key === o.key)!
+    label = a.label
+    rank = rankOf(a.score)
+    if (o.kind === 'rank') {
+      k.rank.push(o.key)
+      value = rank
+    } else {
+      k.value.push(o.key)
+      value = a.raw
+    }
+  } else if (o.kind === 'count') {
+    k.skillCount = true
+    label = '特殊能力の数'
+    value = pr.player.skills.length === 0 ? 'なし' : `${pr.player.skills.length}個`
+  } else {
+    k.skills.push(o.key)
+    const sk = getSkill(o.key)
+    label = sk?.good === false ? '弱点' : '特殊能力'
+    value = sk?.name ?? '？'
+  }
+  pr.interest = clamp(pr.interest + rng.int(1, 3), 0, 100)
+  // すべて分かったら視察済み
+  const done =
+    abil.every((a) => k.value.includes(a.key)) && k.skillCount && pr.player.skills.every((sid) => k.skills.includes(sid))
+  if (done) pr.level = 2
+  else pr.level = 1
+  return { name: fullName(pr.player), label, value, rank, done }
 }
 
 /** 勧誘：自校への関心が上がる（回数を重ねるほど上がりにくい） */
@@ -148,7 +240,8 @@ export function decideProspects(save: SaveData, rng: Rng): string[] {
   const joined: string[] = []
   for (const pr of s.prospects) {
     if (pr.status !== 'open') continue
-    const p = clamp((pr.interest - 30) / 55, 0.02, 0.97)
+    // 関心が90以上なら確実に入学する
+    const p = pr.interest >= 90 ? 1 : clamp((pr.interest - 30) / 55, 0.02, 0.97)
     if (rng.chance(p)) {
       pr.status = 'own'
       joined.push(pr.player.surname)

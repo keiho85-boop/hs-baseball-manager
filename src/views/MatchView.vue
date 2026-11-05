@@ -183,7 +183,7 @@ const skillsNow = computed(() => {
 })
 
 function showSkill(sk: { name: string; desc: string }): void {
-  ui.showToast(`${sk.name}：${sk.desc}`)
+  ui.notify({ title: sk.name, message: sk.desc, tone: 'info', icon: 'up' })
 }
 
 // ---- 進行 ----
@@ -298,7 +298,7 @@ async function finish(): Promise<void> {
 function back(): void {
   auto.value = false
   router.replace({ name: 'home' })
-  ui.showToast('試合は保存されています。ホームから続きを再開できます')
+  ui.notify({ title: '中断しました', message: '試合は保存されています。ホームから続きを再開できます', tone: 'info' })
 }
 
 if (!game.match) router.replace({ name: 'home' })
