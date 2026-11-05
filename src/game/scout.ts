@@ -3,8 +3,8 @@
 // スカウト：
 // ・毎年4月に、来年入学する県内の中学3年生が10人ほどリストに載る
 // ・「視察」で能力が見えるようになり、「勧誘」で自校への関心が上がる
-// ・スカウト活動の回数は、すごろくのスカウトマスと毎月の補充で増える。足りなければ部費で行える
-// ・2月に進学先が決まり、自校を選んだ選手は4月に入部する
+// ・活動できるのは4月から12月まで。回数は毎月3回ずつ補充され、スカウトマスで1回増える。足りなければ部費で行える
+// ・12月の終わりに進学先が決まり、自校を選んだ選手は翌年4月に入部する
 //
 // ドラフト：
 // ・11月に、引退した自校の3年生のうち実力のある選手がプロ（架空のリーグ）に指名されることがある
@@ -45,8 +45,10 @@ export interface ScoutState {
 }
 
 export const SCOUT_COST = { visitFunds: 5, recruitFunds: 10 } as const
-/** 進学先が決まる週（2月第3週） */
-export const SCOUT_DECISION_WEEK = 46
+/** 進学先が決まる週（12月第4週） */
+export const SCOUT_DECISION_WEEK = 39
+/** 毎月補充される活動の回数 */
+export const SCOUT_MONTHLY = 3
 
 function buzzOf(strength: number): string {
   if (strength >= 78) return '県内屈指の逸材'
@@ -80,14 +82,15 @@ export function ensureScout(save: SaveData, rng: Rng): ScoutState {
     const interest = clamp(Math.round(15 + own.reputation * 0.35 + rng.int(-5, 15) - gap * 0.45), 3, 70)
     prospects.push({ id: p.id, player: p, interest, level: 0, visits: 0, status: 'open', buzz: buzzOf(strength) })
   }
-  save.scout = { year, points: save.scout?.points ?? 2, prospects: rng.shuffle(prospects), decided: false }
+  save.scout = { year, points: SCOUT_MONTHLY, prospects: rng.shuffle(prospects), decided: false }
   return save.scout
 }
 
 /** スカウト活動の回数を増やす（スカウトマス、毎月の補充） */
 export function addScoutPoints(save: SaveData, n: number): void {
   if (!save.scout) return
-  save.scout.points = Math.min(9, save.scout.points + n)
+  if (save.scout.decided) return
+  save.scout.points = Math.min(12, save.scout.points + n)
 }
 
 /** 回数か部費を使う。使えなければ false */
@@ -144,9 +147,7 @@ export function knownOf(pr: Prospect): NonNullable<Prospect['known']> {
 export interface VisitResult {
   name: string
   /** 何が分かったか（画面の演出用） */
-  label: string
-  value: string
-  rank?: string
+  found: { label: string; value: string; rank?: string }[]
   done: boolean
 }
 
@@ -174,30 +175,37 @@ export function scoutVisit(save: SaveData, rng: Rng, id: string): VisitResult | 
     return null
   }
   if (!spend(save, SCOUT_COST.visitFunds)) return null
-  const o = rng.pick(opts)
-  let label = ''
-  let value = ''
-  let rank: string | undefined
-  if (o.kind === 'rank' || o.kind === 'value') {
-    const a = abil.find((x) => x.key === o.key)!
-    label = a.label
-    rank = rankOf(a.score)
-    if (o.kind === 'rank') {
-      k.rank.push(o.key)
-      value = rank
+  // 1回目は1つ、2回目以降は2つずつ分かる
+  const found: { label: string; value: string; rank?: string }[] = []
+  const reveal = (o: Opt) => {
+    if (o.kind === 'rank' || o.kind === 'value') {
+      const a = abil.find((x) => x.key === o.key)!
+      const rank = rankOf(a.score)
+      if (o.kind === 'rank') {
+        k.rank.push(o.key)
+        found.push({ label: `${a.label}のランク`, value: rank, rank })
+      } else {
+        k.value.push(o.key)
+        found.push({ label: a.label, value: a.raw })
+      }
+    } else if (o.kind === 'count') {
+      k.skillCount = true
+      found.push({ label: '特殊能力の数', value: pr.player.skills.length === 0 ? 'なし' : `${pr.player.skills.length}個` })
     } else {
-      k.value.push(o.key)
-      value = a.raw
+      k.skills.push(o.key)
+      const sk = getSkill(o.key)
+      found.push({ label: sk?.good === false ? '弱点' : '特殊能力', value: sk?.name ?? '？' })
     }
-  } else if (o.kind === 'count') {
-    k.skillCount = true
-    label = '特殊能力の数'
-    value = pr.player.skills.length === 0 ? 'なし' : `${pr.player.skills.length}個`
-  } else {
-    k.skills.push(o.key)
-    const sk = getSkill(o.key)
-    label = sk?.good === false ? '弱点' : '特殊能力'
-    value = sk?.name ?? '？'
+  }
+  reveal(rng.pick(opts))
+  if (!first) {
+    // 2つ目は、1つ目で増えた候補も含めて選び直す
+    const more: Opt[] = []
+    for (const a of abil) if (!k.rank.includes(a.key)) more.push({ kind: 'rank', key: a.key })
+    for (const a of abil) if (k.rank.includes(a.key) && !k.value.includes(a.key)) more.push({ kind: 'value', key: a.key })
+    if (!k.skillCount) more.push({ kind: 'count', key: '' })
+    else for (const sid of pr.player.skills) if (!k.skills.includes(sid)) more.push({ kind: 'skill', key: sid })
+    if (more.length) reveal(rng.pick(more))
   }
   pr.interest = clamp(pr.interest + rng.int(1, 3), 0, 100)
   // すべて分かったら視察済み
@@ -205,7 +213,7 @@ export function scoutVisit(save: SaveData, rng: Rng, id: string): VisitResult | 
     abil.every((a) => k.value.includes(a.key)) && k.skillCount && pr.player.skills.every((sid) => k.skills.includes(sid))
   if (done) pr.level = 2
   else pr.level = 1
-  return { name: fullName(pr.player), label, value, rank, done }
+  return { name: fullName(pr.player), found, done }
 }
 
 /** 勧誘：自校への関心が上がる（回数を重ねるほど上がりにくい） */

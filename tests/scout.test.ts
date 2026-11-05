@@ -74,13 +74,13 @@ describe('視察で分かること', () => {
       expect(k.value.length).toBe(0)
       expect(k.skills.length).toBe(0)
       expect(k.rank.length + (k.skillCount ? 1 : 0)).toBe(1)
-      expect(r.label).toBeTruthy()
+      expect(r.found.length).toBe(1)
       let guard = 0
       while (pr.level < 2 && guard++ < 30) scoutVisit(save, rng, pr.id)
       expect(pr.level).toBe(2)
       expect(knownOf(pr).value.length).toBe(4)
       expect(knownOf(pr).skills.length).toBe(pr.player.skills.length)
-      expect(guard).toBe(8 + pr.player.skills.length)
+      expect(guard).toBe(Math.ceil((8 + pr.player.skills.length) / 2))
     }
   })
 })

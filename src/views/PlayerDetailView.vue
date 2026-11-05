@@ -6,6 +6,7 @@ import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import {
   APTITUDE_LABEL,
+  APT_GROUPS,
   PITCH_NAME,
   POSITIONS,
   POSITION_LABEL,
@@ -135,12 +136,17 @@ function onTouchEnd(e: TouchEvent): void {
   if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) goTo(dx < 0 ? 1 : -1)
 }
 
+function groupApt(list: Position[]): number {
+  const pl = p.value
+  return pl ? Math.max(...list.map((x) => pl.fielding.aptitude[x])) : 0
+}
+
 async function changeConvert(e: Event): Promise<void> {
   if (!p.value) return
   const v = (e.target as HTMLSelectElement).value
   p.value.convertTo = v ? (v as Position) : null
   await game.commit()
-  ui.showToast(v ? `${POSITION_NAME[v as Position]}の守備練習を始めました` : '守備練習をやめました')
+  ui.notify({ title: '守備練習', tone: 'info', message: v ? `${v === 'CF' ? '外野手' : POSITION_NAME[v as Position]}の守備練習を始めました` : '守備練習をやめました' })
 }
 
 const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '' : v === -1 ? '△' : '×')
@@ -245,8 +251,9 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
         <div>
           <div class="muted">守備位置の適性</div>
           <div class="apt">
-            <span v-for="pos in POSITIONS" :key="pos" :class="`a${p.fielding.aptitude[pos]}`">
-              {{ POSITION_LABEL[pos] }}<b>{{ APTITUDE_LABEL[p.fielding.aptitude[pos]] }}</b>
+            <span :class="`a${p.fielding.aptitude.P}`">投<b>{{ APTITUDE_LABEL[p.fielding.aptitude.P] }}</b></span>
+            <span v-for="g in APT_GROUPS" :key="g.key" :class="`a${groupApt(g.positions)}`">
+              {{ g.label }}<b>{{ APTITUDE_LABEL[groupApt(g.positions)] }}</b>
             </span>
           </div>
         </div>
@@ -338,10 +345,10 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
       </label>
       <label>
         <div class="muted">守備練習（選んだ位置の適性が少しずつ上がる）</div>
-        <select :value="p.convertTo ?? ''" @change="changeConvert">
+        <select :value="p.convertTo ? (['LF', 'RF'].includes(p.convertTo) ? 'CF' : p.convertTo) : ''" @change="changeConvert">
           <option value="">しない</option>
-          <option v-for="pos in POSITIONS.filter((x) => x !== 'P')" :key="pos" :value="pos" :disabled="p.fielding.aptitude[pos] >= 3">
-            {{ POSITION_NAME[pos] }}（いま{{ APTITUDE_LABEL[p.fielding.aptitude[pos]] }}）
+          <option v-for="g in APT_GROUPS" :key="g.key" :value="g.positions[g.key === 'OF' ? 1 : 0]" :disabled="groupApt(g.positions) >= 3">
+            {{ g.name }}（いま{{ APTITUDE_LABEL[groupApt(g.positions)] }}）
           </option>
         </select>
       </label>

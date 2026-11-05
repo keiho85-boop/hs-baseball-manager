@@ -1,7 +1,7 @@
 // セーブデータの書き出し・読み込み用の変換（IndexedDBに依存しない部分）
 
 import { SAVE_VERSION, prefName } from './constants'
-import type { SaveData, SaveSummary } from './types'
+import type { Player, Position, SaveData, SaveSummary } from './types'
 
 /** 改ざん・破損を見つけるための簡易チェックサム（FNV-1a） */
 export function checksum(text: string): string {
@@ -49,6 +49,11 @@ export function migrate(data: SaveData): SaveData {
   for (const p of Object.values(data.players ?? {})) {
     p.condition.stamina = Math.round(p.condition.stamina)
     p.condition.motivation = Math.round(p.condition.motivation)
+  }
+  // 守備適性の決まりを変えた（本職が基本、サブは多くて1つ、外野はまとめる）
+  if (!data.aptRule2) {
+    for (const p of Object.values(data.players ?? {})) normalizeAptitude(p)
+    data.aptRule2 = true
   }
   return data
 }
@@ -103,4 +108,26 @@ export async function importFromBlob(blob: Blob): Promise<SaveData> {
   const save = unpackSave(parsed as StoredSave)
   if (!save) throw new Error('ファイルの中身が壊れています。')
   return save
+}
+
+const OF: Position[] = ['LF', 'CF', 'RF']
+/** 以前の版の選手の守備適性を、今の決まりに合わせる */
+function normalizeAptitude(p: Player): void {
+  const a = p.fielding.aptitude
+  const groups: Position[][] = [['C'], ['1B'], ['2B'], ['3B'], ['SS'], OF]
+  const main = p.mainPosition
+  const mainGroup = groups.find((g) => g.includes(main)) ?? [main]
+  const val = (g: Position[]) => Math.max(...g.map((x) => a[x] ?? 0))
+  // 本職以外で一番高いもの（コンバート中の位置を優先）を、4人に1人ほど残す
+  const others = groups.filter((g) => g !== mainGroup && val(g) > 0).sort((x, y) => val(y) - val(x))
+  const conv = p.convertTo ? groups.find((g) => g.includes(p.convertTo!)) : undefined
+  let keep = conv && val(conv) > 0 ? conv : others[0]
+  const hash = [...p.id].reduce((s, c) => s + c.charCodeAt(0), 0)
+  if (keep !== conv && hash % 4 !== 0) keep = undefined
+  const keepVal = keep ? Math.min(2, val(keep)) : 0
+  const pVal = main === 'P' ? 3 : a.P >= 2 && hash % 5 === 0 ? 1 : 0
+  for (const x of Object.keys(a) as Position[]) a[x] = 0
+  for (const x of mainGroup) a[x] = 3
+  if (keep) for (const x of keep) a[x] = Math.max(a[x], keepVal)
+  a.P = Math.max(a.P, pVal)
 }

@@ -21,9 +21,9 @@ const ui = useUiStore()
           </svg>
         </div>
         <div class="title">{{ ui.notice.title }}</div>
-        <div v-if="ui.notice.highlight" class="hl">
-          <span class="hl-label">{{ ui.notice.highlight.label }}</span>
-          <span class="hl-value" :class="ui.notice.highlight.rank ? `rk-${ui.notice.highlight.rank}` : ''">{{ ui.notice.highlight.value }}</span>
+        <div v-for="(h, i) in ui.notice.highlights ?? []" :key="i" class="hl" :style="{ animationDelay: `${i * 0.25}s` }">
+          <span class="hl-label">{{ h.label }}</span>
+          <span class="hl-value" :class="h.rank ? `rk-${h.rank}` : ''" :style="{ animationDelay: `${0.1 + i * 0.25}s` }">{{ h.value }}</span>
         </div>
         <div class="msg">{{ ui.notice.message }}</div>
         <div class="timer"><i :style="{ animationDuration: `${ui.notice.duration}ms` }" /></div>
@@ -97,8 +97,9 @@ const ui = useUiStore()
   letter-spacing: 0.04em;
 }
 .hl {
-  margin: 8px auto 2px;
-  display: inline-flex;
+  margin: 6px auto 0;
+  display: flex;
+  width: fit-content;
   align-items: baseline;
   gap: 8px;
   background: #f4f7fb;

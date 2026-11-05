@@ -72,8 +72,8 @@ export function buildBoard(rng: Rng, month: number): SquareType[] {
   }
   // 定期テストや行事のある月
   if (month === 7 || month === 12 || month === 3 || month === 10) squares[rng.int(0, 11)] = 'school'
-  // スカウトの季節（4月〜1月）：練習マスの1つがスカウトマスになる
-  if (month >= 4 || month === 1) squares[rng.int(6, 11)] = 'scout'
+  // スカウトの季節（4月〜12月）：練習マスの1つがスカウトマスになる
+  if (month >= 4) squares[rng.int(6, 11)] = 'scout'
   // 冬は体づくりが中心
   if (month === 12 || month === 1 || month === 2) squares[rng.int(0, 5)] = 'fitness'
   return rng.shuffle(squares)
@@ -186,7 +186,7 @@ const CARD_MULT: Record<CardEffect, { gain: number; cost: number }> = {
 function convertPractice(rng: Rng, p: Player, plan: WeekPlan | null, fieldingFacility: number, messages: string[]): void {
   const pos = p.convertTo
   if (!pos || p.retired) return
-  const apt = p.fielding.aptitude[pos]
+  const apt = pos === 'LF' || pos === 'CF' || pos === 'RF' ? Math.min(p.fielding.aptitude.LF, p.fielding.aptitude.CF, p.fielding.aptitude.RF) : p.fielding.aptitude[pos]
   if (apt >= 3) {
     p.convertTo = null
     return
@@ -199,16 +199,17 @@ function convertPractice(rng: Rng, p: Player, plan: WeekPlan | null, fieldingFac
   // ×から△へは早く、○から◎へはじっくり
   chance *= [1.4, 1.0, 0.6][apt] ?? 1
   if (!rng.chance(chance)) return
-  p.fielding.aptitude[pos] = (apt + 1) as 0 | 1 | 2 | 3
+  const of = pos === 'LF' || pos === 'CF' || pos === 'RF'
+  for (const x of of ? (['LF', 'CF', 'RF'] as const) : [pos]) p.fielding.aptitude[x] = Math.max(p.fielding.aptitude[x], apt + 1)
   const label = ['×', '△', '○', '◎'][apt + 1]
-  messages.push(`${fullName(p)}の${POSITION_NAME[pos]}の適性が${label}になった！`)
+  messages.push(`${fullName(p)}の${of ? '外野手' : POSITION_NAME[pos]}の適性が${label}になった！`)
   if (apt + 1 >= 3) p.convertTo = null
 }
 
 export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, members: Player[], facilityIntensity: number, messages: string[]): void {
   if (plan?.kind === 'square' && plan.square === 'scout' && save.scout && !save.scout.decided) {
-    save.scout.points = Math.min(9, save.scout.points + 2)
-    messages.push('中学校の試合を見に行った。スカウト活動が2回分増えた。（学校画面のスカウトから）')
+    save.scout.points = Math.min(12, save.scout.points + 1)
+    messages.push('中学校の試合を見に行った。スカウト活動が1回分増えた。（学校画面のスカウトから）')
   }
   const fieldingFacility = save.schools[save.playerSchoolId]?.facilities.fielding ?? 0
   for (const p of members) convertPractice(rng, p, plan, fieldingFacility, messages)

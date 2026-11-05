@@ -290,6 +290,8 @@ export interface SaveData {
   tournaments?: Tournament[]
   /** スカウト（来年入学する中学生） */
   scout?: ScoutState
+  /** 守備適性を今の決まりに直したか */
+  aptRule2?: boolean
 }
 
 // ---------------------------------------------------------------- すごろく・イベント

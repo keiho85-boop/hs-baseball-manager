@@ -166,3 +166,17 @@ export const SEASON_WEEKS = {
   /** 卒業式 */
   graduation: 51, // 3月第3週
 } as const
+
+/** 守備適性のまとまり（外野は左・中・右を分けない） */
+export const APT_GROUPS: { key: string; label: string; name: string; kind: 'c' | 'if' | 'of'; positions: Position[] }[] = [
+  { key: 'C', label: '捕', name: '捕手', kind: 'c', positions: ['C'] },
+  { key: '1B', label: '一', name: '一塁手', kind: 'if', positions: ['1B'] },
+  { key: '2B', label: '二', name: '二塁手', kind: 'if', positions: ['2B'] },
+  { key: '3B', label: '三', name: '三塁手', kind: 'if', positions: ['3B'] },
+  { key: 'SS', label: '遊', name: '遊撃手', kind: 'if', positions: ['SS'] },
+  { key: 'OF', label: '外', name: '外野手', kind: 'of', positions: ['LF', 'CF', 'RF'] },
+]
+
+export function aptGroupOf(pos: Position): string {
+  return pos === 'LF' || pos === 'CF' || pos === 'RF' ? 'OF' : pos
+}

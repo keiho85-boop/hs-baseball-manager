@@ -82,7 +82,7 @@ async function act(kind: 'visit' | 'recruit', pr: Prospect): Promise<void> {
     icon: 'search',
     tone: 'info',
     message: r.done ? `${r.name}のことはすべて分かった` : `${r.name}を視察した`,
-    highlight: { label: r.label, value: r.value, rank: r.rank && r.value === r.rank ? r.rank : undefined },
+    highlights: r.found,
   })
 }
 const costLabel = (kind: 'visit' | 'recruit') =>
@@ -98,7 +98,7 @@ const costLabel = (kind: 'visit' | 'recruit') =>
         <span>部費 <b>{{ funds }}万円</b></span>
       </div>
       <p class="muted note">
-        最初は総合評価だけが分かります。視察するたびに能力のランクや数値、特殊能力が1つずつ判明し、勧誘で関心が上がります。回数がないときは部費を使います（視察{{ SCOUT_COST.visitFunds }}万・勧誘{{ SCOUT_COST.recruitFunds }}万）。2月に進学先が決まり、4月に入部します。回数はスカウトのマスと、毎月1回ずつ増えます。
+        最初は総合評価だけ。視察するたびに能力のランク・数値・特殊能力が少しずつ判明し、勧誘で関心が上がります。活動は4〜12月で、毎月3回補充（スカウトマスで+1）。足りないときは部費を使います（視察{{ SCOUT_COST.visitFunds }}万・勧誘{{ SCOUT_COST.recruitFunds }}万）。12月末に進学先が決まり、翌年4月に入部します。
       </p>
       <div v-if="scout" class="list">
         <div v-for="pr in scout.prospects" :key="pr.id" class="pr" :class="pr.status">

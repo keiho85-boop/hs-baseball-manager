@@ -93,16 +93,18 @@ function pickPitches(rng: Rng, count: number, maxLevel: number): PitchArsenal[] 
 }
 
 /** 守備位置の近さ（適性の初期値に使う） */
+const OUTFIELD: Position[] = ['LF', 'CF', 'RF']
+
 const NEIGHBORS: Record<Position, Position[]> = {
   P: [],
   C: ['1B'],
-  '1B': ['3B', 'LF', 'RF'],
+  '1B': ['3B', 'LF'],
   '2B': ['SS', '3B'],
   '3B': ['1B', 'SS', '2B'],
   SS: ['2B', '3B', 'CF'],
-  LF: ['RF', 'CF', '1B'],
-  CF: ['LF', 'RF'],
-  RF: ['LF', 'CF', '1B'],
+  LF: ['1B'],
+  CF: ['1B', 'SS'],
+  RF: ['1B'],
 }
 
 export function generatePlayer(rng: Rng, opt: GenerateOptions): Player {
@@ -144,14 +146,17 @@ export function generatePlayer(rng: Rng, opt: GenerateOptions): Player {
   const throwing = stat(rng, fieldBase)
   const speed = stat(rng, batBase + boost('speed') + (position === 'CF' || position === 'SS' ? 5 : position === 'C' ? -6 : 0))
 
+  // 守備適性：本職だけが基本。まれに最初からサブポジションが1つある（外野は左・中・右をまとめて扱う）
   const aptitude = Object.fromEntries(POSITIONS.map((p) => [p, 0])) as Record<Position, number>
-  aptitude[position] = 3
-  for (const n of NEIGHBORS[position]) aptitude[n] = rng.chance(0.5) ? 2 : 1
-  if (!isPitcher && rng.chance(0.15)) aptitude.P = 1
-  if (isPitcher) {
-    const other = rng.pick(['1B', 'LF', 'RF', 'CF', '3B'] as Position[])
-    aptitude[other] = rng.chance(0.4) ? 2 : 1
+  const setApt = (pos: Position, v: number) => {
+    for (const x of OUTFIELD.includes(pos) ? OUTFIELD : [pos]) aptitude[x] = Math.max(aptitude[x], v)
   }
+  setApt(position, 3)
+  if (rng.chance(isPitcher ? 0.08 : 0.2)) {
+    const sub = isPitcher ? rng.pick(['1B', 'LF'] as Position[]) : rng.pick(NEIGHBORS[position])
+    setApt(sub, rng.chance(0.35) ? 2 : 1)
+  }
+  if (!isPitcher && rng.chance(0.04)) aptitude.P = 1
 
   const gradeVelo = [0, 118, 123, 128][opt.grade] ?? 118
   const velocity = Math.round(

@@ -131,6 +131,7 @@ export function createNewGame(input: NewGameInput): SaveData {
     log: [],
     lastBackupPromptYear: 1,
     nextId: 0,
+    aptRule2: true,
   }
 
   for (const pref of PREFECTURES) {

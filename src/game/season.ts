@@ -7,7 +7,7 @@ import { estimateTalent, fullName, generatePlayer, growWeekly, newStats, playerR
 import { computeOverall, newId, schoolStrength } from './world'
 import { armRestNeeded } from './match/results'
 import type { AlumniRecord, Player, SaveData, School, WeekPlan } from './types'
-import { DRAFT_WEEK, SCOUT_DECISION_WEEK, addScoutPoints, decideProspects, enrollProspects, ensureScout, runDraft } from './scout'
+import { DRAFT_WEEK, SCOUT_DECISION_WEEK, SCOUT_MONTHLY, addScoutPoints, decideProspects, enrollProspects, ensureScout, runDraft } from './scout'
 import { currentTournament, ensureTournament, findTournament, monthlyFunds, ownAlive, progress } from './tournament'
 
 export interface WeekResult {
@@ -127,7 +127,9 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   // 6. 月が変わったら部費の収入
   if (weekToDate(save.calendar.week).month !== monthBefore) {
     const income = monthlyFunds(save)
-    addScoutPoints(save, 1)
+    // スカウトの季節（5〜12月の月初めに補充。4月はリストを作るときに補充する）
+    const m = weekToDate(save.calendar.week).month
+    if (m >= 5 && m <= 12) addScoutPoints(save, SCOUT_MONTHLY)
     save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `今月の部費として${income}万円が入った。` })
   }
   // 7. スカウトのリスト（年度ごとに作る）

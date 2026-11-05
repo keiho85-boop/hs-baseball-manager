@@ -4,7 +4,7 @@
 import { computed, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
-import { APTITUDE_LABEL, POSITIONS, POSITION_LABEL, POSITION_NAME, rankOf, velocityScore } from '@/game/constants'
+import { APT_GROUPS, APTITUDE_LABEL, aptGroupOf, POSITIONS, POSITION_LABEL, POSITION_NAME, rankOf, velocityScore } from '@/game/constants'
 import { autoLineup, available, BENCH_SIZE, canPitch, lineupValid } from '@/game/match/lineup'
 import { ownLineup } from '@/game/match/session'
 import type { LineupConfig, Player, Position } from '@/game/types'
@@ -20,6 +20,19 @@ const players = computed(() => game.save?.players ?? {})
 const members = computed(() => game.ownPlayers().filter((p) => !p.retired))
 const draft = ref<LineupConfig | null>(null)
 const selected = ref<string | null>(null)
+/** 選んでいる部分：守備位置の札か、選手か */
+const selPart = ref<'pos' | 'player'>('player')
+/** 入れ替えた直後に光らせる枠 */
+const flash = ref<{ keys: string[]; part: 'pos' | 'player'; n: number } | null>(null)
+let flashTimer: ReturnType<typeof setTimeout> | undefined
+function flashCells(keys: string[], part: 'pos' | 'player'): void {
+  flash.value = { keys, part, n: (flash.value?.n ?? 0) + 1 }
+  clearTimeout(flashTimer)
+  flashTimer = setTimeout(() => (flash.value = null), 1000)
+}
+function isFlash(key: string, part: 'pos' | 'player'): boolean {
+  return !!flash.value && flash.value.part === part && flash.value.keys.includes(key)
+}
 const viewing = ref<string | null>(null)
 const posPicker = ref(false)
 
@@ -35,7 +48,7 @@ function reset(): void {
 watch(() => game.rev, reset, { immediate: true })
 
 // ---------------------------------------------------------------- 表示用の並び
-type Cell = { key: string; id: string; pos: string; posKind: string; no?: number; disabled?: boolean; note?: string }
+type Cell = { key: string; id: string; pos: string; posKind: string; no?: number; disabled?: boolean; note?: string; pitcher?: boolean }
 
 function posKind(pos: Position | 'DH'): string {
   if (pos === 'P') return 'p'
@@ -56,7 +69,7 @@ const starters = computed<(Cell & { pitcher: boolean })[]>(() => {
   const d = draft.value
   if (!d) return []
   const list = d.batters.map((b, i) => ({ key: `S${i}`, id: b.playerId, pos: posShort(b.position), posKind: posKind(b.position), no: i + 1, pitcher: b.position === 'P' }))
-  if (d.useDH) list.push({ key: 'P', id: d.startingPitcherId, pos: '投', posKind: 'p', no: undefined as unknown as number, pitcher: true })
+  if (d.useDH) list.push({ key: 'P', id: d.startingPitcherId, pos: '投', posKind: 'p', no: -1, pitcher: true })
   return list
 })
 const bench = computed<Cell[]>(() => {
@@ -84,23 +97,28 @@ const outside = computed<Cell[]>(() => {
     }))
 })
 
-const APT_ORDER: Position[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF']
-/** 守れる位置を適性の高い順に（×は出さない）。exclude は今ついている位置 */
-function aptList(p: Player, exclude?: string): string {
-  return APT_ORDER.filter((pos) => pos !== exclude && p.fielding.aptitude[pos] > 0)
-    .sort((a, b) => p.fielding.aptitude[b] - p.fielding.aptitude[a])
-    .map((pos) => `${POSITION_LABEL[pos]}${APTITUDE_LABEL[p.fielding.aptitude[pos]]}`)
-    .join(' ')
+/** 守備適性のまとまり（外野はまとめる）ごとの適性 */
+function groupApt(p: Player, key: string): number {
+  const g = APT_GROUPS.find((x) => x.key === key)!
+  return Math.max(...g.positions.map((pos) => p.fielding.aptitude[pos]))
 }
-/** スタメンの枠の守備位置（打順の枠なら Position か DH） */
-function slotPos(key: string): string | undefined {
-  const d = draft.value
-  if (!d || key[0] !== 'S') return undefined
-  return d.batters[Number(key.slice(1))]?.position
+/** 本職のまとまり（投手は 'P'） */
+function mainGroup(p: Player): string {
+  return p.mainPosition === 'P' ? 'P' : aptGroupOf(p.mainPosition)
+}
+const MAIN_MARK: Record<string, { label: string; kind: string }> = {
+  P: { label: '投', kind: 'p' },
+  ...Object.fromEntries(APT_GROUPS.map((g) => [g.key, { label: g.label, kind: g.kind }])),
+}
+/** 本職以外で△以上のまとまり（名前の右に色の札で出す） */
+function subGroups(p: Player): { label: string; kind: string }[] {
+  const main = mainGroup(p)
+  return APT_GROUPS.filter((g) => g.key !== main && groupApt(p, g.key) >= 1).map((g) => ({ label: g.label, kind: g.kind }))
 }
 
 /** 名前の下に並べる5つのランク（野手：ミ・パ・走・肩・守／投手：球・コ・ス・キ・変） */
-function ranks(p: Player, asPitcher = p.mainPosition === 'P'): string[] {
+function ranks(p: Player, asPitcherSlot?: boolean): string[] {
+  const asPitcher = asPitcherSlot ?? p.mainPosition === 'P'
   if (asPitcher) {
     const breaking = p.pitching.pitches.reduce((a, x) => a + x.level, 0) * 7
     return [velocityScore(p.pitching.velocity), p.pitching.control, p.pitching.stamina, p.pitching.kire, Math.min(100, breaking)].map(rankOf)
@@ -148,6 +166,7 @@ function swap(a: string, b: string): void {
     const x = Number(a.slice(1))
     const y = Number(b.slice(1))
     ;[d.batters[x], d.batters[y]] = [d.batters[y]!, d.batters[x]!]
+    flashCells([a, b], 'player')
     commit()
     return
   }
@@ -165,16 +184,21 @@ function swap(a: string, b: string): void {
   // DHなしで、先発投手がスタメンの投手の打順以外にもいる、という状態は作らない
   if (a[0] !== 'O') setAt(a, ib)
   if (b[0] !== 'O') setAt(b, ia)
+  flashCells([a, b].filter((k) => k[0] !== 'O'), 'player')
   commit()
 }
 
 /** タップは選ぶだけ（上部に能力を出し、守備位置の変更に使う）。入れ替えはドラッグで行う */
-function tap(cell: Cell): void {
+function tap(cell: Cell, part: 'pos' | 'player' = 'player'): void {
   if (cell.disabled) {
     viewing.value = cell.id
     return
   }
-  selected.value = selected.value === cell.key ? null : cell.key
+  if (selected.value === cell.key && selPart.value === part) selected.value = null
+  else {
+    selected.value = cell.key
+    selPart.value = part
+  }
 }
 
 /** 守備位置の変更：選んだスタメンの守備位置を、別の位置の選手と入れ替える */
@@ -199,7 +223,7 @@ async function setConvert(pos: Position | null): Promise<void> {
   if (!p) return
   p.convertTo = pos
   await game.commit()
-  ui.showToast(pos ? `${p.surname}が${POSITION_NAME[pos]}の守備練習を始めました` : `${p.surname}の守備練習をやめました`)
+  ui.notify({ title: '守備練習', tone: 'info', message: pos ? `${p.surname}が${aptGroupOf(pos) === 'OF' ? '外野手' : POSITION_NAME[pos]}の守備練習を始めました` : `${p.surname}の守備練習をやめました` })
 }
 
 const posChoices = computed<(Position | 'DH')[]>(() => {
@@ -231,6 +255,7 @@ function swapPositions(a: string, b: string): void {
     return
   }
   ;[x.position, y.position] = [y.position, x.position]
+  flashCells([a, b], 'pos')
   commit()
 }
 function onMove(e: PointerEvent): void {
@@ -241,6 +266,7 @@ function onMove(e: PointerEvent): void {
   if (!d.on && Math.hypot(d.x - d.sx, d.y - d.sy) > 10) {
     d.on = true
     selected.value = d.key
+    selPart.value = d.mode === 'pos' ? 'pos' : 'player'
     navigator.vibrate?.(10)
   }
   if (d.on) {
@@ -258,13 +284,14 @@ function onUp(): void {
       if (d.mode === 'pos') swapPositions(d.key, dropKey.value)
       else swap(d.key, dropKey.value)
     }
-    selected.value = d.mode === 'pos' ? d.key : (dropKey.value ?? d.key)
+    selected.value = dropKey.value ?? d.key
+    selPart.value = d.mode === 'pos' ? 'pos' : 'player'
   }
   dropKey.value = null
 }
-function onClick(cell: Cell): void {
+function onClick(cell: Cell, part: 'pos' | 'player' = 'player'): void {
   if (suppressClick) return
-  tap(cell)
+  tap(cell, part)
 }
 
 // ---------------------------------------------------------------- 確認と保存
@@ -375,7 +402,17 @@ const focusApt = computed(() => {
   if (!d || !p) return ''
   const slot = d.batters.find((b) => b.playerId === p.id)
   if (!slot || slot.position === 'DH' || slot.position === 'P') return ''
-  return APTITUDE_LABEL[p.fielding.aptitude[slot.position]] ?? ''
+  return APTITUDE_LABEL[groupApt(p, aptGroupOf(slot.position))] ?? ''
+})
+/** 守備適性（△以上）を高い順に。本職が先頭 */
+const focusApts = computed(() => {
+  const p = focus.value
+  if (!p) return []
+  const main = mainGroup(p)
+  return APT_GROUPS.map((g) => ({ key: g.key, name: g.name, kind: g.kind, v: groupApt(p, g.key), main: g.key === main }))
+    .filter((g) => g.v >= 1)
+    .sort((a, b) => Number(b.main) - Number(a.main) || b.v - a.v)
+    .map((g) => ({ ...g, mark: APTITUDE_LABEL[g.v] }))
 })
 const focusSkills = computed(() =>
   (focus.value?.skills ?? []).map((id) => getSkill(id)).filter((x): x is NonNullable<typeof x> => !!x),
@@ -404,7 +441,12 @@ const focusSkills = computed(() =>
       <div class="f-sk">
         <span v-for="sk in focusSkills" :key="sk.id" class="sk" :class="sk.good ? 'good' : 'bad'">{{ sk.name }}</span>
         <span v-if="focusSkills.length === 0" class="sk none">特殊能力なし</span>
-        <span v-if="focus.convertTo" class="sk conv">{{ POSITION_NAME[focus.convertTo] }}の守備練習中</span>
+      </div>
+      <div class="f-apt">
+        <span class="fa-l">守備適性</span>
+        <span v-for="g in focusApts" :key="g.key" class="fa" :class="[`m-${g.kind}`, { main: g.main }]">{{ g.name }}<b>{{ g.mark }}</b></span>
+        <span v-if="focusApts.length === 0" class="fa none">なし（投手専門）</span>
+        <span v-if="focus.convertTo" class="sk conv">{{ ['LF', 'CF', 'RF'].includes(focus.convertTo) ? '外野手' : POSITION_NAME[focus.convertTo] }}の守備練習中</span>
       </div>
     </div>
 
@@ -418,22 +460,34 @@ const focusSkills = computed(() =>
             :key="c.key"
             :data-key="c.key"
             class="cell"
-            :class="{ sel: selected === c.key, drop: dropKey === c.key }"
-            @pointerdown="onDown($event, c)"
-            @click="onClick(c)"
+            :class="{  }"
           >
-            <span class="no">{{ c.no ?? '' }}</span>
-            <span
-              class="pos"
-              :class="[`k-${c.posKind}`, { grab: c.key[0] === 'S' && !c.pitcher }]"
-              @pointerdown.stop="c.key[0] === 'S' && !c.pitcher ? onPosDown($event, c) : onDown($event, c)"
-            >{{ c.pos }}</span>
-            <FormIcon :form="players[c.id]!.condition.form" :size="15" />
-            <span class="body">
-              <span class="nm">{{ players[c.id]?.surname }}<small>{{ players[c.id]?.bats === 'L' ? 'L' : players[c.id]?.bats === 'S' ? 'S' : 'R' }}</small></span>
-              <span class="sub"><span class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
-              <span v-if="!c.pitcher" class="apt">{{ aptList(players[c.id]!, slotPos(c.key)) }}</span></span>
-            </span>
+            <div
+              class="pz"
+              :class="{ sel: selected === c.key && selPart === 'pos', drop: dropKey === c.key && drag?.mode === 'pos', flash: isFlash(c.key, 'pos'), movable: c.key[0] === 'S' && !c.pitcher }"
+              @pointerdown="c.key[0] === 'S' && !c.pitcher ? onPosDown($event, c) : onDown($event, c)"
+              @click="onClick(c, c.key[0] === 'S' && !c.pitcher ? 'pos' : 'player')"
+            >
+              <span v-if="c.no !== undefined" class="no">{{ c.no > 0 ? c.no : '' }}</span>
+              <span class="pos" :class="`k-${c.posKind}`">{{ c.pos }}</span>
+            </div>
+            <div
+              class="nz"
+              :class="{ sel: selected === c.key && selPart === 'player', drop: dropKey === c.key && drag?.mode === 'player', flash: isFlash(c.key, 'player') }"
+              @pointerdown="onDown($event, c)"
+              @click="onClick(c)"
+            >
+              <FormIcon :form="players[c.id]!.condition.form" :size="15" />
+              <span class="body">
+                <span class="nm">
+                  <i class="mk" :class="`m-${MAIN_MARK[mainGroup(players[c.id]!)]!.kind}`">{{ MAIN_MARK[mainGroup(players[c.id]!)]!.label }}</i>
+                  <span class="nt">{{ players[c.id]?.surname }}</span>
+                  <small>{{ players[c.id]?.bats === 'L' ? 'L' : players[c.id]?.bats === 'S' ? 'S' : 'R' }}</small>
+                  <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>
+                </span>
+                <span class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -445,17 +499,34 @@ const focusSkills = computed(() =>
             :key="c.key"
             :data-key="c.key"
             class="cell"
-            :class="{ sel: selected === c.key, drop: dropKey === c.key }"
-            @pointerdown="onDown($event, c)"
-            @click="onClick(c)"
+            :class="{  }"
           >
-            <span class="pos" :class="`k-${c.posKind}`">{{ c.pos }}</span>
-            <FormIcon :form="players[c.id]!.condition.form" :size="15" />
-            <span class="body">
-              <span class="nm">{{ players[c.id]?.surname }}<small>{{ players[c.id]?.grade }}年</small></span>
-              <span class="sub"><span class="rs"><i v-for="(r, k) in ranks(players[c.id]!)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
-              <span v-if="players[c.id]!.mainPosition !== 'P'" class="apt">{{ aptList(players[c.id]!) }}</span></span>
-            </span>
+            <div
+              class="pz"
+              :class="{ sel: selected === c.key && selPart === 'pos', drop: dropKey === c.key && drag?.mode === 'pos', flash: isFlash(c.key, 'pos'), movable: c.key[0] === 'S' && !c.pitcher }"
+              @pointerdown="c.key[0] === 'S' && !c.pitcher ? onPosDown($event, c) : onDown($event, c)"
+              @click="onClick(c, c.key[0] === 'S' && !c.pitcher ? 'pos' : 'player')"
+            >
+              <span v-if="c.no !== undefined" class="no">{{ c.no > 0 ? c.no : '' }}</span>
+              <span class="pos" :class="`k-${c.posKind}`">{{ c.pos }}</span>
+            </div>
+            <div
+              class="nz"
+              :class="{ sel: selected === c.key && selPart === 'player', drop: dropKey === c.key && drag?.mode === 'player', flash: isFlash(c.key, 'player') }"
+              @pointerdown="onDown($event, c)"
+              @click="onClick(c)"
+            >
+              <FormIcon :form="players[c.id]!.condition.form" :size="15" />
+              <span class="body">
+                <span class="nm">
+                  <i class="mk" :class="`m-${MAIN_MARK[mainGroup(players[c.id]!)]!.kind}`">{{ MAIN_MARK[mainGroup(players[c.id]!)]!.label }}</i>
+                  <span class="nt">{{ players[c.id]?.surname }}</span>
+                  <small>{{ players[c.id]?.grade }}年</small>
+                  <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>
+                </span>
+                <span class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -467,17 +538,34 @@ const focusSkills = computed(() =>
             :key="c.key"
             :data-key="c.key"
             class="cell"
-            :class="{ sel: selected === c.key, drop: dropKey === c.key, off: c.disabled }"
-            @pointerdown="onDown($event, c)"
-            @click="onClick(c)"
+            :class="{ off: c.disabled }"
           >
-            <span class="pos" :class="`k-${c.posKind}`">{{ c.pos }}</span>
-            <FormIcon :form="players[c.id]!.condition.form" :size="15" />
-            <span class="body">
-              <span class="nm">{{ players[c.id]?.surname }}<small>{{ c.note ?? `${players[c.id]?.grade}年` }}</small></span>
-              <span class="sub"><span class="rs"><i v-for="(r, k) in ranks(players[c.id]!)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
-              <span v-if="players[c.id]!.mainPosition !== 'P'" class="apt">{{ aptList(players[c.id]!) }}</span></span>
-            </span>
+            <div
+              class="pz"
+              :class="{ sel: selected === c.key && selPart === 'pos', drop: dropKey === c.key && drag?.mode === 'pos', flash: isFlash(c.key, 'pos'), movable: c.key[0] === 'S' && !c.pitcher }"
+              @pointerdown="c.key[0] === 'S' && !c.pitcher ? onPosDown($event, c) : onDown($event, c)"
+              @click="onClick(c, c.key[0] === 'S' && !c.pitcher ? 'pos' : 'player')"
+            >
+              <span v-if="c.no !== undefined" class="no">{{ c.no > 0 ? c.no : '' }}</span>
+              <span class="pos" :class="`k-${c.posKind}`">{{ c.pos }}</span>
+            </div>
+            <div
+              class="nz"
+              :class="{ sel: selected === c.key && selPart === 'player', drop: dropKey === c.key && drag?.mode === 'player', flash: isFlash(c.key, 'player') }"
+              @pointerdown="onDown($event, c)"
+              @click="onClick(c)"
+            >
+              <FormIcon :form="players[c.id]!.condition.form" :size="15" />
+              <span class="body">
+                <span class="nm">
+                  <i class="mk" :class="`m-${MAIN_MARK[mainGroup(players[c.id]!)]!.kind}`">{{ MAIN_MARK[mainGroup(players[c.id]!)]!.label }}</i>
+                  <span class="nt">{{ players[c.id]?.surname }}</span>
+                  <small>{{ c.note ?? `${players[c.id]?.grade}年` }}</small>
+                  <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>
+                </span>
+                <span class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              </span>
+            </div>
           </div>
           <p v-if="outside.length === 0" class="empty">なし</p>
         </div>
@@ -485,7 +573,7 @@ const focusSkills = computed(() =>
     </div>
 
     <p v-if="problems.length" class="problems">{{ problems.join('・') }}</p>
-    <p v-else class="hint">名前で選手、守備位置の札で守備位置を入れ替え<span v-if="auto" class="auto">おまかせ中</span></p>
+    <p v-else class="hint">名前で選手、札で守備位置を入れ替え<span v-if="auto" class="auto">おまかせ中</span></p>
 
     <!-- 下：操作 -->
     <div class="ops">
@@ -512,7 +600,7 @@ const focusSkills = computed(() =>
               @click="setPosition(pos)"
             >
               {{ pos === 'DH' ? '指名打者' : POSITION_NAME[pos] }}
-              <small v-if="pos !== 'DH'">{{ APTITUDE_LABEL[selectedPlayer.fielding.aptitude[pos]] }}</small>
+              <small v-if="pos !== 'DH'">{{ APTITUDE_LABEL[groupApt(selectedPlayer, aptGroupOf(pos))] }}</small>
             </button>
           </div>
           <p class="muted">その位置を守っていた選手と、守備位置を入れ替えます。</p>
@@ -521,14 +609,14 @@ const focusSkills = computed(() =>
         <p class="muted">選んだ位置の適性が、毎週の練習で少しずつ上がります（×→△→○→◎）。守備や実戦のマスで伸びやすくなります。</p>
         <div class="pp-grid">
           <button
-            v-for="pos in APT_ORDER"
-            :key="pos"
-            :class="selectedPlayer.convertTo === pos ? 'sky' : 'secondary'"
-            :disabled="selectedPlayer.fielding.aptitude[pos] >= 3"
-            @click="setConvert(selectedPlayer.convertTo === pos ? null : pos)"
+            v-for="g in APT_GROUPS"
+            :key="g.key"
+            :class="selectedPlayer.convertTo && aptGroupOf(selectedPlayer.convertTo) === g.key ? 'sky' : 'secondary'"
+            :disabled="groupApt(selectedPlayer, g.key) >= 3"
+            @click="setConvert(selectedPlayer.convertTo && aptGroupOf(selectedPlayer.convertTo) === g.key ? null : g.positions[g.key === 'OF' ? 1 : 0]!)"
           >
-            {{ POSITION_NAME[pos] }}
-            <small>{{ APTITUDE_LABEL[selectedPlayer.fielding.aptitude[pos]] }}{{ selectedPlayer.convertTo === pos ? '・練習中' : '' }}</small>
+            {{ g.name }}
+            <small>{{ APTITUDE_LABEL[groupApt(selectedPlayer, g.key)] }}{{ selectedPlayer.convertTo && aptGroupOf(selectedPlayer.convertTo) === g.key ? '・練習中' : '' }}</small>
           </button>
         </div>
         <button class="secondary full" @click="posPicker = false">閉じる</button>
@@ -701,9 +789,9 @@ const focusSkills = computed(() =>
 }
 .cell {
   display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 3px;
+  align-items: stretch;
+  gap: 2px;
+  padding: 1px 2px;
   border-bottom: 1px solid #eef3f8;
   min-height: 0;
   flex: 1 1 0;
@@ -716,13 +804,135 @@ const focusSkills = computed(() =>
   flex: 0 0 auto;
   height: 42px;
 }
-.cell.sel {
+.pz,
+.nz {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 7px;
+  touch-action: none;
+}
+.pz {
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+.nz {
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+  padding: 0 2px;
+}
+.pz.sel,
+.nz.sel {
   background: #fff1c2;
   box-shadow: inset 0 0 0 2px #f2a516;
 }
-.cell.drop {
+.pz.drop,
+.nz.drop {
   background: #dff0ff;
   box-shadow: inset 0 0 0 2px #3aa8f0;
+}
+.pz.flash .pos,
+.nz.flash {
+  animation: swapflash 1s ease-out;
+}
+@keyframes swapflash {
+  0% {
+    transform: scale(1.25);
+    box-shadow: 0 0 0 3px #ffd36b, 0 0 12px #ffb400;
+  }
+  100% {
+    transform: none;
+    box-shadow: none;
+  }
+}
+.pz.movable .pos {
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+.nm {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 9px;
+  padding-top: 2px;
+}
+.nt {
+  flex-shrink: 0;
+}
+.nm small {
+  min-width: 0;
+  overflow: hidden;
+}
+.mk {
+  position: absolute;
+  left: -1px;
+  top: -3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 900;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 1px #fff;
+}
+.sq {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.m-c {
+  background: #2f6fe0;
+}
+.m-if {
+  background: #e8b400;
+}
+.m-of {
+  background: #2fa84a;
+}
+.m-p {
+  background: #e5484d;
+}
+.f-apt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.fa-l {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.fa {
+  font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+  border-radius: 6px;
+  padding: 1px 7px;
+}
+.fa b {
+  margin-left: 2px;
+}
+.fa.main {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px currentColor;
+}
+.fa.none {
+  background: #e6ebf2;
+  color: var(--ink-soft);
 }
 .cell.off {
   opacity: 0.45;
@@ -887,10 +1097,6 @@ const focusSkills = computed(() =>
   background: linear-gradient(180deg, #ffd96b, #f4ad1d);
   color: #3a2600;
   box-shadow: 0 3px 0 #a86a00;
-}
-.pos.grab {
-  box-shadow: inset 0 0 0 1.5px currentColor;
-  cursor: grab;
 }
 .ghost.posg {
   background: #f08a1c;

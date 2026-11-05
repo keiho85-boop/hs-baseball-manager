@@ -21,6 +21,8 @@ export interface Notice {
   icon: string
   /** 「〇〇が判明」などの大きな見出し部分 */
   highlight?: { label: string; value: string; rank?: string }
+  /** 複数の見出し（スカウトで2つ分かったときなど） */
+  highlights?: { label: string; value: string; rank?: string }[]
   duration: number
 }
 export type NoticeInput = Partial<Omit<Notice, 'id' | 'message'>> & { message: string }
@@ -77,8 +79,8 @@ export const useUiStore = defineStore('ui', () => {
       message: n.message,
       tone,
       icon: n.icon ?? (tone === 'warn' ? 'warn' : tone === 'bad' ? 'bad' : tone === 'info' ? 'info' : 'check'),
-      highlight: n.highlight,
-      duration: n.duration ?? (n.highlight ? 3000 : 2200),
+      highlights: n.highlights ?? (n.highlight ? [n.highlight] : undefined),
+      duration: n.duration ?? (n.highlight || n.highlights ? 3200 : 2200),
     }
     clearTimeout(toastTimer)
     toastTimer = setTimeout(() => (notice.value = null), notice.value.duration)
