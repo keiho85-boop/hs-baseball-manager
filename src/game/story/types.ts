@@ -28,11 +28,20 @@ export interface NarrStep {
   text: string
 }
 
-/** 背景・一枚絵の切り替え（立ち絵はいったん片付ける） */
+/** 背景・一枚絵の切り替え（暗転して切り替え、立ち絵はいったん片付ける） */
 export interface BgStep {
   kind: 'bg'
   bg: string | null
   cg?: string | null
+}
+
+/** 画面中央のタイトルコール（「合格発表の日」など、時間や場所が飛ぶところ） */
+export interface TitleStep {
+  kind: 'title'
+  /** 大きく出す言葉 */
+  text: string
+  /** 上に小さく出す言葉（「3月」「1年目 4月」など） */
+  sub?: string
 }
 
 export interface ChoiceOption {
@@ -48,7 +57,7 @@ export interface ChoiceStep {
   options: ChoiceOption[]
 }
 
-export type Step = SayStep | NarrStep | BgStep | ChoiceStep
+export type Step = SayStep | NarrStep | BgStep | TitleStep | ChoiceStep
 
 /** 章の中で記録しておくこと（セーブデータに入る） */
 export interface StoryState {
@@ -80,6 +89,8 @@ export interface Scene {
   id: string
   title: string
   chapter: number
+  /** 場面タイトルの上に出す時期（省略すると「第1章　1年目 5月」のように自動で出す） */
+  sub?: string
   /** 発生条件 */
   when: (ctx: StoryContext) => boolean
   /** 台本（{学校名}などは表示の前に置き換える） */

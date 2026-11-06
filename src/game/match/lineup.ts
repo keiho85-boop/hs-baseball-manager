@@ -33,8 +33,12 @@ function batScore(p: Player): number {
   return b.contact * 0.45 + b.power * 0.35 + b.eye * 0.1 + p.running.speed * 0.1
 }
 
-export function autoLineup(players: Player[], useDH: boolean): LineupConfig {
-  const pool = players.filter(available)
+export function autoLineup(players: Player[], wantDH: boolean): LineupConfig {
+  let pool = players.filter(available)
+  // ケガ人が多くて9人に満たないときは、ケガをしている選手も出場させる
+  if (pool.length < 9) pool = players.filter((p) => !p.retired)
+  // DHは投手＋打者9人の10人が必要。足りなければDHなしで組む
+  const useDH = wantDH && pool.length >= 10
   const pitcherList = [...pool].filter(canPitch).sort((a, b) => starterScore(b) - starterScore(a))
   const starter = pitcherList[0] ?? pool[0]!
 

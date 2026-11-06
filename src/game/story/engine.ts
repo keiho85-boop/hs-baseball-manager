@@ -3,7 +3,7 @@
 import { Rng } from '../rng'
 import type { SaveData } from '../types'
 import { CHAPTER1 } from './chapter1'
-import { activeOwn, captain, inBracket, ownName, ownWins, pendingGame, reachedBest4, schoolName } from './query'
+import { activeOwn, captain, inBracket, month, ownName, ownWins, pendingGame, reachedBest4, schoolName, year } from './query'
 import type { ChoiceStep, Scene, Step, StoryContext, StoryState } from './types'
 
 export const SCENES: Scene[] = [...CHAPTER1]
@@ -11,6 +11,12 @@ export const SCENES: Scene[] = [...CHAPTER1]
 /** 章の名前 */
 export const CHAPTER_TITLES: Record<number, string> = {
   1: '第1章「再建」',
+}
+
+/** 場面タイトルの上に出す時期（「第1章　1年目 5月」など） */
+export function sceneSub(save: SaveData, scene: Scene): string {
+  if (scene.sub !== undefined) return scene.sub
+  return `第${scene.chapter}章　${year(save)}年目 ${month(save)}月`
 }
 
 function ctxOf(save: SaveData, st: StoryState): StoryContext {
@@ -90,6 +96,7 @@ function fillSteps(steps: Step[], vars: Record<string, string>): Step[] {
   return steps.map((s) => {
     if (s.kind === 'say') return { ...s, name: fill(s.name, vars), text: fill(s.text, vars) }
     if (s.kind === 'narr') return { ...s, text: fill(s.text, vars) }
+    if (s.kind === 'title') return { ...s, text: fill(s.text, vars), sub: s.sub === undefined ? undefined : fill(s.sub, vars) }
     if (s.kind === 'choice') {
       return { ...s, options: s.options.map((o) => ({ ...o, label: fill(o.label, vars), reply: fillSteps(o.reply, vars) })) }
     }

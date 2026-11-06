@@ -90,8 +90,42 @@ export function nameColor(char: CharId | undefined): string {
   return char ? ART[char].color : '#5f6f86'
 }
 
+/** 用意できている背景（public/bg にあるもの） */
+export const BG_READY = new Set<string>([
+  'bg_classroom_day',
+  'bg_clubroom_day',
+  'bg_ground_day',
+  'bg_ground_sunset',
+  'bg_hotel_night',
+  'bg_liquor_day',
+  'bg_nagi_room_hs_night',
+  'bg_nagi_room_jh_night',
+  'bg_prostadium_night',
+  'bg_stadium_day',
+  'bg_street_sunset',
+])
+
+/** まだ絵がない背景の代わり（絵ができたら BG_READY に足すだけで差し替わる） */
+export const BG_FALLBACK: Record<string, string> = {
+  bg_nagi_room_jh_morning: 'bg_nagi_room_jh_night',
+  bg_living_morning: 'bg_nagi_room_jh_night',
+  bg_exam_board: 'bg_ground_day',
+  bg_school_gate_sakura: 'bg_ground_day',
+  bg_entrance_ceremony: 'bg_classroom_day',
+  bg_hospital_room: 'bg_hotel_night',
+  bg_jh_ground: 'bg_ground_day',
+  bg_sports_shop: 'bg_street_sunset',
+  bg_clubroom_night: 'bg_clubroom_day',
+  bg_national_stadium: 'bg_stadium_day',
+}
+
+/** 実際に表示する背景の名前（絵がなければ代わりの絵） */
+export function resolveBg(name: string): string {
+  return BG_READY.has(name) ? name : (BG_FALLBACK[name] ?? name)
+}
+
 export function bgUrl(name: string): string {
-  return `${BASE}bg/${name}.webp`
+  return `${BASE}bg/${resolveBg(name)}.webp`
 }
 
 export function cgUrl(name: string): string {
