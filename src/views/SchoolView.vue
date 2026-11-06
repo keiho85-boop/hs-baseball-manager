@@ -83,8 +83,8 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
       </div>
     </div>
 
-    <div class="card">
-      <h2 class="sun"><GameIcon name="build" /> 設備 <span class="funds">部費 {{ school.funds }}万円</span></h2>
+    <div class="card" data-tut="facilities">
+      <h2 class="sun"><GameIcon name="build" /> 設備 <span class="funds" data-tut="funds">部費 {{ school.funds }}万円</span></h2>
       <p class="muted note">部費は毎月の収入と、大会で勝ち進んだときのOB会の寄付で増えます。</p>
       <div v-for="(label, key) in FACILITY_NAME" :key="key" class="fac">
         <div class="fac-main">
@@ -104,7 +104,7 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
     </div>
 
     <div class="row two">
-      <button class="sun" @click="scoutOpen = true"><GameIcon name="search" :size="16" /> スカウト<small class="pts">{{ scoutPoints }}</small></button>
+      <button class="sun" data-tut="scout-btn" @click="scoutOpen = true"><GameIcon name="search" :size="16" /> スカウト<small class="pts">{{ scoutPoints }}</small></button>
       <button class="secondary" @click="historyOpen = true"><GameIcon name="trophy" :size="16" /> 大会成績</button>
       <button class="secondary" @click="rankOpen = true"><GameIcon name="trophy" :size="16" /> 県内の学校</button>
     </div>

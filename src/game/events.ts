@@ -43,18 +43,32 @@ function players(save: SaveData): Player[] {
   return school.playerIds.map((id) => save.players[id]).filter((p): p is Player => !!p && !p.retired && !p.helper)
 }
 
+/** ストーリーありのゲームか */
+function story(save: SaveData): boolean {
+  return !!save.story?.enabled
+}
+
+/** ストーリーありのときの話し手（顔を丸い枠に出す） */
+const NAGI = { kind: 'manager', name: 'ナギ', portrait: 'nagi' } as const
+const GENZO_LOCAL = { kind: 'local', name: '日向源造（商店会長）', portrait: 'genzo' } as const
+const GENZO_OB = { kind: 'ob', name: '日向源造（OB会長）', portrait: 'genzo' } as const
+
 let seq = 0
 const eid = (name: string) => `${name}-${Date.now().toString(36)}-${seq++}`
 
 // ---------------------------------------------------------------- 各イベント
 
 function managerEvent(save: SaveData, rng: Rng): EventInstance {
-  if (rng.chance(0.6)) {
+  const st = story(save)
+  const roll = rng.next()
+  if (roll < 0.4) {
     return {
       id: eid('snack'),
       title: 'マネージャーの差し入れ',
-      speaker: { kind: 'manager', name: 'マネージャー' },
-      lines: ['みんな、お疲れさま！', '今日はおにぎりとスポーツドリンクを用意したよ。しっかり食べて、また頑張ろうね！'],
+      speaker: st ? { ...NAGI } : { kind: 'manager', name: 'マネージャー' },
+      lines: st
+        ? ['みなさん、お疲れさまです！', 'おにぎりとスポーツドリンク、用意しておきました。しっかり食べて、また頑張りましょう！']
+        : ['みんな、お疲れさま！', '今日はおにぎりとスポーツドリンクを用意したよ。しっかり食べて、また頑張ろうね！'],
       choices: [
         {
           label: 'ありがたくいただこう',
@@ -68,13 +82,16 @@ function managerEvent(save: SaveData, rng: Rng): EventInstance {
     }
   }
   const list = players(save)
+  if (roll < 0.72) return massageEvent(save, rng, list)
   const p = rng.pick(list)
   return {
     id: eid('note'),
     title: 'マネージャーのノート',
-    speaker: { kind: 'manager', name: 'マネージャー' },
+    speaker: st ? { ...NAGI } : { kind: 'manager', name: 'マネージャー' },
     relatedPlayerIds: [p.id],
-    lines: [`監督、${p.surname}くんのフォームを毎日記録してみたんです。`, '最近いい時と悪い時の違いが、少し分かってきました。'],
+    lines: st
+      ? [`${p.surname}くんのフォーム、毎日記録してみたんです。`, 'いいときと悪いときの違いが、少し見えてきました。']
+      : [`監督、${p.surname}くんのフォームを毎日記録してみたんです。`, '最近いい時と悪い時の違いが、少し分かってきました。'],
     choices: [
       {
         label: `${p.surname}に伝えてあげよう`,
@@ -93,6 +110,47 @@ function managerEvent(save: SaveData, rng: Rng): EventInstance {
   }
 }
 
+/** マネージャーのマッサージ：疲れた選手の体をほぐす。まれにケガをしにくくなったり、弾道が上がったりする */
+function massageEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance {
+  const st = story(save)
+  const tired = [...list].sort((a, b) => a.condition.stamina - b.condition.stamina)
+  const p = tired[rng.int(0, Math.min(2, tired.length - 1))] ?? rng.pick(list)
+  const ops: EffectOp[] = [
+    { op: 'condition', playerId: p.id, key: 'stamina', delta: 25 },
+    { op: 'condition', playerId: p.id, key: 'motivation', delta: 5 },
+  ]
+  let extra = ''
+  const r = rng.next()
+  if (r < 0.1) {
+    ops.push({ op: 'ability', playerId: p.id, key: 'common.durability', delta: 6 })
+    extra = '体の使い方がよくなり、ケガをしにくくなった！'
+  } else if (r < 0.16 && p.batting.trajectory < 4) {
+    ops.push({ op: 'ability', playerId: p.id, key: 'batting.trajectory', delta: 1 })
+    extra = '体のキレが増し、弾道が上がった！'
+  }
+  return {
+    id: eid('massage'),
+    title: 'マネージャーのマッサージ',
+    speaker: st ? { ...NAGI } : { kind: 'manager', name: 'マネージャー' },
+    relatedPlayerIds: [p.id],
+    lines: st
+      ? [`${p.surname}くん、肩も脚もがちがちですね。`, '少し時間をください。ストレッチとマッサージで、しっかりほぐしておきます。']
+      : [`監督、${p.surname}くんの体がかなり張っているみたいです。`, 'ストレッチとマッサージで、しっかりほぐしておきますね。'],
+    choices: [
+      {
+        label: 'しっかりケアしてもらおう',
+        result: `${p.surname}の疲れが取れた！${extra}`,
+        ops,
+      },
+      {
+        label: 'みんなにもやり方を教えてあげて',
+        result: '部員たちがお互いの体をほぐし合った。（全員の体力が少し回復した）',
+        ops: [{ op: 'condition', playerId: 'all', key: 'stamina', delta: 6 }],
+      },
+    ],
+  }
+}
+
 function fundsEvent(save: SaveData, rng: Rng): EventInstance {
   const school = save.schools[save.playerSchoolId]!
   if (school.kind === 'public' && rng.chance(0.5)) {
@@ -100,8 +158,10 @@ function fundsEvent(save: SaveData, rng: Rng): EventInstance {
     return {
       id: eid('local'),
       title: '地元の応援',
-      speaker: { kind: 'local', name: '商店街の会長' },
-      lines: ['いつも頑張ってるねえ。町のみんなで少しずつ集めたんだ。', '甲子園……いや、全国を目指して頑張っておくれよ！'],
+      speaker: story(save) ? { ...GENZO_LOCAL } : { kind: 'local', name: '商店街の会長' },
+      lines: story(save)
+        ? ['おう、マネージャー！　商店街のみんなで少しずつ集めたんだ。', '全国を目指すんだろう？　遠慮せずに使ってくれ！']
+        : ['いつも頑張ってるねえ。町のみんなで少しずつ集めたんだ。', '全国を目指して頑張っておくれよ！'],
       choices: [
         {
           label: 'ありがとうございます！',
@@ -118,8 +178,10 @@ function fundsEvent(save: SaveData, rng: Rng): EventInstance {
   return {
     id: eid('ob'),
     title: 'OB会からの寄付',
-    speaker: { kind: 'ob', name: 'OB会長' },
-    lines: ['監督、OB会で少しばかり集まりましてな。', '後輩たちのために使ってやってください。'],
+    speaker: story(save) ? { ...GENZO_OB } : { kind: 'ob', name: 'OB会長' },
+    lines: story(save)
+      ? ['OB会で、少しばかり集まってな。', '後輩たちのために使ってやってくれ。…勝てよ！']
+      : ['監督、OB会で少しばかり集まりましてな。', '後輩たちのために使ってやってください。'],
     choices: [
       {
         label: 'ありがたく受け取る',
@@ -242,8 +304,9 @@ function rivalEvent(rng: Rng, list: Player[]): EventInstance | null {
 }
 
 function convertEvent(rng: Rng, list: Player[]): EventInstance | null {
-  const toPitcher = list.filter((p) => p.mainPosition !== 'P' && !p.pitchingRetired && p.fielding.arm >= 45)
-  const toField = list.filter((p) => p.mainPosition === 'P' && p.batting.contact + p.batting.power >= 80)
+  // ストーリーの主要人物（日向大地）は転向の対象にしない
+  const toPitcher = list.filter((p) => !p.storyCast && p.mainPosition !== 'P' && !p.pitchingRetired && p.fielding.arm >= 45)
+  const toField = list.filter((p) => !p.storyCast && p.mainPosition === 'P' && p.batting.contact + p.batting.power >= 80)
   const pool = [...toPitcher.map((p) => ({ p, pos: 'P' as Position })), ...toField.map((p) => ({ p, pos: rng.pick(['1B', 'LF', 'RF', 'CF'] as Position[]) }))]
   if (pool.length === 0) return null
   const { p, pos } = rng.pick(pool)
@@ -277,6 +340,14 @@ function convertEvent(rng: Rng, list: Player[]): EventInstance | null {
 function secretPracticeEvent(rng: Rng, list: Player[]): EventInstance {
   const p = rng.pick(list)
   const key = rng.pick(mainKeys(p))
+  // 努力を認めて頑張らせると、まれに特殊能力を身につける
+  const skill = rng.chance(0.1) ? learnable(rng, p) : null
+  const praiseOps: EffectOp[] = [
+    { op: 'ability', playerId: p.id, key, delta: 2 },
+    { op: 'condition', playerId: p.id, key: 'motivation', delta: 10 },
+    { op: 'condition', playerId: p.id, key: 'stamina', delta: -10 },
+  ]
+  if (skill) praiseOps.push({ op: 'skill', playerId: p.id, add: skill })
   return {
     id: eid('secret'),
     title: '居残り練習',
@@ -286,12 +357,8 @@ function secretPracticeEvent(rng: Rng, list: Player[]): EventInstance {
     choices: [
       {
         label: 'その努力を褒める',
-        result: `${p.surname}の${ABILITY_LABEL[key]}が伸び、やる気も上がった！`,
-        ops: [
-          { op: 'ability', playerId: p.id, key, delta: 2 },
-          { op: 'condition', playerId: p.id, key: 'motivation', delta: 10 },
-          { op: 'condition', playerId: p.id, key: 'stamina', delta: -10 },
-        ],
+        result: `${p.surname}の${ABILITY_LABEL[key]}が伸び、やる気も上がった！${skill ? `さらに特殊能力「${skillName(skill)}」を身につけた！` : ''}`,
+        ops: praiseOps,
       },
       {
         label: '体を休めるよう伝える',
@@ -303,9 +370,11 @@ function secretPracticeEvent(rng: Rng, list: Player[]): EventInstance {
 }
 
 function painEvent(rng: Rng, list: Player[]): EventInstance {
-  const tired = [...list].sort((a, b) => a.condition.stamina - b.condition.stamina)
-  const p = tired[0] ?? rng.pick(list)
-  const getsHurt = rng.chance(0.35)
+  const cand = list.filter((x) => !x.storyCast)
+  const pool = cand.length ? cand : list
+  const tired = [...pool].sort((a, b) => a.condition.stamina - b.condition.stamina)
+  const p = tired[0] ?? rng.pick(pool)
+  const getsHurt = !p.storyCast && rng.chance(0.35)
   return {
     id: eid('pain'),
     title: '体の違和感',
@@ -362,6 +431,79 @@ function teamMeetingEvent(rng: Rng, list: Player[]): EventInstance {
   }
 }
 
+// ---------------------------------------------------------------- 合宿（ストーリーあり）
+
+/** 砂浜の特訓：ランダムで何人かの弾道が上がる */
+function beachTrainingEvent(rng: Rng, list: Player[]): EventInstance {
+  const batters = rng.shuffle(list.filter((p) => p.mainPosition !== 'P' && p.batting.trajectory < 4))
+  const lucky = batters.filter(() => rng.chance(0.35)).slice(0, 2)
+  const ops: EffectOp[] = [{ op: 'condition', playerId: 'all', key: 'stamina', delta: -12 }]
+  for (const p of list) if (rng.chance(0.5)) ops.push({ op: 'ability', playerId: p.id, key: 'batting.power', delta: 1 })
+  for (const p of lucky) ops.push({ op: 'ability', playerId: p.id, key: 'batting.trajectory', delta: 1 })
+  const names = lucky.map((p) => p.surname).join('と')
+  return {
+    id: eid('beach'),
+    title: '合宿：砂浜の特訓',
+    speaker: { ...NAGI },
+    relatedPlayerIds: lucky.map((p) => p.id),
+    lines: ['合宿所の裏の砂浜で、ダッシュと素振りの特訓です！', '砂に足を取られるぶん、下半身がしっかり鍛えられますよ。'],
+    choices: [
+      {
+        label: 'もう1本！',
+        result: `部員たちは砂だらけになって走り抜いた。（全員の体力が減り、何人かのパワーが上がった）${names ? `${names}は打球の角度が変わり、弾道が上がった！` : ''}`,
+        ops,
+      },
+      {
+        label: '今日はここまでにしよう',
+        result: '部員たちは海を眺めて、少しのんびりした。（体力とやる気が少し回復した）',
+        ops: [
+          { op: 'condition', playerId: 'all', key: 'stamina', delta: 5 },
+          { op: 'condition', playerId: 'all', key: 'motivation', delta: 3 },
+        ],
+      },
+    ],
+  }
+}
+
+/** まれに：同じ浜で合宿していた龍ヶ峰学園と、ビーチバレーで対決する。勝っても負けても能力が上がる */
+function beachVolleyEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance {
+  const own = save.schools[save.playerSchoolId]!
+  const win = rng.chance(0.45)
+  const picked = rng.shuffle([...list]).slice(0, 4)
+  const ops: EffectOp[] = []
+  for (const p of picked) {
+    const keys = rng.shuffle(mainKeys(p)).slice(0, 2)
+    for (const key of keys) ops.push({ op: 'ability', playerId: p.id, key, delta: key === 'pitching.velocity' ? rng.int(1, 2) : win ? rng.int(3, 4) : rng.int(2, 3) })
+  }
+  ops.push({ op: 'condition', playerId: 'all', key: 'motivation', delta: win ? 12 : 6 })
+  ops.push({ op: 'condition', playerId: 'all', key: 'stamina', delta: -8 })
+  const names = picked.map((p) => p.surname).join('・')
+  return {
+    id: eid('volley'),
+    title: '合宿：浜辺の対決',
+    speaker: { kind: 'coach', name: '白鳥レイカ', portrait: 'reika' },
+    relatedPlayerIds: picked.map((p) => p.id),
+    lines: [
+      `あら、${own.name}も合宿？　奇遇ね。うちも、この浜で走り込みなの。`,
+      'せっかくだから勝負しない？　ビーチバレーで。負けたほうが、今夜の宿舎の掃除よ。',
+    ],
+    choices: [
+      {
+        label: '受けて立ちます！',
+        result: win
+          ? `激戦の末、${own.name}が勝った！　レイカは悔しそうに砂を払っている。（${names}の能力が上がり、全員のやる気が大きく上がった）`
+          : `あと一歩で${own.name}が負けた。掃除はこちらの担当に……。それでも、王者の動きから学ぶことは多かった。（${names}の能力が上がった）`,
+        ops,
+      },
+      {
+        label: '今日は練習がありますので',
+        result: 'レイカは「つまらないわね」と言って去っていった。',
+        ops: [{ op: 'condition', playerId: 'all', key: 'stamina', delta: 4 }],
+      },
+    ],
+  }
+}
+
 /** 止まったマスに応じてイベントを作る（イベントがなければ null） */
 export function buildEvent(save: SaveData, rng: Rng, square: SquareType): EventInstance | null {
   const list = players(save)
@@ -370,6 +512,16 @@ export function buildEvent(save: SaveData, rng: Rng, square: SquareType): EventI
   if (square === 'funds') return fundsEvent(save, rng)
   if (square === 'school') return schoolEvent(save, rng)
   if (square !== 'event') return null
+  // ストーリーありの合宿中は、合宿ならではの出来事が起きやすい
+  if (story(save) && (save.sugoroku?.campWeeks ?? 0) > 0) {
+    const st = save.story!
+    const key = `volley_${save.calendar.year}`
+    if (st.rivalId && st.flags[key] === undefined && rng.chance(0.25)) {
+      st.flags[key] = true
+      return beachVolleyEvent(save, rng, list)
+    }
+    if (rng.chance(0.5)) return beachTrainingEvent(rng, list)
+  }
   const makers = [
     () => slumpEvent(rng, list),
     () => awakeningEvent(rng, list),
@@ -412,7 +564,7 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
       const [group, key] = op.key.split('.') as [string, string]
       const obj = (p as unknown as Record<string, Record<string, number>>)[group]
       if (!obj || typeof obj[key] !== 'number') continue
-      const max = op.key === 'pitching.velocity' ? 163 : 99
+      const max = op.key === 'pitching.velocity' ? 163 : op.key === 'batting.trajectory' ? 4 : 99
       obj[key] = clamp(obj[key] + op.delta, 1, max)
     } else if (op.op === 'skill') {
       const p = save.players[op.playerId]

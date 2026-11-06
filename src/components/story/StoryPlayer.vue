@@ -4,7 +4,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
-import { bgUrl, cgUrl, isLeftSide, nameColor, portraitUrl } from '@/game/story/art'
+import { bgUrl, cgUrl, hasPortrait, isLeftSide, nameColor, portraitUrl } from '@/game/story/art'
 import { sceneSub } from '@/game/story/engine'
 import type { CharId, ChoiceStep, Face, SayStep, Step } from '@/game/story/types'
 
@@ -90,6 +90,7 @@ function typeText(text: string): void {
 
 /** 立ち絵を置く：主人公は左、それ以外は右 */
 function place(char: CharId, face: Face | undefined): void {
+  if (!hasPortrait(char)) return
   const slot = { char, face }
   if (left.value?.char === char) left.value = slot
   else if (right.value?.char === char) right.value = slot
@@ -258,7 +259,7 @@ function preload(steps: Step[]): void {
     if (s.kind === 'bg') {
       if (s.bg) new Image().src = bgUrl(s.bg)
       if (s.cg) new Image().src = cgUrl(s.cg)
-    } else if (s.kind === 'say' && s.char) new Image().src = portraitUrl(s.char, s.face)
+    } else if (s.kind === 'say' && s.char && hasPortrait(s.char)) new Image().src = portraitUrl(s.char, s.face)
     else if (s.kind === 'choice') for (const o of s.options) preload(o.reply)
   }
 }

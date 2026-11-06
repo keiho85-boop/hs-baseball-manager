@@ -7,6 +7,8 @@ import FaceIcon from '../FaceIcon.vue'
 import GameIcon from '../GameIcon.vue'
 import type { IconName } from '../icons'
 import PlayerSheet from '../PlayerSheet.vue'
+import { portraitUrl } from '@/game/story/art'
+import type { CharId } from '@/game/story/types'
 
 const props = defineProps<{ event: EventInstance }>()
 const emit = defineEmits<{ done: [choice: number] }>()
@@ -29,6 +31,12 @@ const speakerName = computed(() => {
   const s = props.event.speaker
   if (s.kind === 'player') return player.value ? `${player.value.surname} ${player.value.givenName}` : ''
   return s.name
+})
+/** ストーリーの人物の顔（ナギ・源造・レイカなど） */
+const portrait = computed(() => {
+  const s = props.event.speaker
+  if (s.kind === 'player' || !s.portrait || !game.save?.story?.enabled) return null
+  return portraitUrl(s.portrait as CharId, 'smile')
 })
 const avatar = computed<{ icon: IconName; color: string }>(() => {
   const k = props.event.speaker.kind
@@ -83,6 +91,7 @@ onMounted(() => typeOut(text.value))
     <div class="ev">
       <div class="speaker">
         <FaceIcon v-if="player" :face="player.face" :size="74" />
+        <img v-else-if="portrait" class="portrait" :src="portrait" alt="" />
         <div v-else-if="event.speaker.kind !== 'narration'" class="avatar" :style="{ background: avatar.color }">
           <GameIcon :name="avatar.icon" :size="38" />
         </div>
@@ -105,6 +114,15 @@ onMounted(() => typeOut(text.value))
 </template>
 
 <style scoped>
+.portrait {
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 8%;
+  background: linear-gradient(180deg, #fff3e6, #ffd9b8);
+  box-shadow: 0 0 0 3px #fff, 0 3px 0 3px rgba(0, 0, 0, 0.18);
+}
 .ev-backdrop {
   position: fixed;
   inset: 0;

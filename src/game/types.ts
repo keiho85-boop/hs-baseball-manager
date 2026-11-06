@@ -154,6 +154,8 @@ export interface Player {
   retired: boolean
   /** 部員不足のときに他の部から入った助っ人 */
   helper: boolean
+  /** ストーリーの主要人物（日向大地など）。ケガをせず、転向などのイベントの対象にならない */
+  storyCast?: string
   bats: BatSide
   throws: Hand
   mainPosition: Position
@@ -330,7 +332,12 @@ export interface Card {
 /** イベントの話し手 */
 export type Speaker =
   | { kind: 'player'; playerId: string }
-  | { kind: 'manager' | 'coach' | 'principal' | 'ob' | 'narration' | 'local'; name: string }
+  | {
+      kind: 'manager' | 'coach' | 'principal' | 'ob' | 'narration' | 'local'
+      name: string
+      /** ストーリーの人物の顔を丸い枠に出す（'nagi'・'genzo'・'reika' など。ストーリーありのときだけ） */
+      portrait?: string
+    }
 
 /** イベントの効果（保存できるよう、データとして持つ） */
 export type EffectOp =

@@ -302,6 +302,22 @@ const PRO_TEAMS = [
   '福岡ブレイズ',
 ]
 
+/** ストーリーで鬼頭鉄郎が率いた球団の名前（選んだ都道府県の名前を冠する。例：大阪スカイライツ） */
+export function skylightsName(prefCode: number): string {
+  const pref = prefName(prefCode)
+  const short = pref === '北海道' ? pref : pref.replace(/[都府県]$/, '')
+  return `${short}スカイライツ`
+}
+
+/** ドラフトで指名してくる球団（ストーリーありのときは、スカイライツを地元の球団にする） */
+function proTeams(save: SaveData): string[] {
+  if (!save.story?.enabled) return PRO_TEAMS
+  const sky = skylightsName(save.prefCode)
+  const short = sky.replace('スカイライツ', '')
+  // 地元に別の球団がある場合は、スカイライツと入れ替える
+  return [...PRO_TEAMS.filter((t) => t !== '東京スカイライツ' && !t.startsWith(short)), sky]
+}
+
 /** 自校の引退した3年生のうち、指名された選手 */
 export function runDraft(save: SaveData, rng: Rng): string[] {
   const own = save.schools[save.playerSchoolId]!
@@ -318,7 +334,7 @@ export function runDraft(save: SaveData, rng: Rng): string[] {
     const chance = clamp((rating - 60) / 22, 0, 0.92)
     if (!rng.chance(chance)) continue
     const round = clamp(Math.round(8 - (rating - 58) / 4 + rng.normal(0, 1)), 1, 7)
-    const team = rng.pick(PRO_TEAMS)
+    const team = rng.pick(proTeams(save))
     p.drafted = { team, round }
     messages.push(`ドラフト会議で、${fullName(p)}が${team}から${round}位指名を受けた！`)
   }

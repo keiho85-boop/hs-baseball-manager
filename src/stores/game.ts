@@ -497,6 +497,15 @@ export const useGameStore = defineStore('game', () => {
     await writeSave(s)
   }
 
+  /** 物語の旗に値を書いて保存する（チュートリアルの済み・未済など） */
+  async function setStoryFlag(key: string, value: string | number | boolean): Promise<void> {
+    const s = save.value
+    if (!s?.story?.enabled) return
+    s.story.flags[key] = value
+    touch()
+    await writeSave(s)
+  }
+
   // ---- 画面から使う取得用の関数（rev を読むことで再描画の対象になる） ----
   function ownSchool(): School | null {
     void rev.value
@@ -534,6 +543,7 @@ export const useGameStore = defineStore('game', () => {
     checkStory,
     finishStory,
     markStoryFlag,
+    setStoryFlag,
     startPracticeMatch,
     startTournamentMatch,
     nextTournamentWeek,

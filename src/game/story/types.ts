@@ -4,7 +4,21 @@ import type { Rng } from '../rng'
 import type { SaveData } from '../types'
 
 /** 立ち絵のある人物 */
-export type CharId = 'nagi' | 'nagi_jh' | 'daichi' | 'reika' | 'genzo' | 'makabe' | 'kuga' | 'tetsuro' | 'okochi' | 'grandpa'
+export type CharId =
+  | 'nagi'
+  | 'nagi_jh'
+  | 'daichi'
+  | 'reika'
+  | 'genzo'
+  | 'makabe'
+  | 'kuga'
+  | 'tetsuro'
+  | 'okochi'
+  | 'grandpa'
+  /** 病衣の祖父（病室の場面） */
+  | 'grandpa_hosp'
+  /** 1年目の3年生の主将（帽子を深くかぶったモブ） */
+  | 'mob_cap'
 
 /** 台本の表情（人物ごとの絵の割り当てで、実際の絵に置き換える） */
 export type Face = 'normal' | 'smile' | 'serious' | 'surprise' | 'frustrated' | 'angry' | 'cry' | 'joy' | 'troubled'

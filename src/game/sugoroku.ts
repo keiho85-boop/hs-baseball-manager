@@ -138,7 +138,8 @@ const INJURIES = [
 function practiceLoad(rng: Rng, save: SaveData, p: Player, cost: number, injuryMult: number, messages: string[]): void {
   const c = p.condition
   c.stamina = clamp(Math.round(c.stamina - cost), 0, 100)
-  if (cost <= 0 || c.injury) return
+  // ストーリーの主要人物（日向大地）はケガをしない
+  if (cost <= 0 || c.injury || p.storyCast) return
   const tired = c.stamina < 20 ? 0.07 : c.stamina < 40 ? 0.022 : 0.002
   const risk = tired * injuryMult * INJURY_FACTOR[save.settings.injury] * (1.5 - p.common.durability / 100)
   if (rng.chance(clamp(risk, 0, 0.4))) {

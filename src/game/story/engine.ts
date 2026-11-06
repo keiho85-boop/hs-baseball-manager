@@ -1,6 +1,7 @@
 // ストーリーの進行：次に流す場面を決め、見終わったら効果を反映する
 
 import { Rng } from '../rng'
+import { skylightsName } from '../scout'
 import type { SaveData } from '../types'
 import { CHAPTER1 } from './chapter1'
 import { activeOwn, captain, inBracket, month, ownName, ownWins, pendingGame, reachedBest4, schoolName, year } from './query'
@@ -29,6 +30,12 @@ export function observeStory(save: SaveData): boolean {
   if (!st?.enabled) return false
   const own = save.playerSchoolId
   let changed = false
+  // 以前のセーブ：日向大地をストーリーの主要人物にしておく（ケガをせず、転向の対象にならない）
+  const d = st.daichiId ? save.players[st.daichiId] : undefined
+  if (d && !d.storyCast) {
+    d.storyCast = 'daichi'
+    changed = true
+  }
   const set = (key: string, value: string | number | boolean): void => {
     if (st.flags[key] === undefined) {
       st.flags[key] = value
@@ -85,7 +92,13 @@ export function varsOf(save: SaveData, st: StoryState): Record<string, string> {
     部員数: String(list.filter((p) => !p.helper).length),
     新入生: freshman ? freshman.surname : '新入生',
     ライバル: schoolName(save, st.rivalId),
+    球団: teamName(save.prefCode),
   }
+}
+
+/** 鬼頭鉄郎が率いたプロ球団の名前（選んだ都道府県の名前を冠する） */
+export function teamName(prefCode: number): string {
+  return skylightsName(prefCode)
 }
 
 function fill(text: string, vars: Record<string, string>): string {

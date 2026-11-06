@@ -25,6 +25,8 @@ const NAMES: Record<CharId, string> = {
   tetsuro: '鉄郎',
   okochi: '大河内',
   grandpa: '祖父',
+  grandpa_hosp: '祖父',
+  mob_cap: '{主将}',
 }
 
 function say(char: CharId, face: Face, text: string): SayStep {
@@ -65,6 +67,14 @@ const genzo = (face: Face, text: string): SayStep => say('genzo', face, text)
 const kuga = (face: Face, text: string): SayStep => say('kuga', face, text)
 const reika = (face: Face, text: string): SayStep => say('reika', face, text)
 const cap = (text: string): SayStep => voice('{主将}', text)
+/** 1年目の3年生の主将（帽子を深くかぶったモブ。立ち絵あり） */
+const cap1 = (text: string, face: Face = 'normal'): SayStep => say('mob_cap', face, text)
+const grandpa = (text: string): SayStep => say('grandpa', 'smile', text)
+
+/** 場面のあとに、操作のチュートリアルを始める */
+function startGuide(c: StoryContext, id: 'practice' | 'funds' | 'order' | 'scout'): void {
+  if (c.st.flags[`guide:${id}`] === undefined) c.st.flags[`guide:${id}`] = 'todo'
+}
 
 // ---------------------------------------------------------------- 効果
 
@@ -110,20 +120,29 @@ export const CHAPTER1: Scene[] = [
     steps: () => [
       bg(null),
       n('暗闇の中に、地鳴りのような歓声が響く'),
-      voice('実況', '東京スカイライツ、日本一！　鬼頭監督、就任10年目にして、ついに頂点へ！'),
+      voice('実況', '{球団}、日本一！　鬼頭監督、就任10年目にして、ついに頂点へ！'),
       bg('bg_prostadium_night'),
-      n('胴上げを終えた監督・鬼頭鉄郎が、ウイニングボールを右翼スタンドへ放り込む'),
+      n('右翼スタンド。立ち上がって叫ぶ老人と、その隣で退屈そうにスマートフォンをいじる少女'),
+      grandpa('見ろ、ナギ！　胴上げだ！　鬼頭が宙を舞っとる！'),
+      nagiJh('normal', '…おじいちゃん、声大きい。もう終わったんでしょ。帰ろうよ'),
+      grandpa('まだだ、まだ。ほれ、鬼頭がボールを持っとる。投げるぞ！'),
       bg(null, 'ev_ano_yoru'),
-      n('スタンドの老人が、そのボールを素手でつかみ取った'),
+      n('胴上げを終えた監督・鬼頭鉄郎が、ウイニングボールを右翼スタンドへ放り込む。老人がそれを素手でつかみ取った'),
+      grandpa('と、と、取ったぞおおっ！'),
+      nagiJh('surprise', '…素手で？　痛くないの、それ'),
       tetsuroThink('やっと手に入れた日本一だ。…だが、選手を一から育てる時間は、もう俺には残っておらん', 'smile'),
       title('同じ夜', '祝勝会のあと'),
       bg('bg_hotel_night'),
       n('ホテルの廊下。鉄郎は壁に手をつき、立ち止まっている'),
       tetsuroThink('もう一度、最初からやり直せたら――', 'frustrated'),
-      bg('bg_street_sunset'),
-      n('球場からの帰り道。上機嫌の老人と、そのボールを持たされて退屈そうな少女'),
-      voice('少女', '…野球の何が、そんなに楽しいの'),
+      title('同じころ', '球場からの帰り道'),
+      bg('bg_stadium_road_night'),
+      grandpa('ほれ、ナギ。持っとけ。わしの一生の宝物だ'),
+      nagiJh('normal', '…ただのボールじゃん。野球の何が、そんなに楽しいの'),
+      grandpa('それはな…やってみりゃ分かる'),
+      nagiJh('normal', 'やらないし。…受験生なんですけど、私'),
       n('少女の手の中で、ボールが一瞬、白く光った'),
+      nagiJh('surprise', '…え？'),
       bg(null),
       tetsuroThink('…胸が、苦しい…', 'frustrated'),
       n('意識が、白く遠のいていく'),
@@ -139,8 +158,14 @@ export const CHAPTER1: Scene[] = [
       bg('bg_nagi_room_jh_morning'),
       n('目覚まし時計の音。カーテン越しに、朝の光が差し込んでいる'),
       thinkJh('…ここはどこだ。病院ではないな。…やけに可愛らしい部屋だ'),
-      n('姿見に映っているのは、セーラー服を手にした見知らぬ少女'),
+      n('姿見に映っているのは、パジャマ姿の見知らぬ少女'),
+      thinkJh('…誰だ、この娘は'),
+      n('右手を上げる。鏡の中の少女も、右手を上げる'),
+      n('左手を上げる。少女も、左手を上げる。頬をつねる。少女も、頬をつねる'),
+      thinkJh('…痛い。夢ではない', 'surprise'),
       nagiJh('surprise', 'な、なんだこれはあああっ！？'),
+      thinkJh('声が高い！　腕が細い！　背が低い！　…腰が、痛くない！？', 'surprise'),
+      thinkJh('三十年来の腰痛が消えている…。いや、喜んでいる場合ではない', 'surprise'),
       voice('母親（声）', 'ナギー！　起きてるのー？　学校に遅れるわよー！'),
       thinkJh('ナギ？　学校？　…落ち着け。監督というのは、想定外のときほど冷静であるべきだ。…いや、これは無理だ！', 'surprise'),
       bg('bg_living_morning'),
@@ -196,10 +221,10 @@ export const CHAPTER1: Scene[] = [
       bg('bg_ground_sunset'),
       n('荒れたグラウンドに、練習着の生徒が数人'),
       think('体が勝手にここへ来てしまうな。…それにしてもひどい。ベースは破れ、ネットは穴だらけ、ノックの声もばらばらだ', 'serious'),
-      cap('…見学？　悪いけど、うちはもうすぐなくなるかもしれないよ'),
+      cap1('…見学？　悪いけど、うちはもうすぐなくなるかもしれないよ'),
       nagi('surprise', 'なくなるって…どういうことですか？'),
-      cap('前の監督が部費を使い込んでさ。冬のあいだ対外試合は禁止で、部員も半分辞めた。新しい監督も、まだ決まってない'),
-      cap('それでも、最後の夏くらいは…一回でいいから、勝ちたいんだ'),
+      cap1('前の監督が部費を使い込んでさ。冬のあいだ対外試合は禁止で、部員も半分辞めた。新しい監督も、まだ決まってない'),
+      cap1('それでも、最後の夏くらいは…一回でいいから、勝ちたいんだ'),
       think('…その目だ。勝ったことのない選手が、それでも諦めていない目。俺はこの目に弱い', 'serious'),
       nagi('serious', '…マネージャーは、募集していますか？'),
     ],
@@ -266,10 +291,11 @@ export const CHAPTER1: Scene[] = [
         ],
       },
       think('女子高生の体で、公立の弱小校か。鬼頭鉄郎、二度目の監督人生だ。…いや、マネージャー人生だな', 'smile'),
-      nagi('normal', '先生、練習の決め方を説明しますね。手札のカードを1枚選ぶと、その数だけコマが進みます'),
-      nagi('normal', '止まったマスの練習を、その週にみんなでやるんです'),
-      think('狙ったマスに止まるよう、数字を選べ。練習も采配も、先を読んだ者が勝つ', 'serious'),
+      nagi('smile', '先生、さっそく練習を始めましょう。練習の決め方、お見せしますね'),
     ],
+    onEnd: (c) => {
+      startGuide(c, 'practice')
+    },
   },
 
   // ======================================== 1年目
@@ -281,12 +307,13 @@ export const CHAPTER1: Scene[] = [
     steps: () => [
       bg('bg_ground_day'),
       makabe('smile', '近くの学校が、練習試合を受けてくれたよ！　自粛のことがあって、どこにも断られてたんだけど'),
-      nagi('smile', 'ありがとうございます！　…では、まずオーダーを組みましょう'),
-      nagi('normal', '打順と守備位置は「チーム」の画面で決めます。選手を、入れ替えたい選手のところまでドラッグしてください'),
-      nagi('normal', '練習試合は、ホームの「練習試合」から相手を選んで申し込めます。試合中の作戦は、いつでも下のボタンから出せます'),
+      nagi('smile', 'ありがとうございます！　…では、まずオーダーを組んで、それから申し込みましょう'),
       nagi('smile', '先生は…ベンチでどっしり構えていてください'),
       makabe('troubled', 'は、はい…'),
     ],
+    onEnd: (c) => {
+      startGuide(c, 'order')
+    },
   },
   {
     id: 'c1_renshujiai_after',
@@ -297,7 +324,7 @@ export const CHAPTER1: Scene[] = [
       c.st.flags.firstPractice === 'win'
         ? [
             bg('bg_ground_sunset'),
-            cap('…勝った。練習試合だけど、勝ったぞ！'),
+            cap1('…勝った。練習試合だけど、勝ったぞ！'),
             think('練習試合一つでこの喜びようか。…悪くない', 'smile'),
             daichiSay('surprise', '…お前のサイン、全部当たってたな。なんで分かるんだよ'),
             nagi('smile', '日向くんの顔に、全部書いてありましたから'),
@@ -305,7 +332,7 @@ export const CHAPTER1: Scene[] = [
           ]
         : [
             bg('bg_ground_sunset'),
-            cap('やっぱり…俺たちじゃ無理なのかな'),
+            cap1('やっぱり…俺たちじゃ無理なのかな', 'frustrated'),
             nagi('serious', '今日の失点の半分は、練習で消せます。残りの半分は、私の采配で消します'),
             think('さあ、ここからだ', 'serious'),
             daichiSay('normal', '…でもお前のサイン、ほとんど当たってたな。なんで分かるんだよ'),
@@ -321,7 +348,7 @@ export const CHAPTER1: Scene[] = [
     steps: () => [
       bg('bg_ground_day'),
       n('4月の終わり。仮入部の1年生が、グラウンドに顔を出すようになった'),
-      cap('人が増えたな。…これで、やっと紅白戦ができる'),
+      cap1('人が増えたな。…これで、やっと紅白戦ができる'),
       think('人数は力だ。…まずは、辞めさせないことからだな', 'smile'),
     ],
     onEnd: (c) => [`仮入部の1年生${addTrialMembers(c.save, c.rng)}人が入部した。`],
@@ -353,6 +380,7 @@ export const CHAPTER1: Scene[] = [
     onEnd: (c) => {
       const own = c.save.schools[c.save.playerSchoolId]!
       own.funds += 20
+      startGuide(c, 'funds')
       return ['OB会から差し入れが届いた（部費 +20万円）。']
     },
   },
@@ -363,7 +391,7 @@ export const CHAPTER1: Scene[] = [
     when: (c) => Y(c) <= 3 && !!pendingGame(c.save),
     steps: () => [
       bg('bg_stadium_day'),
-      cap('初戦の相手、{相手校}だって。…正直、勝てる気がしない'),
+      cap1('初戦の相手、{相手校}だって。…正直、勝てる気がしない'),
       nagi('normal', '勝てないのではありません。まだ、勝ち方を知らないだけです'),
       nagi('smile', 'だから今日は、勝ち方を一つだけ覚えて帰りましょう'),
       think('…今のは、かなり監督らしかったな。気をつけねば', 'surprise'),
@@ -373,7 +401,8 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_scout',
     title: '中学生を見に行く',
     chapter: 1,
-    when: (c) => flag(c, 'scoutOpened'),
+    // 5月になったら（それより先にスカウトを開いたら、そのとき）
+    when: (c) => (Y(c) === 1 && W(c) >= 6) || flag(c, 'scoutOpened'),
     steps: () => [
       bg('bg_jh_ground'),
       n('近くの中学校のグラウンド。ナギは保護者席の端に座っている'),
@@ -381,10 +410,11 @@ export const CHAPTER1: Scene[] = [
       voice('保護者', '…お嬢さん、ずいぶん詳しいね。プロのスカウトみたいだ'),
       nagi('surprise', 'えっ！　いえ、その、野球中継をよく見ていて…！'),
       think('独り言の癖を直さんとまずいな'),
-      nagi('normal', 'スカウトは、中学生を「視察」して力を確かめて、「勧誘」でうちに来てもらうんです'),
+      nagi('serious', '…来年の部員集め、本格的に始めないと'),
     ],
     onEnd: (c) => {
       addScoutPoints(c.save, 1)
+      startGuide(c, 'scout')
       return ['スカウトの回数が1回増えた。']
     },
   },
@@ -396,14 +426,14 @@ export const CHAPTER1: Scene[] = [
     steps: () => [
       bg('bg_clubroom_day'),
       n('夏の大会の前日。部室に、3年生の主将が残っている'),
-      cap('朝比奈。…この3か月で、俺たち本当に強くなったと思う'),
-      cap('だから、頼む。一回でいい。勝たせてくれ'),
+      cap1('朝比奈。…この3か月で、俺たち本当に強くなったと思う'),
+      cap1('だから、頼む。一回でいい。勝たせてくれ'),
       {
         kind: 'choice',
         options: [
           {
             label: '一回と言わず、勝てるだけ勝ちましょう',
-            reply: [cap('…欲張りだな、お前')],
+            reply: [cap1('…欲張りだな、お前')],
             apply: (x) => {
               form(byGrade(x.save, [3]), 1)
               return ['3年生の調子が上がった。']
@@ -411,7 +441,7 @@ export const CHAPTER1: Scene[] = [
           },
           {
             label: '勝つのは先輩たちです。私は道を示すだけです',
-            reply: [cap('はは。かっこいいな')],
+            reply: [cap1('はは。かっこいいな')],
             apply: (x) => {
               motivation(byGrade(x.save, [3]), 15)
               return ['3年生のやる気が上がった。']
@@ -447,9 +477,9 @@ export const CHAPTER1: Scene[] = [
     steps: () => [
       bg('bg_stadium_day'),
       n('試合のあと。球場の外で、3年生が泣いている'),
-      cap('…悪い、朝比奈。せっかく作戦を立ててくれたのに'),
+      cap1('…悪い、朝比奈。せっかく作戦を立ててくれたのに', 'frustrated'),
       nagi('frustrated', '謝らないでください。負けたのは、私の采配です'),
-      cap('…来年は、こいつらを勝たせてやってくれ'),
+      cap1('…来年は、こいつらを勝たせてやってくれ', 'frustrated'),
       think('何度経験しても、この場面だけは慣れんな', 'frustrated'),
       daichiSay('frustrated', '…来年は、俺たちの番だ'),
     ],
@@ -470,14 +500,14 @@ export const CHAPTER1: Scene[] = [
     steps: () => [
       bg('bg_hospital_room'),
       n('夏休み。検査で入院した祖父を、母親と見舞う'),
-      say('grandpa', 'smile', 'ナギが野球部のマネージャーで、しかも作戦まで立てとるだと！？　いやあ、長生きはするもんだ'),
+      say('grandpa_hosp', 'smile', 'ナギが野球部のマネージャーで、しかも作戦まで立てとるだと！？　いやあ、長生きはするもんだ'),
       nagi('normal', 'おじいちゃんは、本当に野球が好きなんですね'),
-      say('grandpa', 'smile', 'なんだ、そのよそ行きの言葉づかいは。…あの夜のこと、覚えとるか。お前、ずっと退屈そうにしとったなあ'),
+      say('grandpa_hosp', 'smile', 'なんだ、そのよそ行きの言葉づかいは。…あの夜のこと、覚えとるか。お前、ずっと退屈そうにしとったなあ'),
       think('あの夜？　…この娘は、あの日、球場にいたのか', 'surprise'),
-      say('grandpa', 'smile', 'あの夜の宝物はな、一番の友達に預けてある。わしより長生きしそうなやつにな'),
+      say('grandpa_hosp', 'smile', 'あの夜の宝物はな、一番の友達に預けてある。わしより長生きしそうなやつにな'),
       nagi('surprise', '宝物？'),
       n('祖父は笑うだけで、それ以上は何も言わなかった'),
-      say('grandpa', 'smile', '勝てよ、ナギ'),
+      say('grandpa_hosp', 'smile', '勝てよ、ナギ'),
     ],
   },
   {
@@ -655,7 +685,7 @@ export const CHAPTER1: Scene[] = [
       voice('記者', '地元新聞の者です。最近の{学校名}さんは采配が面白いと評判でして'),
       makabe('troubled', 'さ、采配ですか。ええと、それは、その…'),
       think('先生、目が泳いでいる'),
-      voice('記者', '送りバントをほとんどしない。初回から走ってくる。昔のスカイライツの鬼頭監督のようだと、うちの年配の記者が言うんですよ'),
+      voice('記者', '送りバントをほとんどしない。初回から走ってくる。昔の{球団}の鬼頭監督のようだと、うちの年配の記者が言うんですよ'),
       nagi('surprise', 'ごほっ！　ごほっ！'),
       makabe('surprise', '朝比奈さん、大丈夫？'),
       nagi('surprise', 'だ、大丈夫です！　先生は、鬼頭監督の大ファンなんですよね！　ねっ！'),
