@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // ストーリーの会話画面：背景・立ち絵・名前・台詞を出し、タップで進める
+// 場面の始まりは暗転して中央にタイトル、背景の切り替えは暗転、時間や場所が飛ぶところはタイトルコール
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import { bgUrl, cgUrl, isLeftSide, nameColor, portraitUrl } from '@/game/story/art'
-import { CHAPTER_TITLES } from '@/game/story/engine'
+import { sceneSub } from '@/game/story/engine'
 import type { CharId, ChoiceStep, Face, SayStep, Step } from '@/game/story/types'
 
 const game = useGameStore()
@@ -14,6 +15,20 @@ interface Slot {
   char: CharId
   face: Face | undefined
 }
+
+interface Cut {
+  /** scene：場面の始まり　title：場面の途中のタイトルコール */
+  kind: 'scene' | 'title'
+  text: string
+  sub: string
+}
+
+/** 暗転・明転の時間（ミリ秒） */
+const FADE_MS = 340
+/** 場面タイトルを出しておく時間 */
+const SCENE_CUT_MS = 1700
+/** タイトルコールを出しておく時間（タップでも進む） */
+const TITLE_CUT_MS = 2400
 
 /** 流す台本（選択肢を選ぶと、その続きが差し込まれる） */
 const queue = ref<Step[]>([])
@@ -25,21 +40,40 @@ const left = ref<Slot | null>(null)
 const right = ref<Slot | null>(null)
 const shown = ref('')
 const typing = ref(false)
-const banner = ref<string | null>(null)
 const finishing = ref(false)
+/** 画面全体を黒で覆う（暗転） */
+const dark = ref(true)
+/** 中央のタイトル */
+const cut = ref<Cut | null>(null)
+/** 暗転中など、タップを受け付けない */
+const locked = ref(false)
+/** 左上に出す、今の場面の名前 */
+const sceneLabel = ref('')
+
 let timer: number | null = null
-let bannerTimer: number | null = null
+let cutTimer: number | null = null
+/** 新しい場面が始まったら、前の場面の待ちを無効にするための番号 */
+let run = 0
 
 const current = computed<Step | null>(() => queue.value[index.value] ?? null)
-const say = computed<SayStep | null>(() => (current.value?.kind === 'say' ? current.value : null))
-const choice = computed<ChoiceStep | null>(() => (current.value?.kind === 'choice' ? current.value : null))
-const narr = computed(() => (current.value?.kind === 'narr' ? current.value.text : null))
+const say = computed<SayStep | null>(() => (!cut.value && current.value?.kind === 'say' ? current.value : null))
+const choice = computed<ChoiceStep | null>(() => (!cut.value && !locked.value && current.value?.kind === 'choice' ? current.value : null))
+const narr = computed(() => (!cut.value && current.value?.kind === 'narr' ? current.value.text : null))
 const speaker = computed<CharId | null>(() => say.value?.char ?? null)
+
+function wait(ms: number): Promise<void> {
+  return new Promise((r) => window.setTimeout(r, ms))
+}
 
 function stopTyping(): void {
   if (timer !== null) window.clearInterval(timer)
   timer = null
   typing.value = false
+}
+
+function clearCutTimer(): void {
+  if (cutTimer !== null) window.clearTimeout(cutTimer)
+  cutTimer = null
 }
 
 function typeText(text: string): void {
@@ -63,8 +97,56 @@ function place(char: CharId, face: Face | undefined): void {
   else right.value = slot
 }
 
-/** 今の行を表示する。背景の切り替えはその場で処理して次へ進む */
-function enter(): void {
+function applyBg(name: string | null, cgName: string | null | undefined): void {
+  bg.value = name
+  cg.value = cgName ?? null
+  left.value = null
+  right.value = null
+}
+
+/** 暗転して背景を切り替え、明るくする */
+async function changeBg(name: string | null, cgName: string | null | undefined, my: number): Promise<boolean> {
+  locked.value = true
+  stopTyping()
+  shown.value = ''
+  if (!dark.value) {
+    dark.value = true
+    await wait(FADE_MS)
+    if (my !== run) return false
+  }
+  applyBg(name, cgName)
+  await wait(80)
+  if (my !== run) return false
+  dark.value = false
+  await wait(FADE_MS)
+  if (my !== run) return false
+  locked.value = false
+  return true
+}
+
+/** 中央にタイトルを出す。時間が来るかタップで閉じる */
+function showCut(c: Cut, ms: number, then: () => void): void {
+  clearCutTimer()
+  stopTyping()
+  shown.value = ''
+  cut.value = c
+  cutTimer = window.setTimeout(() => closeCut(then), ms)
+  pendingAfterCut = then
+}
+let pendingAfterCut: (() => void) | null = null
+
+function closeCut(then?: () => void): void {
+  clearCutTimer()
+  if (!cut.value) return
+  cut.value = null
+  const next = then ?? pendingAfterCut
+  pendingAfterCut = null
+  next?.()
+}
+
+/** 今の行を表示する。背景の切り替えとタイトルコールはその場で処理する */
+async function enter(): Promise<void> {
+  const my = run
   for (;;) {
     const s = queue.value[index.value]
     if (!s) {
@@ -72,12 +154,25 @@ function enter(): void {
       return
     }
     if (s.kind === 'bg') {
-      bg.value = s.bg
-      cg.value = s.cg ?? null
-      left.value = null
-      right.value = null
+      const ok = await changeBg(s.bg, s.cg, my)
+      if (!ok) return
       index.value += 1
       continue
+    }
+    if (s.kind === 'title') {
+      showCut({ kind: 'title', text: s.text, sub: s.sub ?? '' }, TITLE_CUT_MS, () => {
+        index.value += 1
+        void enter()
+      })
+      return
+    }
+    // 暗いままなら明るくしてから台詞へ
+    if (dark.value) {
+      locked.value = true
+      dark.value = false
+      await wait(FADE_MS)
+      if (my !== run) return
+      locked.value = false
     }
     if (s.kind === 'say') {
       if (s.char) place(s.char, s.face)
@@ -92,7 +187,12 @@ function enter(): void {
 }
 
 function advance(): void {
-  if (finishing.value || choice.value) return
+  if (finishing.value || locked.value) return
+  if (cut.value) {
+    closeCut()
+    return
+  }
+  if (choice.value) return
   if (typing.value) {
     stopTyping()
     const s = current.value
@@ -101,7 +201,7 @@ function advance(): void {
     return
   }
   index.value += 1
-  enter()
+  void enter()
 }
 
 function pick(i: number): void {
@@ -111,12 +211,18 @@ function pick(i: number): void {
   picks.push(i)
   queue.value = [...queue.value.slice(0, index.value + 1), ...opt.reply, ...queue.value.slice(index.value + 1)]
   index.value += 1
-  enter()
+  void enter()
 }
 
 /** 次の選択肢か、場面の終わりまで飛ばす */
 function skip(): void {
+  if (finishing.value) return
+  run += 1
   stopTyping()
+  clearCutTimer()
+  cut.value = null
+  pendingAfterCut = null
+  locked.value = false
   for (;;) {
     const s = queue.value[index.value]
     if (!s) {
@@ -124,15 +230,11 @@ function skip(): void {
       return
     }
     if (s.kind === 'choice') {
-      enter()
+      dark.value = false
+      void enter()
       return
     }
-    if (s.kind === 'bg') {
-      bg.value = s.bg
-      cg.value = s.cg ?? null
-      left.value = null
-      right.value = null
-    }
+    if (s.kind === 'bg') applyBg(s.bg, s.cg)
     index.value += 1
   }
 }
@@ -141,34 +243,45 @@ async function finish(): Promise<void> {
   if (finishing.value) return
   finishing.value = true
   stopTyping()
+  clearCutTimer()
+  cut.value = null
+  // 暗転してから閉じる
+  dark.value = true
+  await wait(FADE_MS)
   const title = game.story?.scene.title ?? ''
   const messages = await game.finishStory(picks)
   if (messages.length) ui.notify({ title, message: messages.join('\n'), tone: 'good', duration: 2600 + messages.length * 900 })
 }
 
-function start(): void {
-  const st = game.story
-  if (!st) return
-  queue.value = [...st.steps]
-  index.value = 0
-  picks.length = 0
-  bg.value = null
-  cg.value = null
-  left.value = null
-  right.value = null
-  finishing.value = false
-  // 使う絵を先に読み込んでおく
-  for (const s of st.steps) {
+function preload(steps: Step[]): void {
+  for (const s of steps) {
     if (s.kind === 'bg') {
       if (s.bg) new Image().src = bgUrl(s.bg)
       if (s.cg) new Image().src = cgUrl(s.cg)
     } else if (s.kind === 'say' && s.char) new Image().src = portraitUrl(s.char, s.face)
+    else if (s.kind === 'choice') for (const o of s.options) preload(o.reply)
   }
-  const chapter = CHAPTER_TITLES[game.save?.story?.chapter ?? 1] ?? ''
-  banner.value = `${chapter}　${st.scene.title}`
-  if (bannerTimer !== null) window.clearTimeout(bannerTimer)
-  bannerTimer = window.setTimeout(() => (banner.value = null), 2200)
-  enter()
+}
+
+function start(): void {
+  const st = game.story
+  if (!st) return
+  run += 1
+  stopTyping()
+  clearCutTimer()
+  queue.value = [...st.steps]
+  index.value = 0
+  picks.length = 0
+  applyBg(null, null)
+  finishing.value = false
+  locked.value = false
+  dark.value = true
+  shown.value = ''
+  preload(st.steps)
+  const sub = game.save ? sceneSub(game.save, st.scene) : ''
+  sceneLabel.value = st.scene.title
+  // 暗転したまま、中央に場面のタイトル
+  showCut({ kind: 'scene', text: st.scene.title, sub }, SCENE_CUT_MS, () => void enter())
 }
 
 watch(
@@ -180,8 +293,9 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  run += 1
   stopTyping()
-  if (bannerTimer !== null) window.clearTimeout(bannerTimer)
+  clearCutTimer()
 })
 
 const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.value)})` } : {}))
@@ -215,12 +329,6 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
       </Transition>
     </div>
 
-    <Transition name="banner">
-      <div v-if="banner" class="banner">{{ banner }}</div>
-    </Transition>
-
-    <button class="skip" @click.stop="skip">スキップ ▶▶</button>
-
     <div v-if="choice" class="choices" @click.stop>
       <button v-for="(o, i) in choice.options" :key="i" class="choice" @click="pick(i)">{{ o.label }}</button>
     </div>
@@ -232,6 +340,23 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
       <div class="name" :style="{ background: nameColor(say.char) }">{{ say.name }}</div>
       <p class="text">{{ shown }}<span v-if="!typing" class="next">▼</span></p>
     </div>
+
+    <!-- 暗転 -->
+    <div class="curtain" :class="{ on: dark }" />
+    <!-- タイトルコールの間は、背景を暗くする -->
+    <div class="dim-layer" :class="{ on: cut?.kind === 'title' && !dark }" />
+
+    <Transition name="cut">
+      <div v-if="cut" :key="`${cut.kind}-${cut.text}`" class="cut" :class="cut.kind">
+        <div class="cut-band">
+          <span v-if="cut.sub" class="cut-sub">{{ cut.sub }}</span>
+          <span class="cut-text">{{ cut.text }}</span>
+        </div>
+      </div>
+    </Transition>
+
+    <div v-if="sceneLabel && !(cut && cut.kind === 'scene')" class="scene-label">{{ sceneLabel }}</div>
+    <button class="skip" @click.stop="skip">スキップ ▶▶</button>
   </div>
 </template>
 
@@ -241,7 +366,7 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
   inset: 0;
   z-index: 90;
   overflow: hidden;
-  background: #0b1424;
+  background: #05090f;
   user-select: none;
   -webkit-user-select: none;
   cursor: pointer;
@@ -251,7 +376,6 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
   inset: 0;
   background-size: cover;
   background-position: center;
-  transition: background-image 0.4s;
 }
 .bg.dark {
   background: radial-gradient(ellipse at 50% 40%, #1f3352, #070d18 75%);
@@ -266,7 +390,6 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
   margin: 0 auto;
   border-radius: 6px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-  animation: fade-in 0.6s ease-out;
 }
 .stage {
   position: absolute;
@@ -306,31 +429,122 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
   opacity: 0;
   transform: translateY(12px);
 }
-.banner {
+
+/* ---- 暗転 ---- */
+.curtain {
   position: absolute;
-  top: calc(18px + env(safe-area-inset-top, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(10, 20, 38, 0.82);
+  inset: 0;
+  background: #05090f;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.34s ease;
+  z-index: 5;
+}
+.curtain.on {
+  opacity: 1;
+}
+.dim-layer {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 9, 15, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 4;
+}
+.dim-layer.on {
+  opacity: 1;
+}
+
+/* ---- 中央のタイトル ---- */
+.cut {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 6;
+  pointer-events: none;
+}
+.cut-band {
+  position: relative;
+  margin: 0 auto;
+  max-width: 720px;
+  padding: 18px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(90deg, rgba(14, 30, 58, 0), rgba(14, 30, 58, 0.92) 18%, rgba(14, 30, 58, 0.92) 82%, rgba(14, 30, 58, 0));
+}
+.cut-band::before,
+.cut-band::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #f2c14e 20%, #f2c14e 80%, transparent);
+}
+.cut-band::before {
+  top: 0;
+}
+.cut-band::after {
+  bottom: 0;
+}
+.cut-sub {
+  color: #f2c14e;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+.cut-text {
+  color: #fff;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+.cut.scene .cut-text {
+  font-size: 28px;
+}
+.cut-enter-active {
+  transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cut-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.cut-enter-from {
+  opacity: 0;
+  transform: translate(-40px, -50%);
+}
+.cut-leave-to {
+  opacity: 0;
+  transform: translate(40px, -50%);
+}
+
+/* ---- 左上の場面名とスキップ ---- */
+.scene-label {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  left: 10px;
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(10, 20, 38, 0.72);
   color: #fff;
   font-weight: 800;
-  font-size: 14px;
-  padding: 6px 18px;
-  border-radius: 999px;
-  white-space: nowrap;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
-}
-.banner-enter-active,
-.banner-leave-active {
-  transition: opacity 0.4s;
-}
-.banner-enter-from,
-.banner-leave-to {
-  opacity: 0;
+  font-size: 12px;
+  padding: 5px 12px 5px 10px;
+  border-radius: 6px;
+  border-left: 3px solid #f2c14e;
+  z-index: 7;
 }
 .skip {
   position: absolute;
-  top: calc(60px + env(safe-area-inset-top, 0px));
+  top: calc(12px + env(safe-area-inset-top, 0px));
   right: 10px;
   background: rgba(10, 20, 38, 0.6);
   color: #fff;
@@ -340,7 +554,10 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
   padding: 5px 12px;
   border-radius: 999px;
   box-shadow: none;
+  z-index: 7;
 }
+
+/* ---- 台詞 ---- */
 .window {
   position: absolute;
   left: 10px;

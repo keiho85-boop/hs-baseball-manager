@@ -6,6 +6,11 @@ import { ensureSugoroku } from '../src/game/sugoroku'
 import { setupStoryWorld, RIVAL_NAME } from '../src/game/story/setup'
 import { buildSteps, completeScene, nextScene, noteMatch, observeStory, markStory } from '../src/game/story/engine'
 import type { SaveData } from '../src/game/types'
+import { ownLineup, startMatch } from '../src/game/match/session'
+import { simulateToEnd } from '../src/game/match/engine'
+import { Rng } from '../src/game/rng'
+import { BG_READY, resolveBg } from '../src/game/story/art'
+import { existsSync, readFileSync } from 'node:fs'
 
 function newGame(seed: number): SaveData {
   const save = createNewGame({
@@ -48,6 +53,30 @@ describe('ストーリー 第1章', () => {
     expect(`${d.surname}${d.givenName}`).toBe('日向大地')
     expect(d.mainPosition).toBe('C')
     expect(save.schools[save.story!.rivalId!]!.name).toBe(RIVAL_NAME)
+  })
+
+  it('部員9人でも練習試合が最後までできる（DHは自動でなしになる）', () => {
+    for (const seed of [11, 12, 13]) {
+      const save = newGame(seed)
+      const line = ownLineup(save)
+      expect(line.batters.length).toBe(9)
+      expect(line.useDH).toBe(false)
+      const opp = Object.values(save.schools).find((s) => s.id !== save.playerSchoolId && s.prefCode === 27)!
+      const rng = new Rng([seed, 7, 99, 1234])
+      const m = startMatch(save, opp.id, rng)
+      expect(m.home.lineup.length).toBe(9)
+      expect(m.away.lineup.length).toBe(9)
+      simulateToEnd(m, { players: save.players, rng })
+      expect(m.finished).toBe(true)
+    }
+  })
+
+  it('台本の背景は、すべて絵があるか代わりの絵に置き換わる', () => {
+    const src = readFileSync('src/game/story/chapter1.ts', 'utf8')
+    const names = [...src.matchAll(/bg\('([a-z0-9_]+)'/g)].map((m) => m[1]!)
+    expect(names.length).toBeGreaterThan(10)
+    for (const name of names) expect(existsSync(`public/bg/${resolveBg(name)}.webp`), name).toBe(true)
+    for (const name of BG_READY) expect(existsSync(`public/bg/${name}.webp`), name).toBe(true)
   })
 
   it('序章は1年目の第1週に続けて流れる', () => {
