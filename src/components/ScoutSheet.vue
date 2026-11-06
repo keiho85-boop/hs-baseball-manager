@@ -13,6 +13,8 @@ import FaceIcon from './FaceIcon.vue'
 defineEmits<{ close: [] }>()
 const game = useGameStore()
 const ui = useUiStore()
+// ストーリー：初めてスカウトを開いた（「中学生を見に行く」の場面が流れる）
+void game.markStoryFlag('scoutOpened')
 
 // セーブデータは自動追跡の外にあるので、変更のたびに写しを作って画面に知らせる
 const scout = computed(() => {

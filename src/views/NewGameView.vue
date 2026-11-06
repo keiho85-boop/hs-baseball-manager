@@ -18,6 +18,8 @@ const prefCode = ref(27)
 const kind = ref<SchoolKind>('public')
 const schoolName = ref('')
 const injury = ref<Difficulty>('normal')
+/** ストーリーあり：主人公はマネージャーの朝比奈ナギ（名前は決まっている） */
+const story = ref(true)
 
 const slotNumber = computed(() => Number(props.slot))
 
@@ -30,14 +32,15 @@ function randomName(): void {
 }
 randomName()
 
-const canStart = computed(() => managerName.value.trim().length > 0 && schoolName.value.trim().length > 0)
+const canStart = computed(() => (story.value || managerName.value.trim().length > 0) && schoolName.value.trim().length > 0)
 
 async function start(): Promise<void> {
   if (!canStart.value || game.busy) return
   try {
     await game.startNewGame({
       slot: slotNumber.value,
-      managerName: managerName.value.trim().slice(0, 12),
+      managerName: story.value ? '朝比奈 ナギ' : managerName.value.trim().slice(0, 12),
+      story: story.value,
       prefCode: prefCode.value,
       kind: kind.value,
       schoolName: schoolName.value.trim().slice(0, 16),
@@ -60,8 +63,20 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: 'やさしい', nor
       <h1 class="title">新しく始める（セーブ{{ slot }}）</h1>
     </div>
 
+    <div class="card">
+      <div class="label">遊び方</div>
+      <div class="kinds">
+        <button :class="story ? '' : 'secondary'" @click="story = true">ストーリーあり</button>
+        <button :class="story ? 'secondary' : ''" @click="story = false">ストーリーなし</button>
+      </div>
+      <p class="muted">
+        <template v-if="story">廃部寸前の野球部に、新人マネージャーの朝比奈ナギとして入部します。会話の場面を楽しみながら部を育てます。</template>
+        <template v-else>会話の場面なしで、監督として自由に部を育てます。</template>
+      </p>
+    </div>
+
     <div class="card stack">
-      <label>
+      <label v-if="!story">
         <div class="label">監督の名前</div>
         <input v-model="managerName" maxlength="12" placeholder="例：中山" />
       </label>

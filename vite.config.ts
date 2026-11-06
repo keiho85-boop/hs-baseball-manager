@@ -53,6 +53,15 @@ export default defineConfig(({ mode }) => ({
         navigateFallbackDenylist: [/\/intro\//, /\/privacy\//],
         runtimeCaching: [
           {
+            // ストーリーの立ち絵・背景・一枚絵は、最初にまとめて保存せず、表示した分だけ保存する
+            urlPattern: ({ url }) => /\/(chara|bg|ev)\/[^/]+\.webp$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'story-art',
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+          {
             urlPattern: ({ request }) => request.destination === 'font',
             handler: 'CacheFirst',
             options: {

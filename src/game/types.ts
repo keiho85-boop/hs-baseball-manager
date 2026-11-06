@@ -1,5 +1,6 @@
 import type { Tournament } from './tournament'
 import type { ScoutState } from './scout'
+import type { StoryState } from './story/types'
 // ゲーム全体で使うデータの型定義
 
 import type { MatchState } from './match/types'
@@ -296,6 +297,8 @@ export interface SaveData {
   scout?: ScoutState
   /** 守備適性を今の決まりに直したか */
   aptRule2?: boolean
+  /** ストーリー（ストーリーありで始めたときだけ） */
+  story?: StoryState
 }
 
 // ---------------------------------------------------------------- すごろく・イベント

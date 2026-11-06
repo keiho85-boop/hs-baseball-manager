@@ -35,6 +35,9 @@ import {
   roundName,
 } from '@/game/tournament'
 import type { LineupConfig, Player, SaveData, SaveSummary, School, SquareType } from '@/game/types'
+import { setupStoryWorld } from '@/game/story/setup'
+import { buildSteps, completeScene, markStory, nextScene, noteMatch, observeStory } from '@/game/story/engine'
+import type { Scene, Step } from '@/game/story/types'
 
 export const useGameStore = defineStore('game', () => {
   const save = shallowRef<SaveData | null>(null)
@@ -55,6 +58,8 @@ export const useGameStore = defineStore('game', () => {
   let matchRng: Rng | null = null
   /** 月が変わってすごろくの盤面が新しくなったとき、その月（ホームで演出を出す） */
   const boardNotice = ref<number | null>(null)
+  /** いま流しているストーリーの場面（台本は置き換え済み） */
+  const story = shallowRef<{ scene: Scene; steps: Step[] } | null>(null)
 
   /** 1週間進めたあとの共通処理：盤面が新しくなった知らせは、文字ではなく演出で出す */
   function afterWeek(result: WeekResult): WeekResult {
@@ -78,13 +83,14 @@ export const useGameStore = defineStore('game', () => {
     if (persistent.value === null) persistent.value = await requestPersistentStorage()
   }
 
-  async function startNewGame(input: Omit<NewGameInput, 'seed'>): Promise<void> {
+  async function startNewGame(input: Omit<NewGameInput, 'seed'> & { story?: boolean }): Promise<void> {
     busy.value = true
     try {
       await ensurePersistence()
       // 少し待って画面に「作成中」を表示してから重い処理をする
       await new Promise((r) => setTimeout(r, 30))
       const data = createNewGame({ ...input, seed: (Math.random() * 2 ** 32) >>> 0 })
+      if (input.story) setupStoryWorld(data)
       ensureSugoroku(data)
       {
         const rng = new Rng(data.rngState)
@@ -192,6 +198,7 @@ export const useGameStore = defineStore('game', () => {
 
   function closeGame(): void {
     save.value = null
+    story.value = null
     lastResult.value = null
     match.value = null
     matchRng = null
@@ -331,6 +338,11 @@ export const useGameStore = defineStore('game', () => {
     try {
       const finish = finishMatchLogic(s, m, matchRng)
       const tm = m.options.tournament
+      noteMatch(s, {
+        practice: !tm,
+        won: finish.won,
+        opponentId: m.home.schoolId === s.playerSchoolId ? m.away.schoolId : m.home.schoolId,
+      })
       const t = tm ? (s.tournaments ?? []).find((x) => x.id === tm.id) : null
       if (tm && t) {
         // 大会の試合：結果を組み合わせ表に記録し、週は進めない（同じ週にもう1試合あることもある）
@@ -450,6 +462,41 @@ export const useGameStore = defineStore('game', () => {
     await commit()
   }
 
+  // ---- ストーリー ----
+
+  /** 次に流す場面があれば用意する（試合中・処理中は流さない）。用意したら true */
+  async function checkStory(): Promise<boolean> {
+    const s = save.value
+    if (!s?.story?.enabled || busy.value || match.value || story.value) return false
+    if (s.sugoroku?.pending) return false
+    const changed = observeStory(s)
+    const scene = nextScene(s)
+    if (changed && !scene) await writeSave(s)
+    if (!scene) return false
+    story.value = { scene, steps: buildSteps(s, scene) }
+    return true
+  }
+
+  /** 場面を見終わった：効果を反映して保存する。戻り値は画面に出す知らせ */
+  async function finishStory(picks: number[]): Promise<string[]> {
+    const s = save.value
+    const cur = story.value
+    if (!s || !cur) return []
+    const messages = completeScene(s, cur.scene, cur.steps, picks)
+    story.value = null
+    touch()
+    await writeSave(s)
+    return messages
+  }
+
+  /** 画面の操作で起きる出来事の印（スカウトを初めて開いた、など） */
+  async function markStoryFlag(key: string): Promise<void> {
+    const s = save.value
+    if (!s || !markStory(s, key)) return
+    touch()
+    await writeSave(s)
+  }
+
   // ---- 画面から使う取得用の関数（rev を読むことで再描画の対象になる） ----
   function ownSchool(): School | null {
     void rev.value
@@ -483,6 +530,10 @@ export const useGameStore = defineStore('game', () => {
     match,
     matchRev,
     boardNotice,
+    story,
+    checkStory,
+    finishStory,
+    markStoryFlag,
     startPracticeMatch,
     startTournamentMatch,
     nextTournamentWeek,

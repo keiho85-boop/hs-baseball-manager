@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import GameIcon from '@/components/GameIcon.vue'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import TabBar from '@/components/TabBar.vue'
 import GrowthPopup from '@/components/GrowthPopup.vue'
+import StoryPlayer from '@/components/story/StoryPlayer.vue'
 import { useGameStore } from '@/stores/game'
 import { SEASON_WEEKS, WEEKS_PER_YEAR, weekToDate } from '@/game/constants'
 import RankBadge from '@/components/RankBadge.vue'
@@ -39,6 +40,15 @@ const milestone = computed(() => {
   }
   return best
 })
+// ストーリー：週が進んだり試合が終わったりしたら、流す場面があるか確かめる（成長の知らせを閉じてから）
+watch(
+  () => [game.rev, game.busy, game.showGrowth, game.match] as const,
+  () => {
+    if (!game.showGrowth && !game.busy) void game.checkStory()
+  },
+  { immediate: true },
+)
+
 const overall = computed(() => {
   void game.rev
   return game.ownSchool()?.overall ?? null
@@ -74,6 +84,7 @@ const overall = computed(() => {
     </main>
     <TabBar />
     <GrowthPopup />
+    <StoryPlayer />
   </div>
 </template>
 
