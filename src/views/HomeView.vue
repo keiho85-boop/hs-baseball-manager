@@ -20,6 +20,7 @@ import BracketSheet from '@/components/tournament/BracketSheet.vue'
 import BoardRefresh from '@/components/sugoroku/BoardRefresh.vue'
 import TabIcon from '@/components/TabIcon.vue'
 import { play } from '@/sound'
+import { portraitUrl } from '@/game/story/art'
 import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 
 const game = useGameStore()
@@ -128,6 +129,28 @@ const teamPower = computed(() => {
     ],
     stamina,
   }
+})
+
+/** ストーリーありのとき：ナギのひとこと（その週の状況に合わせる） */
+const nagiSmile = ref(false)
+const nagiTip = computed(() => {
+  void game.rev
+  const s = game.save
+  if (!s?.story?.enabled) return null
+  const st = s.story
+  const t = currentTournament(s)
+  if (t && !t.finished && ownAlive(s, t)) return `${t.name}です。勝ち方を、一つずつ覚えていきましょう`
+  if (sg.value && sg.value.campWeeks > 0) return '合宿中です。よく伸びますが、疲れもたまります。休みのマスも忘れずに'
+  if (teamPower.value.stamina < 50) return 'みんな疲れています。休みのマスも狙いましょう'
+  if (st.chapter >= 2) return '第2章は準備中です。それまでは、このまま部を育てていきましょう'
+  const lines = [
+    '狙ったマスに止まるよう、カードの数字を選んでください',
+    '練習試合は「学校」の画面から申し込めます。実戦の経験も大事です',
+    '打順は「チーム」の画面で入れ替えられます。2番に一番いい打者、です',
+    'スカウトは「学校」の画面から。来年の戦力は、今年の秋に決まります',
+    `目標は、3年目の夏に全国です。…ノートの1ページ目に、そう書きましたから`,
+  ]
+  return lines[s.calendar.week % lines.length]!
 })
 
 const recentLog = computed(() => {
@@ -250,6 +273,10 @@ const specialCandidates = computed(() =>
     </div>
 
     <div class="page">
+      <div v-if="nagiTip" class="nagi-tip" @click="nagiSmile = !nagiSmile">
+        <img class="nagi-face" :src="portraitUrl('nagi', nagiSmile ? 'smile' : 'normal')" alt="ナギ" />
+        <div class="nagi-say"><b>ナギ</b>{{ nagiTip }}</div>
+      </div>
       <button v-if="game.match" class="sun go" @click="router.push({ name: 'match' })">
         <span class="go-main">試合の続きへ</span>
         <span class="go-sub"><GameIcon name="play" :size="12" /> {{ game.match.options.label }}</span>
@@ -408,6 +435,48 @@ const specialCandidates = computed(() =>
 <style scoped>
 .home {
   --stage-h: 66px;
+}
+.nagi-tip {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 4px 0 10px;
+  cursor: pointer;
+}
+.nagi-face {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 8%;
+  background: linear-gradient(180deg, #fff3e6, #ffd9b8);
+  box-shadow: 0 0 0 3px #fff, 0 3px 0 3px rgba(0, 0, 0, 0.12);
+}
+.nagi-say {
+  position: relative;
+  flex: 1;
+  background: #fff;
+  border-radius: 14px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+  box-shadow: var(--panel-shadow);
+}
+.nagi-say b {
+  display: block;
+  font-size: 11px;
+  color: #ff8a3d;
+}
+.nagi-say::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  bottom: 14px;
+  border: 7px solid transparent;
+  border-right-color: #fff;
+  border-left: 0;
 }
 .stage {
   position: relative;

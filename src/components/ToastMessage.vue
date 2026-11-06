@@ -130,6 +130,7 @@ watch(
   font-weight: 700;
   color: var(--ink);
   line-height: 1.5;
+  white-space: pre-line;
 }
 .ok {
   margin-top: 12px;
