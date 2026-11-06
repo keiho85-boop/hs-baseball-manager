@@ -91,6 +91,20 @@ const ART: Record<CharId, CharArt> = {
     color: '#4f6b8a',
     pending: { alt: null },
   },
+  nagi_beach: {
+    prefix: 'nagi_beach_bust_',
+    faces: { smile: 'smile', joy: 'smile' },
+    fallback: 'smile',
+    color: '#ff8a3d',
+    pending: { alt: 'nagi' },
+  },
+  reika_beach: {
+    prefix: 'reika_beach_bust_',
+    faces: {},
+    fallback: 'normal',
+    color: '#9b3d5a',
+    pending: { alt: 'reika' },
+  },
 }
 
 /** 絵ができた人物（public/chara に置いたら、ここに足すと pending より優先される） */

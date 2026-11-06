@@ -50,6 +50,8 @@ function story(save: SaveData): boolean {
 
 /** ストーリーありのときの話し手（顔を丸い枠に出す） */
 const NAGI = { kind: 'manager', name: 'ナギ', portrait: 'nagi' } as const
+/** 合宿の浜辺のナギ（水着の絵ができるまでは制服の絵） */
+const NAGI_BEACH = { kind: 'manager', name: 'ナギ', portrait: 'nagi_beach' } as const
 const GENZO_LOCAL = { kind: 'local', name: '日向源造（商店会長）', portrait: 'genzo' } as const
 const GENZO_OB = { kind: 'ob', name: '日向源造（OB会長）', portrait: 'genzo' } as const
 
@@ -433,39 +435,46 @@ function teamMeetingEvent(rng: Rng, list: Player[]): EventInstance {
 
 // ---------------------------------------------------------------- 合宿（ストーリーあり）
 
-/** 砂浜の特訓：ランダムで何人かの弾道が上がる */
-function beachTrainingEvent(rng: Rng, list: Player[]): EventInstance {
+/** 合宿の合間の海水浴：浜辺を走り回って足腰が鍛えられる（走力・投手のスタミナ・ケガのしにくさ）。ランダムで弾道も上がる */
+function beachEvent(rng: Rng, list: Player[]): EventInstance {
+  const ops: EffectOp[] = [
+    { op: 'condition', playerId: 'all', key: 'motivation', delta: 8 },
+    { op: 'condition', playerId: 'all', key: 'stamina', delta: -6 },
+  ]
+  for (const p of list) {
+    if (rng.chance(0.6)) ops.push({ op: 'ability', playerId: p.id, key: 'running.speed', delta: 1 })
+    if (p.mainPosition === 'P') ops.push({ op: 'ability', playerId: p.id, key: 'pitching.stamina', delta: rng.int(2, 3) })
+    else if (rng.chance(0.4)) ops.push({ op: 'ability', playerId: p.id, key: 'common.durability', delta: 2 })
+  }
   const batters = rng.shuffle(list.filter((p) => p.mainPosition !== 'P' && p.batting.trajectory < 4))
-  const lucky = batters.filter(() => rng.chance(0.35)).slice(0, 2)
-  const ops: EffectOp[] = [{ op: 'condition', playerId: 'all', key: 'stamina', delta: -12 }]
-  for (const p of list) if (rng.chance(0.5)) ops.push({ op: 'ability', playerId: p.id, key: 'batting.power', delta: 1 })
+  const lucky = batters.filter(() => rng.chance(0.3)).slice(0, 2)
   for (const p of lucky) ops.push({ op: 'ability', playerId: p.id, key: 'batting.trajectory', delta: 1 })
   const names = lucky.map((p) => p.surname).join('と')
   return {
     id: eid('beach'),
-    title: '合宿：砂浜の特訓',
-    speaker: { ...NAGI },
+    title: '合宿：海水浴',
+    speaker: { ...NAGI_BEACH },
     relatedPlayerIds: lucky.map((p) => p.id),
-    lines: ['合宿所の裏の砂浜で、ダッシュと素振りの特訓です！', '砂に足を取られるぶん、下半身がしっかり鍛えられますよ。'],
+    lines: ['今日の午後は練習をお休みして、みんなで海水浴です！', '砂浜を走り回るだけでも、足腰はしっかり鍛えられるんですよ。'],
     choices: [
       {
-        label: 'もう1本！',
-        result: `部員たちは砂だらけになって走り抜いた。（全員の体力が減り、何人かのパワーが上がった）${names ? `${names}は打球の角度が変わり、弾道が上がった！` : ''}`,
+        label: 'みんなで思いきり遊ぼう',
+        result: `部員たちは日が暮れるまで、浜辺を駆け回った。（走力や、投手のスタミナが上がった。全員のやる気も上がった）${names ? `${names}はビーチフラッグで踏ん張るうちに体の使い方をつかみ、弾道が上がった！` : ''}`,
         ops,
       },
       {
-        label: '今日はここまでにしよう',
-        result: '部員たちは海を眺めて、少しのんびりした。（体力とやる気が少し回復した）',
+        label: '今日は体を休めるのを優先しよう',
+        result: '部員たちは波の音を聞きながら、のんびり過ごした。（体力とやる気が回復した）',
         ops: [
-          { op: 'condition', playerId: 'all', key: 'stamina', delta: 5 },
-          { op: 'condition', playerId: 'all', key: 'motivation', delta: 3 },
+          { op: 'condition', playerId: 'all', key: 'stamina', delta: 10 },
+          { op: 'condition', playerId: 'all', key: 'motivation', delta: 4 },
         ],
       },
     ],
   }
 }
 
-/** まれに：同じ浜で合宿していた龍ヶ峰学園と、ビーチバレーで対決する。勝っても負けても能力が上がる */
+/** まれに：同じ浜で合宿・海水浴をしていた龍ヶ峰学園と、遊びの延長でビーチバレー対決。勝っても負けても能力が上がる */
 function beachVolleyEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance {
   const own = save.schools[save.playerSchoolId]!
   const win = rng.chance(0.45)
@@ -481,11 +490,11 @@ function beachVolleyEvent(save: SaveData, rng: Rng, list: Player[]): EventInstan
   return {
     id: eid('volley'),
     title: '合宿：浜辺の対決',
-    speaker: { kind: 'coach', name: '白鳥レイカ', portrait: 'reika' },
+    speaker: { kind: 'coach', name: '白鳥レイカ', portrait: 'reika_beach' },
     relatedPlayerIds: picked.map((p) => p.id),
     lines: [
-      `あら、${own.name}も合宿？　奇遇ね。うちも、この浜で走り込みなの。`,
-      'せっかくだから勝負しない？　ビーチバレーで。負けたほうが、今夜の宿舎の掃除よ。',
+      `あら、${own.name}も合宿？　奇遇ね。うちも、この浜で合宿中なの。今日は午後から海水浴よ。`,
+      'せっかくだから遊びましょうか。ビーチバレーで勝負。負けたほうが、今夜の宿舎の掃除よ。',
     ],
     choices: [
       {
@@ -520,7 +529,7 @@ export function buildEvent(save: SaveData, rng: Rng, square: SquareType): EventI
       st.flags[key] = true
       return beachVolleyEvent(save, rng, list)
     }
-    if (rng.chance(0.5)) return beachTrainingEvent(rng, list)
+    if (rng.chance(0.5)) return beachEvent(rng, list)
   }
   const makers = [
     () => slumpEvent(rng, list),

@@ -27,6 +27,8 @@ const NAMES: Record<CharId, string> = {
   grandpa: '祖父',
   grandpa_hosp: '祖父',
   mob_cap: '{主将}',
+  nagi_beach: 'ナギ',
+  reika_beach: 'レイカ',
 }
 
 function say(char: CharId, face: Face, text: string): SayStep {

@@ -19,6 +19,9 @@ export type CharId =
   | 'grandpa_hosp'
   /** 1年目の3年生の主将（帽子を深くかぶったモブ） */
   | 'mob_cap'
+  /** 合宿の浜辺のナギ・レイカ（海水浴の場面） */
+  | 'nagi_beach'
+  | 'reika_beach'
 
 /** 台本の表情（人物ごとの絵の割り当てで、実際の絵に置き換える） */
 export type Face = 'normal' | 'smile' | 'serious' | 'surprise' | 'frustrated' | 'angry' | 'cry' | 'joy' | 'troubled'
