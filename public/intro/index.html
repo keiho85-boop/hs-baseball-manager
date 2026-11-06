@@ -4,11 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>高校野球監督ゲーム（仮）｜ゲーム紹介</title>
-    <meta name="description" content="高校野球の監督になって、部員を育て、1球ごとに采配を振るう。スマホのブラウザですぐ遊べる育成シミュレーション。" />
+    <meta name="description" content="廃部寸前の野球部に入ってきた、ドジな新人マネージャー・朝比奈ナギ。部員を育て、1球ごとに采配を振るう。全12章の物語と、何十年でも続けられる高校野球の育成シミュレーション。" />
     <meta name="theme-color" content="#0a1426" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="高校野球監督ゲーム（仮）" />
-    <meta property="og:description" content="無名校を、君の采配で頂点へ。スマホのブラウザですぐ遊べる高校野球の監督ゲーム。" />
+    <meta property="og:description" content="廃部寸前の野球部を、君の采配で頂点へ。ドジな新人マネージャーと仲間たちの、何十年も続く高校野球の物語。" />
     <meta property="og:url" content="https://keiho85-boop.github.io/hs-baseball-manager/intro/" />
     <meta property="og:image" content="https://keiho85-boop.github.io/hs-baseball-manager/intro/ogp.jpg" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -275,7 +275,7 @@
       }
       .points {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 14px;
       }
       .point {
@@ -567,6 +567,272 @@
         margin: 4px 0;
       }
 
+      /* ---------- ヒーローの立ち絵 ---------- */
+      .hero-chara {
+        position: relative;
+        width: 100%;
+        max-width: 380px;
+        margin: 0 auto;
+        aspect-ratio: 2 / 3;
+      }
+      .hero-chara::before {
+        content: '';
+        position: absolute;
+        inset: 18% 6% 4%;
+        border-radius: 50%;
+        background: radial-gradient(closest-side, rgba(255, 211, 107, 0.35), rgba(92, 184, 255, 0.12) 60%, transparent);
+        filter: blur(8px);
+      }
+      .hero-chara img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        transition: opacity 0.35s;
+        filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.5));
+      }
+      .hero-chara .alt {
+        opacity: 0;
+      }
+      .hero-chara:hover .alt,
+      .hero-chara.on .alt {
+        opacity: 1;
+      }
+      .hero-chara .phone-mini {
+        position: absolute;
+        right: -6%;
+        bottom: 4%;
+        width: 34%;
+        border-radius: 16px;
+        padding: 4px;
+        background: linear-gradient(145deg, #3a4a63, #121a28);
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.55);
+        transform: rotate(6deg);
+        z-index: 2;
+      }
+      .hero-chara .phone-mini img {
+        position: static;
+        border-radius: 12px;
+        aspect-ratio: 390 / 844;
+        object-fit: cover;
+        filter: none;
+      }
+
+      /* ---------- 物語 ---------- */
+      .story {
+        background:
+          radial-gradient(50% 60% at 80% 30%, rgba(255, 211, 107, 0.08), transparent 70%),
+          linear-gradient(180deg, var(--bg2), var(--bg));
+      }
+      .story-box {
+        max-width: 720px;
+        margin: 0 auto;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 28px 26px;
+        position: relative;
+      }
+      .story-box p {
+        margin: 0 0 14px;
+        color: #c9d6e6;
+      }
+      .story-box p:last-child {
+        margin-bottom: 0;
+      }
+      .story-box .q {
+        font-size: clamp(18px, 3.4vw, 22px);
+        font-weight: 900;
+        color: var(--gold);
+        text-align: center;
+        margin: 22px 0 6px;
+      }
+      .story-box .q + p {
+        text-align: center;
+        font-size: 13px;
+        color: var(--soft);
+      }
+      .chapters {
+        max-width: 720px;
+        margin: 22px auto 0;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+      }
+      .chapters div {
+        background: rgba(19, 35, 63, 0.6);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px 10px;
+        text-align: center;
+        font-size: 13px;
+        color: var(--soft);
+      }
+      .chapters b {
+        display: block;
+        font-size: 15px;
+        color: var(--ink);
+      }
+
+      /* ---------- 登場人物 ---------- */
+      .cast {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+      }
+      .card {
+        background: linear-gradient(180deg, #17294a, var(--panel));
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .card .pic {
+        position: relative;
+        aspect-ratio: 2 / 3;
+        background:
+          radial-gradient(60% 45% at 50% 55%, var(--glow, rgba(92, 184, 255, 0.25)), transparent 70%);
+        cursor: pointer;
+      }
+      .card .pic img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.45));
+      }
+      .card .tap {
+        position: absolute;
+        right: 10px;
+        top: 10px;
+        font-size: 11px;
+        font-weight: 900;
+        background: rgba(10, 20, 38, 0.7);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 2px 10px;
+        color: var(--soft);
+      }
+      .card .body {
+        padding: 14px 16px 18px;
+      }
+      .card .role {
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        color: var(--gold);
+      }
+      .card h3 {
+        margin: 2px 0 6px;
+        font-size: 19px;
+        font-weight: 900;
+      }
+      .card h3 small {
+        font-size: 11px;
+        color: var(--soft);
+        margin-left: 6px;
+        letter-spacing: 0.1em;
+      }
+      .card p {
+        margin: 0;
+        font-size: 13px;
+        color: #c9d6e6;
+      }
+      .card .line {
+        margin-top: 10px;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ink);
+        border-left: 3px solid var(--gold);
+        padding-left: 10px;
+      }
+      .faces {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+      .faces button {
+        font: inherit;
+        font-size: 11px;
+        font-weight: 800;
+        color: var(--soft);
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 2px 10px;
+        cursor: pointer;
+      }
+      .faces button.on {
+        color: #2a1700;
+        background: linear-gradient(180deg, #ffe08a, #f4ad1d);
+        border-color: transparent;
+      }
+      .cast-note {
+        text-align: center;
+        margin-top: 18px;
+        font-size: 13px;
+        color: var(--soft);
+      }
+
+      /* ---------- 追加の特徴（画像なし） ---------- */
+      .extras {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+      .extra {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 22px 20px;
+      }
+      .extra .num {
+        font-size: 40px;
+      }
+      .extra h3 {
+        margin: 6px 0 8px;
+        font-size: 18px;
+        font-weight: 900;
+        line-height: 1.45;
+      }
+      .extra h3 small {
+        display: block;
+        font-size: 12px;
+        color: var(--gold);
+        letter-spacing: 0.1em;
+      }
+      .extra p {
+        margin: 0 0 8px;
+        font-size: 14px;
+        color: #c9d6e6;
+      }
+      .extra ul {
+        margin: 8px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+      .extra li {
+        position: relative;
+        padding-left: 18px;
+        margin: 5px 0;
+        font-size: 13px;
+        color: #c9d6e6;
+      }
+      .extra li::before {
+        content: '';
+        position: absolute;
+        left: 2px;
+        top: 0.62em;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--gold);
+      }
+
       /* ---------- 表示されたら浮き上がる ---------- */
       .reveal {
         opacity: 0;
@@ -594,9 +860,33 @@
         .hero .phone.back {
           display: none;
         }
-        .points,
-        .steps {
+        .steps,
+        .extras {
           grid-template-columns: 1fr;
+        }
+        .points {
+          grid-template-columns: 1fr 1fr;
+        }
+        .cast {
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        .card .body {
+          padding: 12px 12px 14px;
+        }
+        .card h3 {
+          font-size: 17px;
+        }
+        .card h3 small {
+          display: block;
+          margin-left: 0;
+          font-size: 10px;
+        }
+        .chapters {
+          grid-template-columns: 1fr;
+        }
+        .hero-chara {
+          max-width: 300px;
         }
         .steps {
           gap: 22px;
@@ -641,8 +931,8 @@
             <div class="kicker">HIGH SCHOOL BASEBALL</div>
             <h1><span class="l1">高校野球</span><span class="l2">監督ゲーム</span></h1>
             <div class="tentative">― 仮タイトル ―</div>
-            <p class="catch">無名の高校を、<br /><em>君の采配</em>で頂点へ。</p>
-            <p class="lead">監督になって部員を育て、試合では1球ごとに作戦を出す。<br />3年ごとにメンバーが入れ替わる、終わらない高校野球の物語。</p>
+            <p class="catch">廃部寸前の野球部を、<br /><em>君の采配</em>で頂点へ。</p>
+            <p class="lead">ドジな新人マネージャー・朝比奈ナギと、9人だけの野球部。<br />部員を育て、試合では1球ごとに作戦を出す。<br />卒業しても終わらない、何十年も続く高校野球の物語。</p>
             <div class="cta">
               <a class="btn gold" href="../">▶ 今すぐ遊ぶ</a>
               <a class="btn ghost" href="#features">ゲームの特徴</a>
@@ -650,8 +940,11 @@
             </div>
           </div>
           <div class="hero-art">
-            <div class="phone back"><img src="match.webp" alt="" /></div>
-            <div class="phone"><img src="title.webp" alt="タイトル画面" /></div>
+            <div class="hero-chara" id="hero-chara">
+              <img src="chara/nagi_hero_normal.webp" alt="朝比奈ナギ" />
+              <img class="alt" src="chara/nagi_hero_smile.webp" alt="" />
+              <div class="phone-mini"><img src="home.webp" alt="ホーム画面" /></div>
+            </div>
           </div>
         </div>
       </div>
@@ -662,9 +955,14 @@
           <div class="sec-head reveal">
             <div class="en">ABOUT</div>
             <h2>どんなゲーム？</h2>
-            <p>あなたは高校野球部の監督。限られた3年間で選手を鍛え、オーダーを組み、試合では采配で勝利をつかみ取ります。</p>
+            <p>舞台は廃部寸前の高校野球部。選手を鍛え、オーダーを組み、試合では采配で勝利をつかみ取ります。物語を追いながら、何十年でも続けられる育成シミュレーションです。</p>
           </div>
           <div class="points">
+            <div class="point reveal">
+              <div class="ic">📖</div>
+              <h3>物語を追う</h3>
+              <p>全12章のストーリーと、個性的な仲間たち</p>
+            </div>
             <div class="point reveal">
               <div class="ic">🎴</div>
               <h3>育てる</h3>
@@ -681,6 +979,82 @@
               <p>卒業と入部をくり返し、伝統校をつくる</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- 物語 -->
+      <section class="story" id="story">
+        <div class="wrap">
+          <div class="sec-head reveal">
+            <div class="en">STORY</div>
+            <h2>物語</h2>
+          </div>
+          <div class="story-box reveal">
+            <p>前の監督が部費の使い込みで去り、残った部員はちょうど9人。商店街の小さな高校の野球部は、いつ廃部になってもおかしくなかった。</p>
+            <p>その春、ひとりの新入生がマネージャーとして入ってくる。名前は朝比奈ナギ。天真爛漫で、おっちょこちょいで、数学のテストではいつも泣きそうになっている女の子。</p>
+            <p>ところが、彼女が抱えている作戦ノートには、百戦錬磨の監督のような采配がびっしりと書き込まれていた。</p>
+            <div class="q">なぜナギは、野球のことだけ、こんなにも知っているのか。</div>
+            <p>その答えは、ゲームの中で確かめてください。</p>
+          </div>
+          <div class="chapters reveal">
+            <div><b>全12章</b>高校3年間では終わらない、ナギの野球人生</div>
+            <div><b>コメディとシリアス</b>笑える日常と、胸が熱くなる夏</div>
+            <div><b>物語のあとも</b>何十年でも、自由に部を育て続けられる</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 登場人物 -->
+      <section id="cast">
+        <div class="wrap">
+          <div class="sec-head reveal">
+            <div class="en">CHARACTERS</div>
+            <h2>登場人物</h2>
+            <p>絵をタップすると、表情が変わります。</p>
+          </div>
+          <div class="cast">
+            <div class="card reveal" data-chara="nagi" style="--glow: rgba(255, 196, 120, 0.3)">
+              <div class="pic"><img src="chara/nagi_normal.webp" alt="朝比奈ナギ" /><span class="tap">TAP</span></div>
+              <div class="body">
+                <div class="role">マネージャー</div>
+                <h3>朝比奈 ナギ<small>ASAHINA NAGI</small></h3>
+                <p>天真爛漫でドジな新入部員。勉強は苦手なのに、なぜか野球のことだけは異様に詳しい。</p>
+                <div class="line">「えへへ…次のサイン、私が出してもいいですか？」</div>
+                <div class="faces"></div>
+              </div>
+            </div>
+            <div class="card reveal" data-chara="daichi" style="--glow: rgba(92, 184, 255, 0.3)">
+              <div class="pic"><img src="chara/daichi_normal.webp" alt="日向大地" /><span class="tap">TAP</span></div>
+              <div class="body">
+                <div class="role">同級生・捕手</div>
+                <h3>日向 大地<small>HYUGA DAICHI</small></h3>
+                <p>ナギと同じクラスの捕手。まっすぐで声が大きく、構えが正直すぎるのが玉にきず。</p>
+                <div class="line">「3年の夏、絶対に全国に行く。…お前と」</div>
+                <div class="faces"></div>
+              </div>
+            </div>
+            <div class="card reveal" data-chara="reika" style="--glow: rgba(200, 120, 255, 0.28)">
+              <div class="pic"><img src="chara/reika_normal.webp" alt="白鳥レイカ" /><span class="tap">TAP</span></div>
+              <div class="body">
+                <div class="role">ライバル校のマネージャー</div>
+                <h3>白鳥 レイカ<small>SHIRATORI REIKA</small></h3>
+                <p>絶対王者・龍ヶ峰学園のマネージャー。相手の弱点は、赤ペンで全部お見通し。</p>
+                <div class="line">「相手のエース、初球にカーブが多いわ」</div>
+                <div class="faces"></div>
+              </div>
+            </div>
+            <div class="card reveal" data-chara="genzo" style="--glow: rgba(255, 150, 90, 0.28)">
+              <div class="pic"><img src="chara/genzo_normal.webp" alt="日向源造" /><span class="tap">TAP</span></div>
+              <div class="body">
+                <div class="role">商店会長・OB会長</div>
+                <h3>日向 源造<small>HYUGA GENZO</small></h3>
+                <p>日向酒店の店主で、大地の父。頑固で声が大きく、涙もろい。差し入れはいつもラムネ。</p>
+                <div class="line">「女の子に、野球の何が分かる！」</div>
+                <div class="faces"></div>
+              </div>
+            </div>
+          </div>
+          <p class="cast-note reveal">ほかにも、頼りない若い先生、ライバル校の監督など、たくさんの人物が登場します。</p>
         </div>
       </section>
 
@@ -762,6 +1136,37 @@
             </div>
             <div class="phone"><img src="result.webp" alt="試合結果の画面" /></div>
           </div>
+
+          <div class="extras">
+            <div class="extra reveal">
+              <div class="num">07</div>
+              <h3><small>着せ替え</small>衣装を集めて、<br />ホーム画面を彩る</h3>
+              <p>制服、ジャージ、浴衣、監督ユニフォーム。衣装はゲーム内のガチャと、実績の報酬で手に入ります。</p>
+              <ul>
+                <li>お金のかかるガチャはありません</li>
+                <li>正月や夏祭りには、季節の衣装のイベントも</li>
+              </ul>
+            </div>
+            <div class="extra reveal">
+              <div class="num">08</div>
+              <h3><small>イベント</small>合宿の夜に、<br />何かが起きる</h3>
+              <p>文化祭、修学旅行、OB戦、引退の日。1年を通してさまざまな出来事が起こります。</p>
+              <ul>
+                <li>夜の神社に現れる、謎の整体師。施術を受けるか、断るか</li>
+                <li>合宿中だけの、大きく伸びるチャンス</li>
+                <li>めったに起きないレアイベントは、図鑑に記録</li>
+              </ul>
+            </div>
+            <div class="extra reveal">
+              <div class="num">09</div>
+              <h3><small>やり込み</small>長く続けるほど、<br />遊び方が広がる</h3>
+              <p>何十年と部を率いると、歴代の監督の中から次の監督を選べるようになります。監督によって、伸ばすのが得意な能力が違います。</p>
+              <ul>
+                <li>投手が育つ監督、守りが固くなる監督…</li>
+                <li>実績を集めると、思いがけない名将も</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -833,6 +1238,8 @@
             <li><b>県大会・全国大会<span class="badge">準備中</span></b><span>トーナメントを勝ち上がり、全国の頂点を目指す</span></li>
             <li><b>スカウトと評判<span class="badge">準備中</span></b><span>学校の評判を上げて、有望な中学生を呼び込む</span></li>
             <li><b>ドラフト<span class="badge">準備中</span></b><span>育てた選手がプロの世界へ</span></li>
+            <li><b>ストーリー<span class="badge">制作中</span></b><span>全12章の物語と、登場人物の立ち絵。第1章の絵から制作しています</span></li>
+            <li><b>衣装とイベント<span class="badge">準備中</span></b><span>着せ替え、季節のイベント、レアイベント</span></li>
             <li><b>選手の顔グラフィックの強化<span class="badge">準備中</span></b><span>一人ひとりの個性がもっと伝わる顔に</span></li>
           </ul>
         </div>
@@ -874,6 +1281,45 @@
         { threshold: 0.12 },
       )
       document.querySelectorAll('.reveal').forEach((el) => io.observe(el))
+
+      // ヒーローの立ち絵：タップで笑顔に
+      const hero = document.getElementById('hero-chara')
+      hero.addEventListener('click', () => hero.classList.toggle('on'))
+
+      // 登場人物：表情の切り替え
+      const FACES = {
+        nagi: [['normal', '通常'], ['smile', '笑顔'], ['serious', '真剣'], ['surprise', '驚き']],
+        daichi: [['normal', '通常'], ['smile', '笑顔'], ['serious', '真剣'], ['surprise', '驚き']],
+        reika: [['normal', '通常'], ['serious', '真剣']],
+        genzo: [['normal', '通常'], ['smile', '笑顔'], ['angry', '怒鳴る'], ['cry', '号泣']],
+      }
+      for (const [name, faces] of Object.entries(FACES)) {
+        faces.forEach(([f]) => {
+          const pre = new Image()
+          pre.src = 'chara/' + name + '_' + f + '.webp'
+        })
+      }
+      document.querySelectorAll('.card').forEach((card) => {
+        const name = card.dataset.chara
+        const faces = FACES[name]
+        const img = card.querySelector('.pic img')
+        const box = card.querySelector('.faces')
+        let i = 0
+        const show = (n) => {
+          i = n
+          img.src = 'chara/' + name + '_' + faces[i][0] + '.webp'
+          box.querySelectorAll('button').forEach((b, k) => b.classList.toggle('on', k === i))
+        }
+        faces.forEach(([, label], k) => {
+          const b = document.createElement('button')
+          b.type = 'button'
+          b.textContent = label
+          b.addEventListener('click', () => show(k))
+          box.appendChild(b)
+        })
+        card.querySelector('.pic').addEventListener('click', () => show((i + 1) % faces.length))
+        show(0)
+      })
 
       // 共有のリンク
       const url = 'https://keiho85-boop.github.io/hs-baseball-manager/intro/'
