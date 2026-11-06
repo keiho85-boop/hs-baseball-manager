@@ -111,6 +111,7 @@ export const BG_READY = new Set<string>([
   'bg_sports_shop',
   'bg_clubroom_night',
   'bg_national_stadium',
+  'bg_entrance_ceremony',
 ])
 
 /** まだ絵がない背景の代わり（絵ができたら BG_READY に足すだけで差し替わる） */
