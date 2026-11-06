@@ -95,14 +95,14 @@ const costLabel = (kind: 'visit' | 'recruit') =>
   <div class="sc-backdrop" @click.self="$emit('close')">
     <div class="sc card">
       <h2><GameIcon name="search" /> スカウト（{{ pref }}の中学3年生）</h2>
-      <div v-if="scout" class="status">
+      <div v-if="scout" class="status" data-tut="scout-points">
         <span>活動 <b>残り{{ scout.points }}回</b></span>
         <span>部費 <b>{{ funds }}万円</b></span>
       </div>
       <p class="muted note">
         最初は総合評価だけ。視察するたびに能力のランク・数値・特殊能力が少しずつ判明し、勧誘で関心が上がります。活動は4〜12月で、毎月3回補充（スカウトマスで+1）。足りないときは部費を使います（視察{{ SCOUT_COST.visitFunds }}万・勧誘{{ SCOUT_COST.recruitFunds }}万）。12月末に進学先が決まり、翌年4月に入部します。
       </p>
-      <div v-if="scout" class="list">
+      <div v-if="scout" class="list" data-tut="scout-list">
         <div v-for="pr in scout.prospects" :key="pr.id" class="pr" :class="pr.status">
           <div class="pr-head">
             <FaceIcon :face="pr.player.face" :size="36" />

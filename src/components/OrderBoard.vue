@@ -35,6 +35,8 @@ function isFlash(key: string, part: 'pos' | 'player'): boolean {
 }
 const viewing = ref<string | null>(null)
 const posPicker = ref(false)
+/** 名前の下に、能力の代わりに守備適性を出す */
+const aptView = ref(false)
 
 const auto = computed(() => {
   void game.rev
@@ -317,14 +319,6 @@ async function commit(): Promise<void> {
   await game.saveLineup(JSON.parse(JSON.stringify(d)) as LineupConfig)
 }
 
-async function autoBuild(): Promise<void> {
-  if (!game.save || !draft.value) return
-  draft.value = autoLineup(members.value, draft.value.useDH)
-  selected.value = null
-  await commit()
-  ui.notify({ title: '自動編成', message: '調子と能力を見てオーダーを組みました' })
-}
-
 async function toggleDH(): Promise<void> {
   if (!draft.value) return
   draft.value = autoLineup(members.value, !draft.value.useDH)
@@ -332,10 +326,22 @@ async function toggleDH(): Promise<void> {
   await commit()
 }
 
+/** おまかせ：今の調子と能力でオーダーを組んで見せ、以後は毎試合、自動で組み直す（自分で入れ替えると解除） */
 async function setAuto(): Promise<void> {
   await game.saveLineup(null)
   selected.value = null
-  ui.notify({ title: 'おまかせ', message: '毎試合、調子やケガを見て自動で組みます', tone: 'info' })
+  reset()
+  ui.notify({ title: 'おまかせ', message: '調子と能力を見てオーダーを組みました。\nこれからは毎試合、調子やケガを見て自動で組み直します。', tone: 'info' })
+}
+
+/** 守備適性（△以上）を高い順に、名前の下に出す形で */
+function aptMarks(p: Player): { label: string; mark: string; kind: string; v: number }[] {
+  const main = mainGroup(p)
+  const list: { label: string; mark: string; kind: string; v: number; main: boolean }[] = APT_GROUPS.map((g) => ({ label: g.label, mark: APTITUDE_LABEL[groupApt(p, g.key)] ?? '', kind: g.kind, v: groupApt(p, g.key), main: g.key === main }))
+    .filter((g) => g.v >= 1)
+    .sort((a, b) => Number(b.main) - Number(a.main) || b.v - a.v)
+  if (p.mainPosition === 'P') list.unshift({ label: '投', mark: '◎', kind: 'p', v: 3, main: true })
+  return list.slice(0, 4)
 }
 
 // ---------------------------------------------------------------- 上部の選手情報
@@ -446,12 +452,13 @@ const focusSkills = computed(() =>
         <span class="fa-l">守備適性</span>
         <span v-for="g in focusApts" :key="g.key" class="fa" :class="[`m-${g.kind}`, { main: g.main }]">{{ g.name }}<b>{{ g.mark }}</b></span>
         <span v-if="focusApts.length === 0" class="fa none">なし（投手専門）</span>
+        <button v-if="selectedPlayer" class="fa-btn" @click="posPicker = true">守備の変更・練習</button>
         <span v-if="focus.convertTo" class="sk conv">{{ ['LF', 'CF', 'RF'].includes(focus.convertTo) ? '外野手' : POSITION_NAME[focus.convertTo] }}の守備練習中</span>
       </div>
     </div>
 
     <!-- 中：3列 -->
-    <div class="cols">
+    <div class="cols" data-tut="order-board">
       <div class="col">
         <div class="col-h">スタメン</div>
         <div class="col-body">
@@ -485,7 +492,11 @@ const focusSkills = computed(() =>
                   <small>{{ players[c.id]?.bats === 'L' ? 'L' : players[c.id]?.bats === 'S' ? 'S' : 'R' }}</small>
                   <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>
                 </span>
-                <span class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+                <span v-if="aptView" class="rs aptrow">
+                  <i v-for="a in aptMarks(players[c.id]!)" :key="a.label" :class="[`m-${a.kind}`, `av-${a.v}`]">{{ a.label }}{{ a.mark }}</i>
+                  <i v-if="aptMarks(players[c.id]!).length === 0" class="none">適性なし</i>
+                </span>
+                <span v-else class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
               </span>
             </div>
           </div>
@@ -524,7 +535,11 @@ const focusSkills = computed(() =>
                   <small>{{ players[c.id]?.grade }}年</small>
                   <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>
                 </span>
-                <span class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+                <span v-if="aptView" class="rs aptrow">
+                  <i v-for="a in aptMarks(players[c.id]!)" :key="a.label" :class="[`m-${a.kind}`, `av-${a.v}`]">{{ a.label }}{{ a.mark }}</i>
+                  <i v-if="aptMarks(players[c.id]!).length === 0" class="none">適性なし</i>
+                </span>
+                <span v-else class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
               </span>
             </div>
           </div>
@@ -563,7 +578,11 @@ const focusSkills = computed(() =>
                   <small>{{ c.note ?? `${players[c.id]?.grade}年` }}</small>
                   <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>
                 </span>
-                <span class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+                <span v-if="aptView" class="rs aptrow">
+                  <i v-for="a in aptMarks(players[c.id]!)" :key="a.label" :class="[`m-${a.kind}`, `av-${a.v}`]">{{ a.label }}{{ a.mark }}</i>
+                  <i v-if="aptMarks(players[c.id]!).length === 0" class="none">適性なし</i>
+                </span>
+                <span v-else class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
               </span>
             </div>
           </div>
@@ -573,15 +592,16 @@ const focusSkills = computed(() =>
     </div>
 
     <p v-if="problems.length" class="problems">{{ problems.join('・') }}</p>
-    <p v-else class="hint">名前で選手、札で守備位置を入れ替え<span v-if="auto" class="auto">おまかせ中</span></p>
+    <p v-else class="hint">
+      {{ aptView ? '名前の下は守備適性（◎○△）' : '名前で選手、札で守備位置を入れ替え' }}<span v-if="auto" class="auto">おまかせ中</span>
+    </p>
 
     <!-- 下：操作 -->
     <div class="ops">
       <button class="op cyan" :disabled="!focus" @click="viewing = focus?.id ?? null">選手詳細</button>
-      <button class="op orange" @click="autoBuild">自動編成</button>
-      <button class="op navy" :disabled="!selectedPlayer" @click="posPicker = true">守備位置</button>
+      <button class="op" :class="aptView ? 'on' : 'navy'" data-tut="order-apt" @click="aptView = !aptView">{{ aptView ? '能力表示' : '守備位置' }}</button>
       <button class="op gray" @click="toggleDH">DH{{ draft.useDH ? 'あり' : 'なし' }}</button>
-      <button class="op" :class="auto ? 'on' : 'gray'" @click="setAuto">おまかせ</button>
+      <button class="op" :class="auto ? 'on' : 'orange'" data-tut="order-auto" @click="setAuto">おまかせ</button>
     </div>
 
     <div v-if="drag?.on" class="ghost" :class="{ posg: drag.mode === 'pos' }" :style="{ left: `${drag.x}px`, top: `${drag.y}px` }">
@@ -930,6 +950,33 @@ const focusSkills = computed(() =>
 .fa.main {
   box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px currentColor;
 }
+.fa-btn {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #56667e, #3e4c62);
+  color: #fff;
+  box-shadow: 0 2px 0 #27313f;
+  text-shadow: none;
+}
+.rs.aptrow {
+  display: inline-flex;
+  gap: 2px;
+}
+.rs.aptrow i {
+  color: #fff;
+  border-radius: 4px;
+  padding: 0 3px;
+  line-height: 1.35;
+}
+.rs.aptrow i.av-1 {
+  opacity: 0.55;
+}
+.rs.aptrow i.none {
+  background: #e6ebf2;
+  color: var(--ink-soft);
+}
 .fa.none {
   background: #e6ebf2;
   color: var(--ink-soft);
@@ -1066,7 +1113,7 @@ const focusSkills = computed(() =>
 }
 .ops {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 5px;
 }
 .op {

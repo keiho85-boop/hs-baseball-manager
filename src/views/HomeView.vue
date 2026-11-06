@@ -256,7 +256,7 @@ const specialCandidates = computed(() =>
 </script>
 
 <template>
-  <div class="home">
+  <div class="home" :class="{ 'with-tip': !!nagiTip }">
     <div class="stage">
       <FieldScene :height="84" :evening="evening" />
       <div class="strip">
@@ -295,7 +295,7 @@ const specialCandidates = computed(() =>
         @order="router.push({ name: 'team' })"
       />
       <template v-else-if="sg">
-        <div class="card board-card">
+        <div class="card board-card" data-tut="board">
           <div class="board-fit">
             <SugorokuBoard
               :board="sg.board"
@@ -311,10 +311,10 @@ const specialCandidates = computed(() =>
             <button class="sun full go-btn" :disabled="game.busy" @click="afterLand">{{ squareName(sg.pending.square) }}マスの続きをする</button>
           </template>
           <template v-else>
-            <div class="hand-wrap">
+            <div class="hand-wrap" data-tut="hand">
               <CardHand :hand="sg.hand" :selected="selected" :disabled="moving || game.busy" @select="selectCard" />
             </div>
-            <button class="sun full go-btn" :disabled="selected === null || moving || game.busy" @click="go">
+            <button class="sun full go-btn" data-tut="go" :disabled="selected === null || moving || game.busy" @click="go">
               <GameIcon name="play" :size="14" /> {{ selected === null ? 'カードを選んでください' : `${sg.hand[selected]!.value}マス進む` }}
             </button>
           </template>
@@ -330,7 +330,7 @@ const specialCandidates = computed(() =>
         >
           <GameIcon name="trophy" :size="18" /> 組み合わせ
         </button>
-        <button v-else class="sky practice-match" :disabled="!!game.match || !sg || game.busy || moving || !!sg.pending" @click="picking = true">
+        <button v-else class="sky practice-match" data-tut="practice-match" :disabled="!!game.match || !sg || game.busy || moving || !!sg.pending" @click="picking = true">
           <GameIcon name="ball" :size="18" /> 練習試合
         </button>
         <button v-if="tournament && !aliveInTournament && !tournamentWeek" class="icon-btn" aria-label="大会の組み合わせ" @click="bracketOpen = true">
@@ -420,7 +420,7 @@ const specialCandidates = computed(() =>
       <div class="picker card">
         <h2 class="grass"><GameIcon name="ball" /> 練習試合の相手を選ぶ</h2>
         <p class="muted">練習試合をした週は、すごろくの練習の代わりに試合を行います。強い相手ほど学ぶことも多くなります。強豪校と組むには、大会で結果を出して評判を上げる必要があります。</p>
-        <div class="opp-list">
+        <div class="opp-list" data-tut="opp-list">
           <button v-for="o in opponents" :key="o.id" class="opp" :disabled="!canPractice(o)" @click="startMatch(o.id)">
             <span class="opp-name">{{ o.name }}<small>{{ o.kind === 'private' ? '私立' : '公立' }}{{ canPractice(o) ? '' : '・評判が足りず断られる' }}</small></span>
             <RankBadge :value="o.overall" />
@@ -436,16 +436,25 @@ const specialCandidates = computed(() =>
 .home {
   --stage-h: 66px;
 }
+.home.with-tip {
+  /* ナギのひとことの高さぶん、盤面を小さくして重ならないようにする */
+  --tip-h: 64px;
+}
+.home.with-tip .board-card {
+  margin-top: 0;
+}
 .nagi-tip {
+  position: relative;
+  z-index: 3;
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  margin: 4px 0 10px;
+  margin: 2px 0 8px;
   cursor: pointer;
 }
 .nagi-face {
-  width: 64px;
-  height: 64px;
+  width: 54px;
+  height: 54px;
   flex-shrink: 0;
   border-radius: 50%;
   object-fit: cover;
@@ -458,9 +467,9 @@ const specialCandidates = computed(() =>
   flex: 1;
   background: #fff;
   border-radius: 14px;
-  padding: 8px 12px;
-  font-size: 13px;
-  line-height: 1.55;
+  padding: 6px 11px;
+  font-size: 12.5px;
+  line-height: 1.5;
   color: var(--ink);
   box-shadow: var(--panel-shadow);
 }
@@ -593,7 +602,7 @@ const specialCandidates = computed(() =>
 }
 /* 盤面・カード・進むボタンが1画面に収まるよう、画面の高さに合わせて盤面の大きさを決める */
 .board-fit {
-  width: min(100%, max(170px, calc(100dvh - 476px - var(--stage-h) - env(safe-area-inset-top, 0px) - var(--safe-bottom))));
+  width: min(100%, max(170px, calc(100dvh - 476px - var(--stage-h) - var(--tip-h, 0px) - env(safe-area-inset-top, 0px) - var(--safe-bottom))));
   margin: 0 auto;
 }
 .h-note {

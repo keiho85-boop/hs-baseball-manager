@@ -10,7 +10,12 @@ import { ownLineup, startMatch } from '../src/game/match/session'
 import { simulateToEnd } from '../src/game/match/engine'
 import { Rng } from '../src/game/rng'
 import { BG_READY, resolveBg } from '../src/game/story/art'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { GUIDES } from '../src/game/story/guides'
+import { teamName } from '../src/game/story/engine'
+import { buildEvent } from '../src/game/events'
+import { POSITIONS } from '../src/game/constants'
 
 function newGame(seed: number): SaveData {
   const save = createNewGame({
@@ -77,6 +82,65 @@ describe('ストーリー 第1章', () => {
     expect(names.length).toBeGreaterThan(10)
     for (const name of names) expect(existsSync(`public/bg/${resolveBg(name)}.webp`), name).toBe(true)
     for (const name of BG_READY) expect(existsSync(`public/bg/${name}.webp`), name).toBe(true)
+  })
+
+  it('始めたときの部員で、9つの守備位置がすべて埋まる', () => {
+    for (const seed of [21, 22, 23, 24]) {
+      const save = newGame(seed)
+      const own = save.schools[save.playerSchoolId]!
+      const mains = own.playerIds.map((id) => save.players[id]!.mainPosition)
+      for (const pos of POSITIONS) expect(mains, `seed ${seed}`).toContain(pos)
+    }
+  })
+
+  it('日向大地はケガをしない', () => {
+    const save = newGame(31)
+    const d = save.players[save.story!.daichiId!]!
+    expect(d.storyCast).toBe('daichi')
+    for (let i = 0; i < 30; i++) {
+      d.condition.stamina = 5
+      advanceWeek(save)
+      expect(d.condition.injury).toBeNull()
+    }
+  })
+
+  it('鬼頭の球団名は、選んだ都道府県の名前になる', () => {
+    expect(teamName(27)).toBe('大阪スカイライツ')
+    expect(teamName(13)).toBe('東京スカイライツ')
+    expect(teamName(1)).toBe('北海道スカイライツ')
+    expect(teamName(40)).toBe('福岡スカイライツ')
+  })
+
+  it('ストーリーありでは、マネージャーのイベントにナギの顔が出る', () => {
+    const save = newGame(41)
+    const rng = new Rng([41, 2, 3, 4])
+    for (let i = 0; i < 10; i++) {
+      const ev = buildEvent(save, rng, 'manager')!
+      expect(ev.speaker.kind).toBe('manager')
+      expect('portrait' in ev.speaker && ev.speaker.portrait).toBe('nagi')
+    }
+    const funds = buildEvent(save, rng, 'funds')!
+    expect('portrait' in funds.speaker && funds.speaker.portrait).toBe('genzo')
+  })
+
+  it('チュートリアルで光らせる場所は、すべて画面にある', () => {
+    const files: string[] = []
+    const walk = (dir: string): void => {
+      for (const f of readdirSync(dir)) {
+        const full = join(dir, f)
+        if (statSync(full).isDirectory()) walk(full)
+        else if (f.endsWith('.vue')) files.push(readFileSync(full, 'utf8'))
+      }
+    }
+    walk('src')
+    const all = files.join('\n')
+    for (const steps of Object.values(GUIDES)) {
+      for (const st of steps) {
+        if (!st.target) continue
+        const found = all.includes(`data-tut="${st.target}"`) || (st.target.startsWith('tab-') && all.includes('`tab-${t.name}`'))
+        expect(found, st.target).toBe(true)
+      }
+    }
   })
 
   it('序章は1年目の第1週に続けて流れる', () => {

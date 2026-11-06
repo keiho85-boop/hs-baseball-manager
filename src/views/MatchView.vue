@@ -404,7 +404,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
     </div>
 
     <!-- 作戦コマンド（その場で選ぶ） -->
-    <div v-if="!m.finished" class="command">
+    <div v-if="!m.finished" class="command" data-tut="match-command">
       <template v-if="ownBatting">
         <div class="cmd-grid">
           <button
@@ -507,7 +507,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
     </div>
 
     <!-- 進める -->
-    <div v-if="!m.finished" class="controls">
+    <div v-if="!m.finished" class="controls" data-tut="match-controls">
       <button class="secondary" :disabled="busyStep" @click="step('pitch')">1球</button>
       <button class="sun main" :disabled="busyStep" @click="step('pa')"><GameIcon name="play" :size="14" /> 1打席</button>
       <button class="secondary" :disabled="busyStep" @click="step('inning')">この回</button>

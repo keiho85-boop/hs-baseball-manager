@@ -31,6 +31,7 @@ function go(name: string): void {
       :key="t.name"
       :class="{ active: isActive(t.name) }"
       :style="{ '--c': t.color }"
+      :data-tut="`tab-${t.name}`"
       @click="go(t.name)"
     >
       <span class="icon"><TabIcon :name="t.name" :size="30" /></span>

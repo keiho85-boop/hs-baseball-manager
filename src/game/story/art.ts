@@ -12,6 +12,8 @@ interface CharArt {
   fallback: string
   /** 名前の欄の色 */
   color: string
+  /** 絵がまだないとき：代わりに使う人物（なければ立ち絵を出さない） */
+  pending?: { alt: CharId | null }
 }
 
 const ART: Record<CharId, CharArt> = {
@@ -75,13 +77,42 @@ const ART: Record<CharId, CharArt> = {
     fallback: 'smile',
     color: '#d84315',
   },
+  grandpa_hosp: {
+    prefix: 'grandpa_70s_hospital_bust_',
+    faces: {},
+    fallback: 'smile',
+    color: '#d84315',
+    pending: { alt: 'grandpa' },
+  },
+  mob_cap: {
+    prefix: 'mob_captain_practice_bust_',
+    faces: { normal: 'normal', serious: 'normal', smile: 'normal', joy: 'normal', surprise: 'normal', frustrated: 'frustrated', cry: 'frustrated', troubled: 'frustrated', angry: 'frustrated' },
+    fallback: 'normal',
+    color: '#4f6b8a',
+    pending: { alt: null },
+  },
+}
+
+/** 絵ができた人物（public/chara に置いたら、ここに足すと pending より優先される） */
+export const CHAR_READY = new Set<CharId>([])
+
+/** 実際に絵を出す人物（絵がなければ代わりの人物、代わりもなければ null） */
+function resolveChar(char: CharId): CharId | null {
+  const a = ART[char]
+  if (!a.pending || CHAR_READY.has(char)) return char
+  return a.pending.alt
+}
+
+/** 立ち絵を出せるか */
+export function hasPortrait(char: CharId): boolean {
+  return resolveChar(char) !== null
 }
 
 const BASE = import.meta.env.BASE_URL
 
 /** 立ち絵（胸から上）のURL */
 export function portraitUrl(char: CharId, face: Face | undefined): string {
-  const a = ART[char]
+  const a = ART[resolveChar(char) ?? char]
   const f = (face && a.faces[face]) || a.fallback
   return `${BASE}chara/${a.prefix}${f}.webp`
 }
@@ -127,6 +158,7 @@ export const BG_FALLBACK: Record<string, string> = {
   bg_sports_shop: 'bg_street_sunset',
   bg_clubroom_night: 'bg_clubroom_day',
   bg_national_stadium: 'bg_stadium_day',
+  bg_stadium_road_night: 'bg_prostadium_night',
 }
 
 /** 実際に表示する背景の名前（絵がなければ代わりの絵） */
@@ -146,3 +178,6 @@ export function cgUrl(name: string): string {
 export function isLeftSide(char: CharId): boolean {
   return char === 'nagi' || char === 'nagi_jh'
 }
+
+/** 名前の欄の色・立ち絵の割り当てを持つ人物の一覧（テスト用） */
+export const ART_CHARS = Object.keys(ART) as CharId[]
