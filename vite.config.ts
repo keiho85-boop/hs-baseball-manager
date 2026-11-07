@@ -6,18 +6,33 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // GitHub Pages では https://<アカウント>.github.io/hs-baseball-manager/ で公開されるため base を合わせる
 // mode が app のときは、Androidアプリ（Capacitor）に入れる版を作る（サーバー上の場所に依存せず、オフライン保存の仕組みも使わない）
-export default defineConfig(({ mode }) => ({
-  base: mode === 'app' ? './' : '/hs-baseball-manager/',
-  build: { outDir: mode === 'app' ? 'dist-app' : 'dist' },
-  define: { __APP_BUILD__: JSON.stringify(mode === 'app') },
+// mode が artifact のときは、claude.ai の確認用ページに載せる版を作る（app と同じ作りで、フォントは Google Fonts から読む）
+export default defineConfig(({ mode }) => {
+  const standalone = mode === 'app' || mode === 'artifact'
+  return {
+  base: standalone ? './' : '/hs-baseball-manager/',
+  build: { outDir: mode === 'app' ? 'dist-app' : mode === 'artifact' ? 'dist-artifact' : 'dist' },
+  define: { __APP_BUILD__: JSON.stringify(standalone) },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // 確認用ページでは、細かく分かれたフォントのファイルを持たず Google Fonts から読む
+      ...(mode === 'artifact'
+        ? { '@fontsource/m-plus-rounded-1c': fileURLToPath(new URL('./src/assets/fonts-google', import.meta.url)) }
+        : {}),
     },
   },
   plugins: [
     vue(),
-    mode !== 'app' &&
+    mode === 'artifact' && {
+      name: 'google-fonts',
+      transformIndexHtml: (html: string) =>
+        html.replace(
+          '</head>',
+          '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800;900&display=swap" />\n</head>',
+        ),
+    },
+    !standalone &&
     VitePWA({
       // 更新はタイトル画面に戻ったときだけ反映する（プレイ中は切り替えない）
       registerType: 'prompt',
@@ -76,4 +91,5 @@ export default defineConfig(({ mode }) => ({
   test: {
     environment: 'node',
   },
-}))
+  }
+})
