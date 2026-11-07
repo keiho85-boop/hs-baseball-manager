@@ -8,7 +8,9 @@ import { computeOverall, newId, schoolStrength } from './world'
 import { armRestNeeded } from './match/results'
 import type { AlumniRecord, Player, SaveData, School, WeekPlan } from './types'
 import { DRAFT_WEEK, SCOUT_DECISION_WEEK, SCOUT_MONTHLY, addScoutPoints, decideProspects, enrollProspects, ensureScout, runDraft } from './scout'
-import { currentTournament, ensureTournament, findTournament, monthlyFunds, ownAlive, progress } from './tournament'
+import { currentTournament, ensureTournament, findTournament, kindAtWeek, monthlyFunds, ownAlive, progress } from './tournament'
+import { hasModifier, pruneModifiers } from './modifiers'
+import { queueWeeklyEvents } from './calendarEvents'
 
 export interface WeekResult {
   /** この週に起きた主な出来事（画面に出す） */
@@ -48,16 +50,8 @@ function seasonalEvents(save: SaveData, rng: Rng, list: Player[], messages: stri
     save.sugoroku.campWeeks = 2
     log(save, '夏合宿が始まった！（2週間、練習の効果と疲れが大きくなる）', messages)
   }
-  if (week === 13 || week === 38) {
-    const n = Math.min(list.length, rng.int(1, 3))
-    const names = rng.shuffle([...list]).slice(0, n)
-    for (const p of names) p.condition.motivation = clamp(p.condition.motivation - 5, 0, 100)
-    log(save, `期末テスト。${names.map((p) => p.surname).join('・')}が補習で練習に身が入らない…`, messages)
-  }
-  if (week === 29) {
-    for (const p of list) p.condition.motivation = clamp(p.condition.motivation + 10, 0, 100)
-    log(save, '文化祭で部員たちが盛り上がった！（全員のやる気が上がった）', messages)
-  }
+  // テスト期間・文化祭などの行事は、週の初めの出来事（calendarEvents）で起きる
+  void list
 }
 
 /** 練習の濃さ。設備が整っているほど伸びやすい */
@@ -94,6 +88,10 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
     }
   }
   seasonalEvents(save, rng, members(save, own), messages)
+  // お守りの効果など：夏の大会の間、自校の選手の調子が上がる
+  if (hasModifier(save, 'form') && (kindAtWeek(save.calendar.week) === 'summerPref' || kindAtWeek(save.calendar.week) === 'summerNational')) {
+    for (const p of members(save, own)) p.condition.form = clamp(p.condition.form + 1, 1, 5)
+  }
   if (save.sugoroku) {
     if (save.sugoroku.campWeeks > 0) save.sugoroku.campWeeks -= 1
     save.sugoroku.pending = null
@@ -143,6 +141,9 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   }
   // 9. 月が変わったら、すごろくの盤面を作り直す
   if (save.sugoroku && refreshBoard(save, rng)) messages.push(`${weekToDate(save.calendar.week).month}月になり、練習の盤面が新しくなった。`)
+  // 10. 期限の切れた補正を片付け、今週の行事やレアイベントを積む（すごろくで遊ぶときだけ）
+  pruneModifiers(save)
+  if (save.sugoroku) queueWeeklyEvents(save, rng)
 
   save.rngState = rng.getState()
   save.updatedAt = new Date().toISOString()

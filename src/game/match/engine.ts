@@ -134,6 +134,12 @@ export function fieldingTeam(s: MatchState): TeamState {
   return s.top ? s.home : s.away
 }
 
+/** 攻撃中の学校がプレイヤーの学校なら、作戦の成功率の上乗せ（座学の効果など） */
+function userTactic(s: MatchState): number {
+  const bonus = s.options.tacticBonus ?? 0
+  return bonus && battingTeam(s).schoolId === s.options.userSchoolId ? bonus : 0
+}
+
 export function currentBatterId(s: MatchState): string {
   const t = battingTeam(s)
   return t.lineup[t.battingIndex]!.playerId
@@ -699,7 +705,7 @@ function battedBall(
     const f = ctx.players[fielderAt(field, pos)]!
     let pHit = 0.2 + (ev - 115) / 250 + (speed - 50) / 450 - (f.fielding.range - 50) / 320 + (infieldIn ? 0.07 : 0)
     if (has(f, 'highlight_defense')) pHit -= 0.05
-    if (order === 'hitrun') pHit += 0.04
+    if (order === 'hitrun') pHit += 0.04 + userTactic(s) / 2
     pHit = clamp(pHit, 0.04, 0.6)
     const ball = { ...toXY(clamp(ev * 0.32, 18, 60)), type: 'ground' as const }
     if (rng.chance(pHit)) {
@@ -907,7 +913,7 @@ function airOut(s: MatchState, ctx: MatchContext, kind: PlayKind, ball: PlayEven
 function bunt(s: MatchState, ctx: MatchContext, batter: Player): PitchResult {
   const rng = ctx.rng
   s.pending.batting = 'auto'
-  let pSuccess = 0.72 + (has(batter, 'bunt') ? 0.15 : 0) + (batter.batting.contact - 50) / 300 - (has(batter, 'sign_lost') ? 0.15 : 0)
+  let pSuccess = 0.72 + (has(batter, 'bunt') ? 0.15 : 0) + (batter.batting.contact - 50) / 300 - (has(batter, 'sign_lost') ? 0.15 : 0) + userTactic(s)
   pSuccess = clamp(pSuccess, 0.35, 0.95)
   const r = rng.next()
   if (r < pSuccess) {
@@ -953,6 +959,7 @@ function attemptSteal(s: MatchState, ctx: MatchContext): PlayEvent | null {
   if (has(r, 'rocket_start')) p += 0.1
   if (has(pitcher, 'no_steal')) p -= 0.1
   if (from === 1) p -= 0.08
+  p += userTactic(s)
   p = clamp(p, 0.15, 0.95)
   s.pitching[field.pitcherId]!.pitches += 1
   const success = rng.chance(p)

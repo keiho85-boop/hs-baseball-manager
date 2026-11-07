@@ -497,6 +497,19 @@ export const useGameStore = defineStore('game', () => {
     await writeSave(s)
   }
 
+  /** 週の初めの出来事（季節の行事など）を選び終えた：効果を反映して保存する */
+  async function resolveQueuedEvent(choice: number): Promise<void> {
+    const s = save.value
+    const ev = s?.eventQueue?.[0]
+    if (!s || !ev) return
+    const c = ev.choices[choice] ?? ev.choices[0]
+    s.eventQueue!.shift()
+    if (c) applyOps(s, c.ops)
+    s.log.push({ year: s.calendar.year, week: s.calendar.week, text: `${ev.title}：${c?.result ?? ''}` })
+    touch()
+    await writeSave(s)
+  }
+
   /** 物語の旗に値を書いて保存する（チュートリアルの済み・未済など） */
   async function setStoryFlag(key: string, value: string | number | boolean): Promise<void> {
     const s = save.value
@@ -544,6 +557,7 @@ export const useGameStore = defineStore('game', () => {
     finishStory,
     markStoryFlag,
     setStoryFlag,
+    resolveQueuedEvent,
     startPracticeMatch,
     startTournamentMatch,
     nextTournamentWeek,

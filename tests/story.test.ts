@@ -13,7 +13,7 @@ import { BG_READY, resolveBg } from '../src/game/story/art'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { GUIDES } from '../src/game/story/guides'
-import { teamName } from '../src/game/story/engine'
+import { chapterGoal, teamName } from '../src/game/story/engine'
 import { buildEvent } from '../src/game/events'
 import { POSITIONS } from '../src/game/constants'
 
@@ -141,6 +141,20 @@ describe('ストーリー 第1章', () => {
         expect(found, st.target).toBe(true)
       }
     }
+  })
+
+  it('第1章の今年の目安は、先に超えると一つ上になる', () => {
+    const save = newGame(51)
+    expect(chapterGoal(save)!.target).toBe('公式戦1勝')
+    save.story!.flags.firstWin = 1
+    expect(chapterGoal(save)!.done).toBe(true)
+    save.calendar.year = 2
+    expect(chapterGoal(save)!.target).toBe('県ベスト4')
+    save.story!.flags.best4 = 1
+    expect(chapterGoal(save)!.target).toBe('全国大会出場')
+    save.calendar.year = 3
+    save.story!.flags.national = 2
+    expect(chapterGoal(save)!.target).toBe('全国大会に連続出場')
   })
 
   it('序章は1年目の第1週に続けて流れる', () => {

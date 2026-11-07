@@ -301,6 +301,12 @@ export interface SaveData {
   aptRule2?: boolean
   /** ストーリー（ストーリーありで始めたときだけ） */
   story?: StoryState
+  /** 週の初めに出す出来事（季節の行事・レアイベントなど）。先頭から順に出す */
+  eventQueue?: EventInstance[]
+  /** 一定の期間だけ効く補正（作戦の成功率・練習の効果・調子） */
+  modifiers?: Modifier[]
+  /** ストーリーの有無に関係なく残す印（古いグラブを手に入れた、など） */
+  flags?: Record<string, string | number | boolean>
 }
 
 // ---------------------------------------------------------------- すごろく・イベント
@@ -339,6 +345,20 @@ export type Speaker =
       portrait?: string
     }
 
+/** 一定の期間だけ効く補正。週は「通算の週」（(年-1)×52＋週）で数える */
+export interface Modifier {
+  /** tactic：作戦（バント・盗塁・エンドラン）の成功率　practice：練習の効果　form：大会中の調子 */
+  key: 'tactic' | 'practice' | 'form'
+  /** この週から（省略すると、すぐ） */
+  from?: number
+  /** この週まで */
+  until: number
+  /** 次の1試合だけ（試合を始めたら消える） */
+  once?: boolean
+  /** 出どころ（表示用） */
+  label: string
+}
+
 /** イベントの効果（保存できるよう、データとして持つ） */
 export type EffectOp =
   | { op: 'ability'; playerId: string; key: string; delta: number }
@@ -347,6 +367,14 @@ export type EffectOp =
   | { op: 'skill'; playerId: string; add?: string; remove?: string }
   | { op: 'position'; playerId: string; position: Position }
   | { op: 'camp'; weeks: number }
+  /** ケガ（補習など、練習に出られない期間も同じ扱い） */
+  | { op: 'injury'; playerId: string; name: string; weeks: number }
+  /** 部員を加える（新入部員・転校生）。能力はそのときに作る */
+  | { op: 'recruit'; grade: number; boost: number; motivation: number; note: string }
+  /** 期間つきの補正 */
+  | { op: 'modifier'; modifier: Modifier }
+  /** 印を付ける */
+  | { op: 'flag'; key: string; value: string | number | boolean }
 
 export interface EventChoice {
   label: string

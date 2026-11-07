@@ -21,6 +21,7 @@ import BoardRefresh from '@/components/sugoroku/BoardRefresh.vue'
 import TabIcon from '@/components/TabIcon.vue'
 import { play } from '@/sound'
 import { portraitUrl } from '@/game/story/art'
+import { chapterGoal } from '@/game/story/engine'
 import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 
 const game = useGameStore()
@@ -153,6 +154,12 @@ const nagiTip = computed(() => {
   return lines[s.calendar.week % lines.length]!
 })
 
+/** ストーリーありのとき：第1章の目標と、今年の目安 */
+const goal = computed(() => {
+  void game.rev
+  return game.save ? chapterGoal(game.save) : null
+})
+
 const recentLog = computed(() => {
   void game.rev
   return [...(game.save?.log ?? [])].reverse().slice(0, 12)
@@ -275,7 +282,9 @@ const specialCandidates = computed(() =>
     <div class="page">
       <div v-if="nagiTip" class="nagi-tip" @click="nagiSmile = !nagiSmile">
         <img class="nagi-face" :src="portraitUrl('nagi', nagiSmile ? 'smile' : 'normal')" alt="ナギ" />
-        <div class="nagi-say"><b>ナギ</b>{{ nagiTip }}</div>
+        <div class="nagi-say">
+          <b>ナギ<span v-if="goal" class="goal" :class="{ done: goal.done }">今年の目安：{{ goal.target }}{{ goal.done ? ' ✓' : '' }}</span></b>{{ nagiTip }}
+        </div>
       </div>
       <button v-if="game.match" class="sun go" @click="router.push({ name: 'match' })">
         <span class="go-main">試合の続きへ</span>
@@ -477,6 +486,19 @@ const specialCandidates = computed(() =>
   display: block;
   font-size: 11px;
   color: #ff8a3d;
+}
+.goal {
+  margin-left: 8px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #fff1e0;
+  color: #b35a00;
+  font-size: 10px;
+  font-weight: 800;
+}
+.goal.done {
+  background: #e5f6e8;
+  color: #1f8a42;
 }
 .nagi-say::before {
   content: '';

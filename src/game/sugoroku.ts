@@ -1,6 +1,7 @@
 // すごろく形式の練習：盤面・手札・マスの効果
 
 import { Rng, clamp } from './rng'
+import { PRACTICE_BONUS, hasModifier } from './modifiers'
 import { POSITION_NAME, weekToDate } from './constants'
 import { fullName, growWeekly } from './player'
 import { SKILLS, conflicts } from './skills'
@@ -216,7 +217,8 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
   for (const p of members) convertPractice(rng, p, plan, fieldingFacility, messages)
   const camp = (save.sugoroku?.campWeeks ?? 0) > 0
   const own = save.schools[save.playerSchoolId]
-  const campMult = camp ? 1.35 : 1
+  // OB戦の悔しさなど：練習の効果が上がる期間
+  const campMult = (camp ? 1.35 : 1) * (hasModifier(save, 'practice') ? 1 + PRACTICE_BONUS : 1)
   for (const p of members) {
     if (p.retired) continue
     if (!plan) {

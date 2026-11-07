@@ -2,6 +2,7 @@
 
 import { Rng, clamp } from '../rng'
 import { newStats, fullName } from '../player'
+import { learnable, mainKeys, skillName } from '../events'
 import type { Player, SaveData } from '../types'
 import type { MatchState } from './types'
 
@@ -56,6 +57,24 @@ export function applyMatchResults(save: SaveData, s: MatchState, rng: Rng): Matc
     p.condition.stamina = clamp(Math.round(p.condition.stamina - pb.pitches * 0.45 - pb.fatigue * 15), 0, 100)
     const msg = armCheck(p, pb.pitches, pb.fatigue, factor, rng)
     if (msg && p.schoolId === ownId) messages.push(msg)
+  }
+  // レアイベント【覚醒の一打】：公式戦の打席で、まれに打球音が変わる（1打席0.5%）
+  if (s.options.tournament) {
+    for (const [id, b] of Object.entries(s.batting)) {
+      const p = save.players[id]
+      if (!p || p.schoolId !== ownId || b.pa === 0) continue
+      if (!rng.chance(1 - Math.pow(0.995, b.pa))) continue
+      for (const key of mainKeys(p)) {
+        const [group, k] = key.split('.') as [string, string]
+        const obj = (p as unknown as Record<string, Record<string, number>>)[group]
+        if (obj && typeof obj[k] === 'number') obj[k] = clamp(obj[k] + (key === 'pitching.velocity' ? 1 : 3), 1, key === 'pitching.velocity' ? 163 : 99)
+      }
+      const skill = learnable(rng, p)
+      if (skill) p.skills.push(skill)
+      p.condition.form = 5
+      messages.push(`覚醒の一打！　打球音が変わり、ベンチが静まり返った。${fullName(p)}の能力がまとめて伸びた！${skill ? `「${skillName(skill)}」を身につけた！` : ''}`)
+      break
+    }
   }
   return { messages }
 }

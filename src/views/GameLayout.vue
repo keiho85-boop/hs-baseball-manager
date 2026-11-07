@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import TabBar from '@/components/TabBar.vue'
 import GrowthPopup from '@/components/GrowthPopup.vue'
 import StoryPlayer from '@/components/story/StoryPlayer.vue'
+import QueuedEventHost from '@/components/QueuedEventHost.vue'
 import { useGameStore } from '@/stores/game'
 import { SEASON_WEEKS, WEEKS_PER_YEAR, weekToDate } from '@/game/constants'
 import RankBadge from '@/components/RankBadge.vue'
@@ -84,6 +85,7 @@ const overall = computed(() => {
     </main>
     <TabBar />
     <GrowthPopup />
+    <QueuedEventHost />
     <StoryPlayer />
   </div>
 </template>

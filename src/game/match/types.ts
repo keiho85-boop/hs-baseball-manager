@@ -128,6 +128,8 @@ export interface MatchOptions {
   label: string
   /** 大会の試合なら、その大会と回戦 */
   tournament?: { id: string; round: number }
+  /** プレイヤーの学校の作戦（バント・盗塁・エンドラン）の成功率の上乗せ（座学の効果など） */
+  tacticBonus?: number
 }
 
 export interface MatchState {

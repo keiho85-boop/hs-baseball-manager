@@ -3,11 +3,12 @@
 
 import { Rng, clamp } from './rng'
 import { POSITION_NAME } from './constants'
-import { defaultPracticeMenu } from './player'
+import { defaultPracticeMenu, fullName } from './player'
+import { computeOverall, generateGrade, schoolStrength } from './world'
 import { SKILLS, conflicts } from './skills'
 import type { EffectOp, EventInstance, Player, Position, SaveData, SquareType } from './types'
 
-const ABILITY_LABEL: Record<string, string> = {
+export const ABILITY_LABEL: Record<string, string> = {
   'batting.contact': 'ミート',
   'batting.power': 'パワー',
   'batting.eye': '選球眼',
@@ -20,13 +21,13 @@ const ABILITY_LABEL: Record<string, string> = {
   'pitching.kire': 'キレ',
 }
 
-function mainKeys(p: Player): string[] {
+export function mainKeys(p: Player): string[] {
   return p.mainPosition === 'P'
     ? ['pitching.velocity', 'pitching.control', 'pitching.stamina', 'pitching.kire']
     : ['batting.contact', 'batting.power', 'running.speed', 'fielding.range', 'fielding.arm']
 }
 
-function learnable(rng: Rng, p: Player): string | null {
+export function learnable(rng: Rng, p: Player): string | null {
   const isPitcher = p.mainPosition === 'P'
   const options = SKILLS.filter(
     (s) => s.good && !p.skills.includes(s.id) && (s.target === 'all' || (s.target === 'pitcher') === isPitcher) && !p.skills.some((o) => conflicts(o, s.id)),
@@ -34,17 +35,17 @@ function learnable(rng: Rng, p: Player): string | null {
   return options.length ? rng.pick(options).id : null
 }
 
-function skillName(id: string): string {
+export function skillName(id: string): string {
   return SKILLS.find((s) => s.id === id)?.name ?? ''
 }
 
-function players(save: SaveData): Player[] {
+export function players(save: SaveData): Player[] {
   const school = save.schools[save.playerSchoolId]!
   return school.playerIds.map((id) => save.players[id]).filter((p): p is Player => !!p && !p.retired && !p.helper)
 }
 
 /** ストーリーありのゲームか */
-function story(save: SaveData): boolean {
+export function story(save: SaveData): boolean {
   return !!save.story?.enabled
 }
 
@@ -59,7 +60,7 @@ const GENZO_LOCAL = { kind: 'local', name: '日向源造（商店会長）', por
 const GENZO_OB = { kind: 'ob', name: '日向源造（OB会長）', portrait: 'genzo' } as const
 
 let seq = 0
-const eid = (name: string) => `${name}-${Date.now().toString(36)}-${seq++}`
+export const eid = (name: string) => `${name}-${Date.now().toString(36)}-${seq++}`
 
 // ---------------------------------------------------------------- 各イベント
 
@@ -409,6 +410,42 @@ function painEvent(rng: Rng, list: Player[]): EventInstance {
   }
 }
 
+/** 部員同士のけんか */
+function quarrelEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance | null {
+  if (list.length < 2) return null
+  const [a, b] = rng.shuffle([...list]).slice(0, 2) as [Player, Player]
+  const makeUp = rng.chance(0.5)
+  return {
+    id: eid('quarrel'),
+    title: '部員同士のけんか',
+    speaker: story(save) ? { ...NAGI } : { kind: 'narration', name: '' },
+    relatedPlayerIds: [a.id, b.id],
+    lines: story(save)
+      ? [`${a.surname}くんと${b.surname}くんが、練習中に言い合いになってしまって…。`, 'どうしましょう。'] 
+      : [`練習中、${a.surname}と${b.surname}が言い合いになった。`, '周りの部員たちも、手を止めて見ている。'],
+    choices: [
+      {
+        label: '二人で話をさせる',
+        result: `${a.surname}と${b.surname}は、とことん話し合った。（二人のやる気が上がった）`,
+        ops: [
+          { op: 'condition', playerId: a.id, key: 'motivation', delta: 5 },
+          { op: 'condition', playerId: b.id, key: 'motivation', delta: 5 },
+        ],
+      },
+      {
+        label: '放っておく',
+        result: makeUp ? '翌日には、二人とも何事もなかったように練習していた。' : `二人の間に、気まずい空気が残っている…（${a.surname}と${b.surname}のやる気が下がった）`,
+        ops: makeUp
+          ? []
+          : [
+              { op: 'condition', playerId: a.id, key: 'motivation', delta: -5 },
+              { op: 'condition', playerId: b.id, key: 'motivation', delta: -5 },
+            ],
+      },
+    ],
+  }
+}
+
 function teamMeetingEvent(rng: Rng, list: Player[]): EventInstance {
   const seniors = list.filter((p) => p.grade >= 2)
   const p = seniors.length ? rng.pick(seniors) : rng.pick(list)
@@ -562,6 +599,9 @@ function nurseEvent(rng: Rng, list: Player[]): EventInstance {
         ...keys.map((key) => ({ op: 'ability' as const, playerId: p.id, key, delta: key === 'pitching.velocity' ? rng.int(2, 3) : rng.int(4, 6) })),
         { op: 'condition', playerId: p.id, key: 'stamina', delta: 10 },
       ]
+  // うまくいったときは、半分の確率で特殊能力も目を覚ます
+  const skill = !fail && rng.chance(0.5) ? learnable(rng, p) : null
+  if (skill) ops.push({ op: 'skill', playerId: p.id, add: skill })
   const text = keys.map((k) => ABILITY_LABEL[k]).join('と')
   return {
     id: eid('nurse'),
@@ -574,7 +614,7 @@ function nurseEvent(rng: Rng, list: Player[]): EventInstance {
         label: 'お願いします',
         result: fail
           ? `「あら…ちょっと力が入りすぎちゃったかしら」${p.surname}はしばらく動けなかった。（体力と${ABILITY_LABEL[keys[0]!]}が少し下がった）`
-          : `${p.surname}の体が、驚くほど軽くなった！（${text}が大きく伸びた）`,
+          : `${p.surname}の体が、驚くほど軽くなった！（${text}が大きく伸びた）${skill ? `さらに特殊能力「${skillName(skill)}」を身につけた！` : ''}`,
         ops,
       },
       {
@@ -616,8 +656,9 @@ export function buildEvent(save: SaveData, rng: Rng, square: SquareType): EventI
     () => secretPracticeEvent(rng, list),
     () => painEvent(rng, list),
     () => teamMeetingEvent(rng, list),
+    () => quarrelEvent(save, rng, list),
   ]
-  const weights = [16, 10, 14, 8, 18, 12, 14]
+  const weights = [16, 10, 14, 8, 18, 12, 14, 8]
   for (let i = 0; i < 5; i++) {
     const idx = rng.weighted(makers.map((m, j) => ({ value: j, weight: weights[j]! })))
     const ev = makers[idx]!()
@@ -665,6 +706,25 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
       p.practiceMenu = defaultPracticeMenu(op.position, p.batting.power, p.running.speed)
     } else if (op.op === 'camp') {
       if (save.sugoroku) save.sugoroku.campWeeks = op.weeks
+    } else if (op.op === 'injury') {
+      const p = save.players[op.playerId]
+      if (!p || p.storyCast) continue
+      p.condition.injury = { name: op.name, weeksLeft: op.weeks }
+    } else if (op.op === 'recruit') {
+      const rng = new Rng(save.rngState)
+      const [p] = generateGrade(rng, save, school, op.grade, 1, schoolStrength(school) + op.boost)
+      if (p) {
+        p.condition.motivation = clamp(Math.max(p.condition.motivation, op.motivation), 0, 100)
+        save.players[p.id] = p
+        school.playerIds.push(p.id)
+        school.overall = computeOverall(school, save.players)
+        save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `${fullName(p)}（${op.grade}年）が${op.note}` })
+      }
+      save.rngState = rng.getState()
+    } else if (op.op === 'modifier') {
+      ;(save.modifiers ??= []).push({ ...op.modifier })
+    } else if (op.op === 'flag') {
+      ;(save.flags ??= {})[op.key] = op.value
     }
   }
 }

@@ -173,3 +173,27 @@ export function noteMatch(save: SaveData, info: { practice: boolean; won: boolea
 }
 
 export { addAchievement, addCostume } from './rewards'
+
+/** 第1章の成績の段階：0 なし、1 公式戦1勝、2 県ベスト4、3 全国大会出場 */
+const LEVEL_NAME = ['', '公式戦1勝', '県ベスト4', '全国大会出場', '全国大会に連続出場']
+
+/** 第1章の目標と、今年の目安（目安を先に超えたら、次の年の目安は一つ上になる） */
+export function chapterGoal(save: SaveData): { goal: string; target: string; done: boolean } | null {
+  const st = save.story
+  if (!st?.enabled || st.chapter !== 1) return null
+  const y = save.calendar.year
+  const best = st.flags.national !== undefined ? 3 : st.flags.best4 !== undefined ? 2 : st.flags.firstWin !== undefined ? 1 : 0
+  const base = Math.min(3, y)
+  // 去年までに出した最高成績より、一つ上を今年の目安にする
+  const before = (key: string): boolean => {
+    const v = st.flags[key]
+    return typeof v === 'number' && v < y
+  }
+  const bestBefore = before('national') ? 3 : before('best4') ? 2 : before('firstWin') ? 1 : 0
+  const level = Math.min(4, Math.max(base, bestBefore + 1))
+  const done =
+    level === 4
+      ? st.flags[`national_${y}_summerNational`] !== undefined || st.flags[`national_${y}_springNational`] !== undefined
+      : best >= level
+  return { goal: '3年目の夏までに全国大会出場', target: LEVEL_NAME[level]!, done }
+}

@@ -31,7 +31,7 @@ const step = computed(() => guide.step)
 /** 週の処理・イベント・お知らせ・ストーリーの最中は隠す */
 const blocked = computed(() => {
   void game.rev
-  if (!game.save || game.story || game.showGrowth || ui.dialog || ui.notice) return true
+  if (!game.save || game.story || game.showGrowth || ui.dialog || ui.notice || game.save.eventQueue?.length) return true
   const s = step.value
   if (!s) return true
   if (s.route && route.name !== s.route) return true

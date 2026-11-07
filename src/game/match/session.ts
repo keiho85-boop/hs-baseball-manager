@@ -9,6 +9,7 @@ import { autoLineup, lineupValid } from './lineup'
 import { createMatch, defaultOptions, score, type MatchContext } from './engine'
 import { applyMatchResults } from './results'
 import type { MatchOptions, MatchState } from './types'
+import { TACTIC_BONUS, consumeOnce, hasModifier } from '../modifiers'
 
 /** 自校のオーダー。保存したものが使えなければ、自動で組み直す */
 export function ownLineup(save: SaveData): LineupConfig {
@@ -23,6 +24,9 @@ export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial
   const opp = save.schools[opponentId]!
   const ctx: MatchContext = { players: save.players, rng }
   const ownLine = ownLineup(save)
+  // 座学などの効果：作戦が決まりやすい（「次の1試合だけ」のものは、ここで使い切る）
+  const tacticBonus = hasModifier(save, 'tactic') ? TACTIC_BONUS : 0
+  consumeOnce(save, 'tactic')
   const oppLine = autoLineup(activeMembers(save, opp), ownLine.useDH)
   // 練習試合は自校が後攻か先攻かをランダムに
   const ownHome = rng.chance(0.5)
@@ -32,7 +36,7 @@ export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial
     ctx,
     ownHome ? oppInput : ownInput,
     ownHome ? ownInput : oppInput,
-    defaultOptions({ luck: 'normal', userSchoolId: own.id, ...partial }),
+    defaultOptions({ luck: 'normal', userSchoolId: own.id, tacticBonus, ...partial }),
     newId(save, 'm'),
   )
 }
