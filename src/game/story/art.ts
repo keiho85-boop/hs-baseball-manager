@@ -100,7 +100,8 @@ const ART: Record<CharId, CharArt> = {
   },
   hasumi: {
     prefix: 'hasumi_nurse_bust_',
-    faces: { normal: 'normal', serious: 'normal', surprise: 'normal', troubled: 'normal', smile: 'smile', joy: 'smile', angry: 'normal', frustrated: 'normal', tease: 'tease' },
+    // 笑顔・からかい顔の絵ができたら { smile: 'smile', joy: 'smile', tease: 'tease' } を足す（今は通常の絵だけ）
+    faces: {},
     fallback: 'normal',
     color: '#c2477a',
     pending: { alt: null },
@@ -122,7 +123,7 @@ const ART: Record<CharId, CharArt> = {
 }
 
 /** 絵ができた人物（public/chara に置いたら、ここに足すと pending より優先される） */
-export const CHAR_READY = new Set<CharId>([])
+export const CHAR_READY = new Set<CharId>(['hasumi'])
 
 /** 実際に絵を出す人物（絵がなければ代わりの人物、代わりもなければ null） */
 function resolveChar(char: CharId): CharId | null {
