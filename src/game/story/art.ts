@@ -98,6 +98,20 @@ const ART: Record<CharId, CharArt> = {
     color: '#ff8a3d',
     pending: { alt: 'nagi' },
   },
+  hasumi: {
+    prefix: 'hasumi_nurse_bust_',
+    faces: { normal: 'normal', serious: 'normal', surprise: 'normal', troubled: 'normal', smile: 'smile', joy: 'smile', angry: 'normal', frustrated: 'normal', tease: 'tease' },
+    fallback: 'normal',
+    color: '#c2477a',
+    pending: { alt: null },
+  },
+  hasumi_beach: {
+    prefix: 'hasumi_beach_bust_',
+    faces: {},
+    fallback: 'smile',
+    color: '#c2477a',
+    pending: { alt: 'hasumi' },
+  },
   reika_beach: {
     prefix: 'reika_beach_bust_',
     faces: {},
@@ -173,6 +187,7 @@ export const BG_FALLBACK: Record<string, string> = {
   bg_clubroom_night: 'bg_clubroom_day',
   bg_national_stadium: 'bg_stadium_day',
   bg_stadium_road_night: 'bg_prostadium_night',
+  bg_infirmary_day: 'bg_classroom_day',
 }
 
 /** 実際に表示する背景の名前（絵がなければ代わりの絵） */

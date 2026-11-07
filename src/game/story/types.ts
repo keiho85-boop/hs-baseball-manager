@@ -22,9 +22,13 @@ export type CharId =
   /** 合宿の浜辺のナギ・レイカ（海水浴の場面） */
   | 'nagi_beach'
   | 'reika_beach'
+  /** 養護教諭・蓮見しずく（なぜか年を取らない。全章に出る） */
+  | 'hasumi'
+  /** 合宿の蓮見先生（水着にパーカー） */
+  | 'hasumi_beach'
 
 /** 台本の表情（人物ごとの絵の割り当てで、実際の絵に置き換える） */
-export type Face = 'normal' | 'smile' | 'serious' | 'surprise' | 'frustrated' | 'angry' | 'cry' | 'joy' | 'troubled'
+export type Face = 'normal' | 'smile' | 'serious' | 'surprise' | 'frustrated' | 'angry' | 'cry' | 'joy' | 'troubled' | 'tease'
 
 /** 台詞 */
 export interface SayStep {

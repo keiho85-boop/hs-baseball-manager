@@ -50,8 +50,11 @@ function story(save: SaveData): boolean {
 
 /** ストーリーありのときの話し手（顔を丸い枠に出す） */
 const NAGI = { kind: 'manager', name: 'ナギ', portrait: 'nagi' } as const
-/** 合宿の浜辺のナギ（水着の絵ができるまでは制服の絵） */
+/** 合宿の浜辺のナギ（浜辺の練習着の絵ができるまでは制服の絵） */
 const NAGI_BEACH = { kind: 'manager', name: 'ナギ', portrait: 'nagi_beach' } as const
+/** 養護教諭・蓮見しずく */
+const HASUMI = { kind: 'coach', name: '蓮見先生（養護教諭）', portrait: 'hasumi' } as const
+const HASUMI_BEACH = { kind: 'coach', name: '蓮見先生（養護教諭）', portrait: 'hasumi_beach' } as const
 const GENZO_LOCAL = { kind: 'local', name: '日向源造（商店会長）', portrait: 'genzo' } as const
 const GENZO_OB = { kind: 'ob', name: '日向源造（OB会長）', portrait: 'genzo' } as const
 
@@ -435,6 +438,38 @@ function teamMeetingEvent(rng: Rng, list: Player[]): EventInstance {
 
 // ---------------------------------------------------------------- 合宿（ストーリーあり）
 
+/** 合宿：蓮見先生の見回り（水着にパーカー姿で浜辺に来る）。体力の回復か、泳ぎで足腰を鍛えるか */
+function nurseBeachEvent(rng: Rng, list: Player[]): EventInstance {
+  const swimmers = rng.shuffle([...list]).slice(0, 4)
+  const swimOps: EffectOp[] = [{ op: 'condition', playerId: 'all', key: 'stamina', delta: -5 }]
+  for (const p of swimmers) {
+    swimOps.push({ op: 'ability', playerId: p.id, key: p.mainPosition === 'P' ? 'pitching.stamina' : 'running.speed', delta: 2 })
+  }
+  const names = swimmers.map((p) => p.surname).join('・')
+  return {
+    id: eid('nurse-beach'),
+    title: '合宿：浜辺の保健の先生',
+    speaker: { ...HASUMI_BEACH },
+    relatedPlayerIds: swimmers.map((p) => p.id),
+    lines: [
+      'はーい、野球部のみなさん。日焼け止めはちゃんと塗った？　熱中症になったら、先生の出番よ。',
+      '真壁先生も、その真っ白なお腹。明日は真っ赤になっても知らないわよ？',
+    ],
+    choices: [
+      {
+        label: 'みんなに水分補給と日陰の休憩を',
+        result: '蓮見先生の指示で、部員たちはしっかり体を休めた。（全員の体力が回復した）',
+        ops: [{ op: 'condition', playerId: 'all', key: 'stamina', delta: 15 }],
+      },
+      {
+        label: '遠泳で足腰を鍛えよう',
+        result: `${names}は、沖のブイまで何度も泳いだ。（走力や投手のスタミナが上がった）`,
+        ops: swimOps,
+      },
+    ],
+  }
+}
+
 /** 合宿の合間の海水浴：浜辺を走り回って足腰が鍛えられる（走力・投手のスタミナ・ケガのしにくさ）。ランダムで弾道も上がる */
 function beachEvent(rng: Rng, list: Player[]): EventInstance {
   const ops: EffectOp[] = [
@@ -513,6 +548,44 @@ function beachVolleyEvent(save: SaveData, rng: Rng, list: Player[]): EventInstan
   }
 }
 
+/** まれに：保健室の蓮見先生が、選手の体を整えてくれる。大きく伸びるが、ごくまれに力が入りすぎる */
+function nurseEvent(rng: Rng, list: Player[]): EventInstance {
+  const p = rng.pick(list)
+  const keys = rng.shuffle(mainKeys(p)).slice(0, 2)
+  const fail = rng.chance(0.12)
+  const ops: EffectOp[] = fail
+    ? [
+        { op: 'condition', playerId: p.id, key: 'stamina', delta: -25 },
+        { op: 'ability', playerId: p.id, key: keys[0]!, delta: -2 },
+      ]
+    : [
+        ...keys.map((key) => ({ op: 'ability' as const, playerId: p.id, key, delta: key === 'pitching.velocity' ? rng.int(2, 3) : rng.int(4, 6) })),
+        { op: 'condition', playerId: p.id, key: 'stamina', delta: 10 },
+      ]
+  const text = keys.map((k) => ABILITY_LABEL[k]).join('と')
+  return {
+    id: eid('nurse'),
+    title: '保健室の蓮見先生',
+    speaker: { ...HASUMI },
+    relatedPlayerIds: [p.id],
+    lines: [`${p.surname}くん、ちょっと保健室にいらっしゃい。体のゆがみ、前から気になってたの。`, '少し整えてあげる。…ちょっとだけ、痛いわよ？'],
+    choices: [
+      {
+        label: 'お願いします',
+        result: fail
+          ? `「あら…ちょっと力が入りすぎちゃったかしら」${p.surname}はしばらく動けなかった。（体力と${ABILITY_LABEL[keys[0]!]}が少し下がった）`
+          : `${p.surname}の体が、驚くほど軽くなった！（${text}が大きく伸びた）`,
+        ops,
+      },
+      {
+        label: 'また今度にします',
+        result: '「ふふ、いつでもどうぞ」蓮見先生は笑って見送った。',
+        ops: [],
+      },
+    ],
+  }
+}
+
 /** 止まったマスに応じてイベントを作る（イベントがなければ null） */
 export function buildEvent(save: SaveData, rng: Rng, square: SquareType): EventInstance | null {
   const list = players(save)
@@ -529,8 +602,12 @@ export function buildEvent(save: SaveData, rng: Rng, square: SquareType): EventI
       st.flags[key] = true
       return beachVolleyEvent(save, rng, list)
     }
-    if (rng.chance(0.5)) return beachEvent(rng, list)
+    const r = rng.next()
+    if (r < 0.4) return beachEvent(rng, list)
+    if (r < 0.6) return nurseBeachEvent(rng, list)
   }
+  // ストーリーあり：まれに保健室の蓮見先生
+  if (story(save) && rng.chance(0.06)) return nurseEvent(rng, list)
   const makers = [
     () => slumpEvent(rng, list),
     () => awakeningEvent(rng, list),

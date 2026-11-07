@@ -29,6 +29,8 @@ const NAMES: Record<CharId, string> = {
   mob_cap: '{主将}',
   nagi_beach: 'ナギ',
   reika_beach: 'レイカ',
+  hasumi: '蓮見',
+  hasumi_beach: '蓮見',
 }
 
 function say(char: CharId, face: Face, text: string): SayStep {
@@ -72,6 +74,8 @@ const cap = (text: string): SayStep => voice('{主将}', text)
 /** 1年目の3年生の主将（帽子を深くかぶったモブ。立ち絵あり） */
 const cap1 = (text: string, face: Face = 'normal'): SayStep => say('mob_cap', face, text)
 const grandpa = (text: string): SayStep => say('grandpa', 'smile', text)
+/** 養護教諭・蓮見しずく（なぜか年を取らない。全章に出る） */
+const hasumi = (face: Face, text: string): SayStep => say('hasumi', face, text)
 
 /** 場面のあとに、操作のチュートリアルを始める */
 function startGuide(c: StoryContext, id: 'practice' | 'funds' | 'order' | 'scout'): void {
@@ -341,6 +345,29 @@ export const CHAPTER1: Scene[] = [
             nagi('smile', '日向くんの顔に、全部書いてありましたから'),
             daichiSay('frustrated', '…それ、褒めてないよな'),
           ],
+  },
+  {
+    id: 'c1_hokenshitsu',
+    title: '保健室の先生',
+    chapter: 1,
+    when: (c) => Y(c) === 1 && W(c) >= 3,
+    steps: () => [
+      bg('bg_infirmary_day'),
+      n('練習中に膝をすりむいた部員に付き添って、ナギは保健室を訪れた'),
+      hasumi('smile', 'あら、野球部のマネージャーさん。いらっしゃい。…はい、消毒するわね。しみても泣かないの'),
+      voice('部員', 'いってえ…'),
+      hasumi('normal', '養護教諭の蓮見です。ケガをしたら、遠慮なくここへ連れてきてね。夏の合宿にも、ついていくことになってるから'),
+      makabe('surprise', 'あ、朝比奈さん、ここにいたんだ。…あ、蓮見先生'),
+      hasumi('tease', '真壁先生、今日も寝ぐせがはねてるわよ？　監督さんがそれじゃ、締まらないわね'),
+      makabe('troubled', 'え、えっ！？'),
+      think('…新任の真壁を、からかって遊んでいるな'),
+      hasumi('normal', 'ねえ、朝比奈さん'),
+      hasumi('smile', 'あなた、ときどき、ずいぶん年上の人みたいな目をするのね'),
+      think('…！', 'surprise'),
+      nagi('surprise', 'そ、そうですか？　祖父の影響かもしれません…'),
+      hasumi('smile', 'ふふ。わたしもね、よく言われるの。…「年のわりに」って'),
+      think('この先生、いくつなんだ…？　職員室でも、誰も知らないらしいが', 'serious'),
+    ],
   },
   {
     id: 'c1_karinyubu',

@@ -161,6 +161,7 @@ describe('ストーリー 第1章', () => {
       }
       all.push(...playAll(save))
       expect(all).toContain('c1_karinyubu')
+      expect(all).toContain('c1_hokenshitsu')
       expect(all).toContain('c1_renshujiai_after')
       expect(all).toContain('c1_shin_team')
       expect(all).toContain('c1_zettai_ouja')

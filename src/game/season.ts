@@ -83,7 +83,9 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
     if (school.id === own.id) {
       // 自校：すごろくのマスとカードで練習の効果・疲れ・ケガが決まる
       applyOwnWeek(save, rng, plan, members, intensity, messages)
-      for (const p of members) weeklyCondition(rng, p, messages, school.facilities.medical)
+      // ストーリーあり：養護教諭の蓮見先生がいるので、ケガが少し早く治る（合宿に同伴しているときは、さらに早い）
+      const nurse = save.story?.enabled ? ((save.sugoroku?.campWeeks ?? 0) > 0 ? 5 : 1) : 0
+      for (const p of members) weeklyCondition(rng, p, messages, school.facilities.medical + nurse)
     } else {
       for (const p of members) {
         weeklyCondition(rng, p, null, school.facilities.medical)
