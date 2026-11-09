@@ -47,10 +47,16 @@ describe('季節の行事', () => {
     for (const story of [true, false]) {
       const save = newGame(7, story)
       const titles = run(save, 52 * 3, new Rng([1, 2, 3, 4]))
-      for (const t of ['新入部員の勧誘', '体育祭', '文化祭', 'クリスマス', '初詣', 'OB戦', 'バレンタイン', '引退の日', '合宿：夕食はカレー']) {
+      // ストーリーあり（サクセス）は、勧誘は自分で行い、初詣はおみくじになる
+      const list = story ? ['体育祭', '文化祭', 'クリスマス', 'OB戦', 'バレンタイン'] : ['新入部員の勧誘', '体育祭', '文化祭', 'クリスマス', '初詣', 'OB戦', 'バレンタイン', '引退の日', '合宿：夕食はカレー']
+      for (const t of list) {
         expect(titles, `${story ? 'ストーリーあり' : 'なし'}：${t}`).toContain(t)
       }
-      expect(titles).toContain('卒業式')
+      if (story) {
+        expect(titles.some((t) => t.startsWith('初詣のおみくじ'))).toBe(true)
+        expect(titles).not.toContain('新入部員の勧誘')
+      }
+      if (!story) expect(titles).toContain('卒業式')
       // 同じ行事は年に1回まで
       const per = titles.filter((t) => t === '初詣').length
       expect(per).toBeLessThanOrEqual(3)

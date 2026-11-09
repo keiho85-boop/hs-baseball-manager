@@ -103,7 +103,7 @@ export function canConfess(save: SaveData): boolean {
 export function focusGrowthMult(save: SaveData, p: Player): number {
   const s = successOf(save)
   if (!s || s.focusId !== p.id) return 1
-  return p.mainPosition === 'P' ? 1.85 : 1.65
+  return p.mainPosition === 'P' ? 1.45 : 1.35
 }
 
 /** 試合が終わったとき：勝敗とフォーカス選手の活躍で評価を動かす。戻り値は知らせ */

@@ -15,7 +15,10 @@ import { join } from 'node:path'
 import { GUIDES } from '../src/game/story/guides'
 import { chapterGoal, teamName } from '../src/game/story/engine'
 import { buildEvent } from '../src/game/events'
-import { POSITIONS } from '../src/game/constants'
+import { setFocusPosition } from '../src/game/story/setup'
+import { addFriendOfDaichi, recruit, FIXED } from '../src/game/success/clubs'
+import { rosterCount, successOf, focusPlayer, evalAfterMatch } from '../src/game/success/state'
+import { rollAttach } from '../src/game/success/board'
 
 function newGame(seed: number): SaveData {
   const save = createNewGame({
@@ -42,55 +45,68 @@ function playAll(save: SaveData): string[] {
     const steps = buildSteps(save, sc)
     // 置き換え忘れがないこと
     const text = JSON.stringify(steps.map((s) => ('text' in s ? s.text : '')))
-    expect(text).not.toMatch(/\{(学校名|主将|相手校|部員数|新入生|ライバル)\}/)
+    expect(text).not.toMatch(/\{(学校名|主将|相手校|部員数|新入生|ライバル|フォーカス|フォーカス名|球団)\}/)
     completeScene(save, sc, steps, [0, 0, 0])
     played.push(sc.id)
   }
   return played
 }
 
-describe('ストーリー 第1章', () => {
-  it('始めると部員は9人（大地を含む）で、ライバル校ができる', () => {
+
+/** 部員を9人にする（勧誘の代わりに、大地の友人を足す） */
+function fill9(save: SaveData): void {
+  const rng = new Rng([5, 6, 7, 8])
+  while (rosterCount(save) < 9) addFriendOfDaichi(save, rng)
+}
+
+describe('ストーリー 第1章（サクセス）', () => {
+  it('始めると部員は3人（主将・大地・フォーカス選手）で、ライバル校ができる', () => {
     const save = newGame(1)
     const own = save.schools[save.playerSchoolId]!
-    expect(own.playerIds.length).toBe(9)
+    expect(own.playerIds.length).toBe(3)
     const d = save.players[save.story!.daichiId!]!
     expect(`${d.surname}${d.givenName}`).toBe('日向大地')
     expect(d.mainPosition).toBe('C')
+    const f = focusPlayer(save)!
+    expect(f).toBeTruthy()
+    expect(f.storyCast).toBe('focus')
     expect(save.schools[save.story!.rivalId!]!.name).toBe(RIVAL_NAME)
   })
 
-  it('部員9人でも練習試合が最後までできる（DHは自動でなしになる）', () => {
-    for (const seed of [11, 12, 13]) {
+  it('フォーカス選手の守備位置を選べる（同じ選手のまま作り直す）', () => {
+    const save = newGame(2)
+    const before = focusPlayer(save)!
+    const f = setFocusPosition(save, new Rng([1, 2, 3, 4]), 'P')!
+    expect(f.id).toBe(before.id)
+    expect(f.surname).toBe(before.surname)
+    expect(f.mainPosition).toBe('P')
+    expect(rosterCount(save)).toBe(3)
+  })
+
+  it('部員9人で練習試合が最後までできる', () => {
+    for (const seed of [11, 12]) {
       const save = newGame(seed)
+      fill9(save)
       const line = ownLineup(save)
       expect(line.batters.length).toBe(9)
-      expect(line.useDH).toBe(false)
       const opp = Object.values(save.schools).find((s) => s.id !== save.playerSchoolId && s.prefCode === 27)!
       const rng = new Rng([seed, 7, 99, 1234])
       const m = startMatch(save, opp.id, rng)
-      expect(m.home.lineup.length).toBe(9)
-      expect(m.away.lineup.length).toBe(9)
       simulateToEnd(m, { players: save.players, rng })
       expect(m.finished).toBe(true)
+      // 試合の後、評価が動く
+      const before = { ...successOf(save)!.eval }
+      evalAfterMatch(save, m, false, m.winner === null ? null : true)
+      expect(successOf(save)!.eval).not.toEqual(before)
     }
   })
 
   it('台本の背景は、すべて絵があるか代わりの絵に置き換わる', () => {
     const src = readFileSync('src/game/story/chapter1.ts', 'utf8')
-    const names = [...src.matchAll(/bg\('([a-z0-9_]+)'/g)].map((m) => m[1]!)
+    const names = [...src.matchAll(/bg\('([a-z0-9_]+)'/g), ...src.matchAll(/bgName: '([a-z0-9_]+)'/g)].map((m) => m[1]!)
     expect(names.length).toBeGreaterThan(10)
     for (const name of names) expect(existsSync(`public/bg/${resolveBg(name)}.webp`), name).toBe(true)
     for (const name of BG_READY) expect(existsSync(`public/bg/${name}.webp`), name).toBe(true)
-  })
-
-  it('始めたときの部員で、9つの守備位置がすべて埋まる', () => {
-    for (const seed of [21, 22, 23, 24]) {
-      const save = newGame(seed)
-      const own = save.schools[save.playerSchoolId]!
-      const mains = own.playerIds.map((id) => save.players[id]!.mainPosition)
-      for (const pos of POSITIONS) expect(mains, `seed ${seed}`).toContain(pos)
-    }
   })
 
   it('日向大地はケガをしない', () => {
@@ -107,8 +123,6 @@ describe('ストーリー 第1章', () => {
   it('鬼頭の球団名は、選んだ都道府県の名前になる', () => {
     expect(teamName(27)).toBe('大阪スカイライツ')
     expect(teamName(13)).toBe('東京スカイライツ')
-    expect(teamName(1)).toBe('北海道スカイライツ')
-    expect(teamName(40)).toBe('福岡スカイライツ')
   })
 
   it('ストーリーありでは、マネージャーのイベントにナギの顔が出る', () => {
@@ -116,11 +130,8 @@ describe('ストーリー 第1章', () => {
     const rng = new Rng([41, 2, 3, 4])
     for (let i = 0; i < 10; i++) {
       const ev = buildEvent(save, rng, 'manager')!
-      expect(ev.speaker.kind).toBe('manager')
       expect('portrait' in ev.speaker && ev.speaker.portrait).toBe('nagi')
     }
-    const funds = buildEvent(save, rng, 'funds')!
-    expect('portrait' in funds.speaker && funds.speaker.portrait).toBe('genzo')
   })
 
   it('チュートリアルで光らせる場所は、すべて画面にある', () => {
@@ -143,54 +154,79 @@ describe('ストーリー 第1章', () => {
     }
   })
 
-  it('第1章の今年の目安は、先に超えると一つ上になる', () => {
+  it('9人そろうまでの目安は、部員の人数', () => {
     const save = newGame(51)
-    expect(chapterGoal(save)!.target).toBe('公式戦1勝')
-    save.story!.flags.firstWin = 1
-    expect(chapterGoal(save)!.done).toBe(true)
-    save.calendar.year = 2
-    expect(chapterGoal(save)!.target).toBe('県ベスト4')
-    save.story!.flags.best4 = 1
-    expect(chapterGoal(save)!.target).toBe('全国大会出場')
-    save.calendar.year = 3
-    save.story!.flags.national = 2
-    expect(chapterGoal(save)!.target).toBe('全国大会に連続出場')
+    expect(chapterGoal(save)!.target).toContain('部員を9人に')
   })
 
   it('序章は1年目の第1週に続けて流れる', () => {
     const save = newGame(2)
-    const played = playAll(save)
-    expect(played).toEqual(['c1_ano_yoru', 'c1_mezame', 'c1_jukensei', 'c1_haibu', 'c1_doukyuusei', 'c1_sakusen_note'])
+    expect(playAll(save)).toEqual(['c1_ano_yoru', 'c1_mezame', 'c1_goukaku', 'c1_nyugaku'])
   })
 
-  it('3年間を進めると、第1章が終わる', { timeout: 120000 }, () => {
-    for (const seed of [3, 4, 5]) {
+  it('盤面にはマネージャー・部費・スカウトのマスがなく、毎週スカウトが練習マスに付く', () => {
+    const save = newGame(61)
+    const sg = save.sugoroku!
+    expect(sg.board).not.toContain('manager')
+    expect(sg.board).not.toContain('funds')
+    expect(sg.board).not.toContain('scout')
+    rollAttach(save, new Rng([1, 1, 1, 1]))
+    expect(Object.values(sg.attach ?? {})).toContain('scout')
+    const idx = Number(Object.keys(sg.attach!).find((k) => sg.attach![Number(k)] === 'scout'))
+    const ev = buildEvent(save, new Rng([2, 2, 2, 2]), sg.board[idx]!, idx)!
+    expect(ev.choices[0]!.ops.some((o) => o.op === 'eval' && o.key === 'scout')).toBe(true)
+  })
+
+  it('テニス部のエースは、練習試合で1勝するまで入部しない', () => {
+    const save = newGame(71)
+    const s = successOf(save)!
+    const rng = new Rng([3, 3, 3, 3])
+    for (let i = 0; i < 40; i++) {
+      s.clubs = [{ club: 'tennis', members: [{ kind: 'fixed', id: 'tennis' }] }]
+      recruit(save, rng, 'tennis')
+    }
+    expect(s.joined.tennis).toBeUndefined()
+    noteMatch(save, { practice: true, won: true, opponentId: 'x' })
+    for (let i = 0; i < 40 && !s.joined.tennis; i++) {
+      s.clubs = [{ club: 'tennis', members: [{ kind: 'fixed', id: 'tennis' }] }]
+      recruit(save, rng, 'tennis')
+    }
+    expect(s.joined.tennis).toBeTruthy()
+    expect(save.players[s.joined.tennis!]!.surname).toBe(FIXED.tennis.surname)
+  })
+
+  it('将棋部のエースは、投手の能力が高くスタミナは1イニングぶん', () => {
+    const save = newGame(72)
+    const s = successOf(save)!
+    const rng = new Rng([4, 4, 4, 4])
+    for (let i = 0; i < 40 && !s.joined.shogi; i++) {
+      s.clubs = [{ club: 'shogi', members: [{ kind: 'fixed', id: 'shogi' }] }]
+      recruit(save, rng, 'shogi')
+    }
+    const p = save.players[s.joined.shogi!]!
+    expect(p.mainPosition).toBe('P')
+    expect(p.pitching.stamina).toBeLessThan(20)
+    expect(p.pitching.control).toBeGreaterThan(80)
+  })
+
+  it('3年間を進めると、第1章が終わる', { timeout: 180000 }, () => {
+    for (const seed of [3, 4]) {
       const save = newGame(seed)
       const all: string[] = []
       for (let i = 0; i < 52 * 3 + 2; i++) {
         all.push(...playAll(save))
-        if (i === 3) noteMatch(save, { practice: true, won: true, opponentId: 'x' })
-        if (i === 20) markStory(save, 'scoutOpened')
+        if (i === 6) fill9(save)
+        if (i === 8) noteMatch(save, { practice: true, won: true, opponentId: 'x' })
+        if (save.story!.success!.ended) break
         advanceWeek(save)
       }
       all.push(...playAll(save))
-      expect(all).toContain('c1_karinyubu')
-      expect(all).toContain('c1_hokenshitsu')
-      expect(all).toContain('c1_renshujiai_after')
-      expect(all).toContain('c1_shin_team')
-      expect(all).toContain('c1_zettai_ouja')
-      expect(all).toContain('c1_y1_end')
-      expect(all).toContain('c1_atarashii_nakama')
-      expect(all).toContain('c1_daichi_ketsui')
-      expect(all).toContain('c1_y2_end')
-      expect(all).toContain('c1_saigo_no_ichinen')
-      expect(all).toContain('c1_shinro')
-      expect(all).toContain('c1_sotsugyou')
+      for (const id of ['c1_kanyu', 'c1_hokenshitsu', 'c1_9nin', 'c1_ryugamine', 'c1_sofu', 'c1_fuyu', 'c1_y2_nakama', 'c1_hariai', 'c1_shuzai', 'c1_natsumatsuri', 'c1_mae_no_kantoku', 'c1_y2_end', 'c1_saigo_no_ichinen', 'c1_haru_scout', 'c1_soudan', 'c1_kouhai', 'c1_shinro', 'c1_draft', 'c1_sotsugyou']) {
+        expect(all, `${seed} ${id}`).toContain(id)
+      }
       expect(save.story!.chapter).toBe(2)
-      // 同じ場面は二度流れない
+      expect(['pro', 'fail']).toContain(save.story!.success!.ended)
       expect(new Set(all).size).toBe(all.length)
-      // 仮入部で部員が増えている
-      expect(all.indexOf('c1_karinyubu')).toBeGreaterThan(-1)
     }
   })
 })

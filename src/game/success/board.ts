@@ -76,7 +76,7 @@ export function attachEvent(save: SaveData, rng: Rng, person: Person): EventInst
   const s = successOf(save)!
   const name = f.surname
   if (person === 'scout') {
-    const gain = s.scoutFocus ? 6 : 3
+    const gain = s.scoutFocus ? 4 : 2
     const good = rng.chance(0.7)
     return {
       id: eid('scout'),
@@ -93,7 +93,7 @@ export function attachEvent(save: SaveData, rng: Rng, person: Person): EventInst
         {
           label: '一番いいところを見せる（張り切る）',
           result: good ? `${name}の全力のプレーに、男のペンが止まった。（スカウトの評価が大きく上がった。体力が減った）` : `力みすぎて、空回りしてしまった…。（体力が減った）`,
-          ops: good ? [ev('scout', gain + 3), { op: 'condition', playerId: f.id, key: 'stamina', delta: -15 }] : [{ op: 'condition', playerId: f.id, key: 'stamina', delta: -15 }],
+          ops: good ? [ev('scout', gain + 2), { op: 'condition', playerId: f.id, key: 'stamina', delta: -15 }] : [{ op: 'condition', playerId: f.id, key: 'stamina', delta: -15 }],
         },
       ],
     }
@@ -110,7 +110,7 @@ export function attachEvent(save: SaveData, rng: Rng, person: Person): EventInst
         {
           label: 'じっくり教えてもらう',
           result: `${name}はナギの指摘を、すぐに練習で試した。（${keys.map((k) => ABILITY_LABEL[k]).join('と')}が上がった。ナギの評価が上がった）`,
-          ops: [...grow(f, keys, 2), ev('nagi', 3)],
+          ops: [...grow(f, keys, 1), ev('nagi', 2)],
         },
         {
           label: 'チームのみんなにも共有してもらう',
@@ -124,7 +124,7 @@ export function attachEvent(save: SaveData, rng: Rng, person: Person): EventInst
     const pitcher = f.mainPosition === 'P'
     const keys = pitcher ? ['pitching.control', 'pitching.kire'] : ['batting.contact', 'batting.eye']
     const skill = rng.chance(0.06) ? learnable(rng, f) : null
-    const ops = [...grow(f, keys, pitcher ? 3 : 2), ev('daichi', 3)]
+    const ops = [...grow(f, keys, pitcher ? 2 : 1), ev('daichi', 2)]
     if (skill) ops.push({ op: 'skill', playerId: f.id, add: skill })
     return {
       id: eid('daichi'),
