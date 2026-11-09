@@ -119,6 +119,34 @@ const ART: Record<CharId, CharArt> = {
     color: '#9b3d5a',
     pending: { alt: 'reika' },
   },
+  hasumi_yukata: {
+    prefix: 'hasumi_yukata_bust_',
+    faces: {},
+    fallback: 'smile',
+    color: '#c2477a',
+    pending: { alt: 'hasumi' },
+  },
+  // 他の部活のエース格（絵ができるまでは名前だけ出す）
+  iwaki: fixedArt('iwaki_hs_track_bust_', '#8d5a2b'),
+  shiomi: fixedArt('shiomi_hs_sumo_bust_', '#6d4c41'),
+  amou: fixedArt('amou_hs_soccer_bust_', '#1e88e5'),
+  kuon: fixedArt('kuon_hs_tennis_bust_', '#00897b'),
+  kobayakawa: fixedArt('kobayakawa_hs_tabletennis_bust_', '#e65100'),
+  senju: fixedArt('senju_hs_shogi_bust_', '#5e35b1'),
+  shinonome: fixedArt('shinonome_hs_council_bust_', '#37474f'),
+  miki: fixedArt('miki_hs_newspaper_bust_', '#795548'),
+  pro_scout: fixedArt('pro_scout_40s_bust_', '#455a64'),
+}
+
+/** 固定キャラの絵の割り当て（通常・笑顔・真剣・驚き） */
+function fixedArt(prefix: string, color: string): CharArt {
+  return {
+    prefix,
+    faces: { smile: 'smile', joy: 'smile', serious: 'serious', angry: 'serious', frustrated: 'serious', surprise: 'surprise', troubled: 'surprise' },
+    fallback: 'normal',
+    color,
+    pending: { alt: null },
+  }
 }
 
 /** 絵ができた人物（public/chara に置いたら、ここに足すと pending より優先される） */
@@ -188,6 +216,19 @@ export const BG_FALLBACK: Record<string, string> = {
   bg_national_stadium: 'bg_stadium_day',
   bg_stadium_road_night: 'bg_prostadium_night',
   bg_infirmary_day: 'bg_classroom_day',
+  // 第1章（サクセス版）で増えた背景
+  bg_track_field: 'bg_ground_day',
+  bg_sumo_room: 'bg_clubroom_day',
+  bg_soccer_field: 'bg_ground_day',
+  bg_tennis_court: 'bg_ground_day',
+  bg_gym_table_tennis: 'bg_classroom_day',
+  bg_shogi_room: 'bg_classroom_day',
+  bg_student_council: 'bg_classroom_day',
+  bg_newspaper_room: 'bg_classroom_day',
+  bg_summer_festival_night: 'bg_street_sunset',
+  bg_street_winter_night: 'bg_street_sunset',
+  bg_stadium_stands: 'bg_stadium_day',
+  bg_clubroom_tv: 'bg_clubroom_day',
 }
 
 /** 実際に表示する背景の名前（絵がなければ代わりの絵） */

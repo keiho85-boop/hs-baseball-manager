@@ -15,6 +15,7 @@ import { getSkill } from './skills'
 import { fullName, generatePlayer, playerRating } from './player'
 import { newId } from './world'
 import type { Player, SaveData, School } from './types'
+import { focusDraftChance, successOf } from './success/state'
 
 export interface Prospect {
   id: string
@@ -329,7 +330,17 @@ export function runDraft(save: SaveData, rng: Rng): string[] {
   const candidates = own.playerIds
     .map((id) => save.players[id])
     .filter((p): p is Player => !!p && p.grade === 3 && !p.helper)
+  const success = successOf(save)
   for (const p of candidates) {
+    // サクセス：育てた選手は、スカウトの評価で指名が決まる
+    if (success && p.id === success.focusId) {
+      if (!rng.chance(focusDraftChance(save, p))) continue
+      const round = clamp(Math.round(7 - (success.eval.scout - 40) / 9 + rng.normal(0, 0.8)), 1, 7)
+      const team = rng.pick(proTeams(save))
+      p.drafted = { team, round }
+      messages.push(`ドラフト会議で、${fullName(p)}が${team}から${round}位指名を受けた！`)
+      continue
+    }
     const rating = playerRating(p) + stage
     const chance = clamp((rating - 60) / 22, 0, 0.92)
     if (!rng.chance(chance)) continue

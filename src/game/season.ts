@@ -11,6 +11,9 @@ import { DRAFT_WEEK, SCOUT_DECISION_WEEK, SCOUT_MONTHLY, addScoutPoints, decideP
 import { currentTournament, ensureTournament, findTournament, kindAtWeek, monthlyFunds, ownAlive, progress } from './tournament'
 import { hasModifier, pruneModifiers } from './modifiers'
 import { queueWeeklyEvents } from './calendarEvents'
+import { rosterCount, successFreshmen, successOf } from './success/state'
+import { autoJoin, rollClubs } from './success/clubs'
+import { rollAttach } from './success/board'
 
 export interface WeekResult {
   /** この週に起きた主な出来事（画面に出す） */
@@ -44,6 +47,15 @@ function members(save: SaveData, school: School): Player[] {
 function seasonalEvents(save: SaveData, rng: Rng, list: Player[], messages: string[]): void {
   const week = save.calendar.week
   const national = findTournament(save, save.calendar.year, 'summerNational')
+  // サクセス：合宿は県大会と全国大会の間の2週間（1年目でも人数がそろっていれば行う。全国に出ていても行う）
+  if (successOf(save)) {
+    if (week === 18 && save.sugoroku && rosterCount(save) >= MIN_ROSTER) {
+      save.sugoroku.campWeeks = 2
+      log(save, '夏合宿が始まった！（2週間、練習の効果と疲れが大きくなる）', messages)
+    }
+    void list
+    return
+  }
   if (week === 19 && save.sugoroku && national && ownAlive(save, national)) {
     log(save, '全国大会に出場中のため、今年の夏合宿は行わない。', messages)
   } else if (week === 19 && save.sugoroku) {
@@ -122,8 +134,12 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
     }
   }
 
-  // 5. 部員不足の確認（助っ人）
-  ensureMinimumRoster(save, rng, own, messages)
+  // 5. 部員不足の確認（助っ人）。サクセスでは助っ人は来ない（勧誘で集める）。評判が高いと自分から入部してくる
+  const success = successOf(save)
+  if (success) {
+    if (plan?.kind !== 'recruit') success.recruitStreak = 0
+    autoJoin(save, rng, messages)
+  } else ensureMinimumRoster(save, rng, own, messages)
   // 6. 月が変わったら部費の収入
   if (weekToDate(save.calendar.week).month !== monthBefore) {
     const income = monthlyFunds(save)
@@ -144,6 +160,11 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   // 10. 期限の切れた補正を片付け、今週の行事やレアイベントを積む（すごろくで遊ぶときだけ）
   pruneModifiers(save)
   if (save.sugoroku) queueWeeklyEvents(save, rng)
+  // 11. サクセス：今週、各部活にいる人と、練習マスに付く人物を決める
+  if (success) {
+    rollClubs(save, rng)
+    rollAttach(save, rng)
+  }
 
   save.rngState = rng.getState()
   save.updatedAt = new Date().toISOString()
@@ -271,10 +292,11 @@ function startNewYear(save: SaveData, rng: Rng, messages: string[]): void {
     const strength = schoolStrength(school)
     // 自校：スカウトで入学を決めた中学生が入部する（そのぶん一般の入部は少なめ）
     const recruits = school.id === own.id ? enrollProspects(save, school, year) : []
-    const count = Math.max(2, freshmanCount(rng, school) - recruits.length)
+    // サクセスの自校：新入部員の数は評判で決まる
+    const count = school.id === own.id && successOf(save) ? successFreshmen(rng, school.reputation) : Math.max(2, freshmanCount(rng, school) - recruits.length)
     // 助っ人は、部員が足りていれば元の部に戻る
     const regulars = schoolMembers(save, school).filter((p) => !p.helper && !p.retired)
-    if (regulars.length + count >= MIN_ROSTER) {
+    if (regulars.length + count >= MIN_ROSTER || (school.id === own.id && successOf(save))) {
       const helpers = new Set(schoolMembers(save, school).filter((p) => p.helper).map((p) => p.id))
       for (const id of helpers) delete save.players[id]
       school.playerIds = school.playerIds.filter((id) => !helpers.has(id))

@@ -7,6 +7,9 @@ import { defaultPracticeMenu, fullName } from './player'
 import { computeOverall, generateGrade, schoolStrength } from './world'
 import { SKILLS, conflicts } from './skills'
 import type { EffectOp, EventInstance, Player, Position, SaveData, SquareType } from './types'
+import { addEval, successOf } from './success/state'
+import type { EvalKey } from './success/types'
+import { attachEvent, attachedAt, successRandomEvent, withFocusEval } from './success/board'
 
 export const ABILITY_LABEL: Record<string, string> = {
   'batting.contact': 'ミート',
@@ -626,10 +629,21 @@ function nurseEvent(rng: Rng, list: Player[]): EventInstance {
   }
 }
 
-/** 止まったマスに応じてイベントを作る（イベントがなければ null） */
-export function buildEvent(save: SaveData, rng: Rng, square: SquareType): EventInstance | null {
+/** 止まったマスに応じてイベントを作る（イベントがなければ null）。position は止まったマスの番号（サクセスの人物イベントに使う） */
+export function buildEvent(save: SaveData, rng: Rng, square: SquareType, position?: number): EventInstance | null {
   const list = players(save)
   if (list.length === 0) return null
+  // サクセス：練習マスに人物が付いていれば、その人物のイベント
+  if (successOf(save)) {
+    const person = position !== undefined ? attachedAt(save, position) : null
+    if (person) return attachEvent(save, rng, person)
+    if (square === 'event' && !((save.sugoroku?.campWeeks ?? 0) > 0) && rng.chance(0.45)) return successRandomEvent(save, rng)
+    if (square === 'event') return withFocusEval(save, buildEventBase(save, rng, square, list))
+  }
+  return buildEventBase(save, rng, square, list)
+}
+
+function buildEventBase(save: SaveData, rng: Rng, square: SquareType, list: Player[]): EventInstance | null {
   if (square === 'manager') return managerEvent(save, rng)
   if (square === 'funds') return fundsEvent(save, rng)
   if (square === 'school') return schoolEvent(save, rng)
@@ -708,7 +722,7 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
       if (save.sugoroku) save.sugoroku.campWeeks = op.weeks
     } else if (op.op === 'injury') {
       const p = save.players[op.playerId]
-      if (!p || p.storyCast) continue
+      if (!p || p.storyCast === 'daichi') continue
       p.condition.injury = { name: op.name, weeksLeft: op.weeks }
     } else if (op.op === 'recruit') {
       const rng = new Rng(save.rngState)
@@ -725,6 +739,8 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
       ;(save.modifiers ??= []).push({ ...op.modifier })
     } else if (op.op === 'flag') {
       ;(save.flags ??= {})[op.key] = op.value
+    } else if (op.op === 'eval') {
+      addEval(save, op.key as EvalKey, op.delta)
     }
   }
 }

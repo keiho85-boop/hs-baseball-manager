@@ -1,7 +1,9 @@
 // すごろく形式の練習：盤面・手札・マスの効果
 
 import { Rng, clamp } from './rng'
-import { PRACTICE_BONUS, hasModifier } from './modifiers'
+import { PRACTICE_BONUS, activeModifiers } from './modifiers'
+import { focusGrowthMult, successOf } from './success/state'
+import { successBoard } from './success/board'
 import { POSITION_NAME, weekToDate } from './constants'
 import { fullName, growWeekly } from './player'
 import { SKILLS, conflicts } from './skills'
@@ -80,12 +82,18 @@ export function buildBoard(rng: Rng, month: number): SquareType[] {
   return rng.shuffle(squares)
 }
 
+/** その遊び方の盤面（サクセスでは、マネージャー・部費・スカウトは練習マスに付く人物になる） */
+function boardFor(save: SaveData, rng: Rng, month: number): SquareType[] {
+  const b = buildBoard(rng, month)
+  return successOf(save) ? successBoard(b) : b
+}
+
 export function ensureSugoroku(save: SaveData): SugorokuState {
   const month = weekToDate(save.calendar.week).month
   if (!save.sugoroku) {
     const rng = new Rng(save.rngState)
     save.sugoroku = {
-      board: buildBoard(rng, month),
+      board: boardFor(save, rng, month),
       position: 0,
       hand: Array.from({ length: HAND_SIZE }, () => drawCard(rng)),
       boardMonth: month,
@@ -102,7 +110,7 @@ export function refreshBoard(save: SaveData, rng: Rng): boolean {
   const s = ensureSugoroku(save)
   const month = weekToDate(save.calendar.week).month
   if (s.boardMonth === month) return false
-  s.board = buildBoard(rng, month)
+  s.board = boardFor(save, rng, month)
   s.boardMonth = month
   s.position = 0
   return true
@@ -140,7 +148,7 @@ function practiceLoad(rng: Rng, save: SaveData, p: Player, cost: number, injuryM
   const c = p.condition
   c.stamina = clamp(Math.round(c.stamina - cost), 0, 100)
   // ストーリーの主要人物（日向大地）はケガをしない
-  if (cost <= 0 || c.injury || p.storyCast) return
+  if (cost <= 0 || c.injury || p.storyCast === 'daichi') return
   const tired = c.stamina < 20 ? 0.07 : c.stamina < 40 ? 0.022 : 0.002
   const risk = tired * injuryMult * INJURY_FACTOR[save.settings.injury] * (1.5 - p.common.durability / 100)
   if (rng.chance(clamp(risk, 0, 0.4))) {
@@ -217,8 +225,9 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
   for (const p of members) convertPractice(rng, p, plan, fieldingFacility, messages)
   const camp = (save.sugoroku?.campWeeks ?? 0) > 0
   const own = save.schools[save.playerSchoolId]
-  // OB戦の悔しさなど：練習の効果が上がる期間
-  const campMult = (camp ? 1.35 : 1) * (hasModifier(save, 'practice') ? 1 + PRACTICE_BONUS : 1)
+  // OB戦の悔しさ・大地への相談など：練習の効果が上がる期間（重なると足し合わせる）
+  const campMult = (camp ? 1.35 : 1) * (1 + PRACTICE_BONUS * activeModifiers(save, 'practice').length)
+  const success = !!successOf(save)
   for (const p of members) {
     if (p.retired) continue
     if (!plan) {
@@ -233,7 +242,13 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     }
     if (plan.kind === 'tournament') {
       // 大会の週は調整が中心で、伸びは控えめ
-      growWeekly(rng, p, facilityIntensity * 0.4)
+      growWeekly(rng, p, facilityIntensity * 0.4 * focusGrowthMult(save, p))
+      continue
+    }
+    if (plan.kind === 'recruit') {
+      // 勧誘に行った週：残った部員で軽く練習
+      growWeekly(rng, p, facilityIntensity * 0.45)
+      practiceLoad(rng, save, p, 5, 0.4, messages)
       continue
     }
     const sq = plan.square
@@ -280,7 +295,8 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     }
     // やる気と調子が高いほど伸びる
     const spirit = 0.85 + p.condition.motivation / 333 + (p.condition.form - 3) * 0.05
-    growWeekly(rng, p, intensity * campMult * facilityIntensity * spirit)
+    // サクセス：育てる選手（フォーカス選手）は大きく伸びる
+    growWeekly(rng, p, intensity * campMult * facilityIntensity * spirit * (success ? focusGrowthMult(save, p) : 1))
     // 医務室が整っているほど、ケガをしにくい
     const medical = own ? 1.15 - own.facilities.medical * 0.07 : 1
     practiceLoad(rng, save, p, cost * (cost > 0 ? campMult : 1), injuryMult * (camp ? 1.2 : 1) * medical, messages)

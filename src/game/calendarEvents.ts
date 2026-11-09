@@ -11,6 +11,7 @@ import { ABILITY_LABEL, eid, learnable, mainKeys, players, skillName, story } fr
 import { SKILLS } from './skills'
 import { absWeek } from './modifiers'
 import type { EffectOp, EventInstance, Player, SaveData, Speaker } from './types'
+import { focusPlayer, successOf } from './success/state'
 
 // ---------------------------------------------------------------- 話し手
 
@@ -252,6 +253,60 @@ function hatsumodeEvent(save: SaveData, rng: Rng): EventInstance {
         ops,
       },
     ],
+  }
+}
+
+/** サクセス：初詣のおみくじ（1月第1週）。フォーカス選手が引く。構想書18節の表 */
+function omikujiEvent(save: SaveData, rng: Rng): EventInstance | null {
+  const f = focusPlayer(save)
+  if (!f) return null
+  const r = rng.next()
+  const keys = rng.shuffle(mainKeys(f)).slice(0, 2)
+  let name: string
+  let text: string
+  let ops: EffectOp[]
+  if (r < 0.005) {
+    const skill = rng.chance(0.5) ? learnable(rng, f) : null
+    name = '光るおみくじ'
+    if (skill) {
+      ops = [{ op: 'skill', playerId: f.id, add: skill }]
+      text = `おみくじが、一瞬白く光った…！　${f.surname}は特殊能力「${skillName(skill)}」を身につけた！`
+    } else {
+      ops = abilityOps(f, mainKeys(f), 6)
+      text = `おみくじが、一瞬白く光った…！　${f.surname}の能力が大きく上がった！（${mainKeys(f).map((k) => ABILITY_LABEL[k]).join('・')}）`
+    }
+  } else if (r < 0.105) {
+    name = '大吉'
+    ops = [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 20 }, { op: 'condition', playerId: 'all', key: 'form', delta: 1 }]
+    text = `大吉！　${f.surname}のやる気が大きく上がった。部員全員の調子も良くなった。`
+  } else if (r < 0.355) {
+    name = '吉'
+    ops = abilityOps(f, keys, 2)
+    text = `吉。「努力は実る」の言葉どおり、${f.surname}の${keys.map((k) => ABILITY_LABEL[k]).join('と')}が少し上がった。`
+  } else if (r < 0.655) {
+    name = rng.chance(0.5) ? '中吉' : '小吉'
+    ops = [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 10 }]
+    text = `${name}。${f.surname}のやる気が上がった。`
+  } else if (r < 0.855) {
+    name = '末吉'
+    ops = []
+    text = '末吉。ナギ（心）：…末吉か。まあ、末に吉なら悪くない'
+  } else if (r < 0.975) {
+    name = '凶'
+    ops = [rng.chance(0.5) ? { op: 'condition', playerId: f.id, key: 'motivation', delta: -10 } : { op: 'condition', playerId: f.id, key: 'form', delta: -1 }]
+    text = `凶…。${f.surname}は少し落ち込んだ。`
+  } else {
+    name = '大凶'
+    ops = [{ op: 'condition', playerId: f.id, key: 'form', delta: -2 }, { op: 'condition', playerId: f.id, key: 'stamina', delta: -20 }]
+    text = `大凶…！　${f.surname}は寒気がして、体調を崩してしまった。（ケガはしていない）`
+  }
+  return {
+    id: eid('omikuji'),
+    title: `初詣のおみくじ（${name}）`,
+    speaker: NARR,
+    relatedPlayerIds: [f.id],
+    lines: ['部員みんなで、商店街の奥の小さな神社「白球稲荷」へ初詣に行った。', `${f.surname}が、おみくじを引く。`],
+    choices: [{ label: '開いてみる', result: text, ops }],
   }
 }
 
@@ -727,7 +782,8 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng): void {
   const storyFinale = !!st && st.chapter === 1 && y === 3
 
   // 年中行事
-  if (w === 2 && y >= 2 && onceThisYear(save, 'recruit')) push(recruitEvent(save, rng))
+  const success = !!successOf(save)
+  if (w === 2 && y >= 2 && !success && onceThisYear(save, 'recruit')) push(recruitEvent(save, rng))
   if ((w === 13 || w === 38) && rng.chance(0.7) && onceThisYear(save, `test${w}`)) push(testEvent(save, rng, list))
   if (w === 24 && onceThisYear(save, 'sports')) push(sportsDayEvent(save, rng, list))
   if (w === 25 && rng.chance(0.3) && onceThisYear(save, 'typhoon')) push(typhoonEvent(save))
@@ -737,7 +793,7 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng): void {
     if (second.length && onceThisYear(save, 'trip')) push(schoolTripEvent(save, rng, second))
   }
   if (w === 39 && onceThisYear(save, 'christmas')) push(christmasEvent(save))
-  if (w === 40 && onceThisYear(save, 'hatsumode')) push(hatsumodeEvent(save, rng))
+  if (w === 40 && onceThisYear(save, 'hatsumode')) push(success ? omikujiEvent(save, rng) : hatsumodeEvent(save, rng))
   if (w === 41 && onceThisYear(save, 'obgame')) push(obGameEvent(save, rng))
   if (w === 43) {
     const autumn = findTournament(save, y, 'autumnPref')
@@ -777,15 +833,15 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng): void {
     if (!r.done || flags(save)[`after:${t.id}`] !== undefined) continue
     flags(save)[`after:${t.id}`] = true
     if (r.bigLoss && rng.chance(0.6)) push(bigLossEvent(save, captainOf(save, list)))
-    else if (st && y <= 3 && st.seen.includes('c1_shoutenkai') && rng.chance(0.4)) push(ramuneEvent(r.wins >= 2))
+    else if (st && y <= 3 && (st.seen.includes('c1_shoutenkai') || st.seen.includes('c1_9nin')) && rng.chance(0.4)) push(ramuneEvent(r.wins >= 2))
   }
 
   // ストーリー：大会の前の週に、源造の差し入れ
-  if (st && st.chapter === 1 && st.seen.includes('c1_shoutenkai') && (w === 4 || w === 14 || w === 27) && onceThisYear(save, `snack${w}`)) push(genzoSnackEvent())
+  if (st && st.chapter === 1 && (st.seen.includes('c1_shoutenkai') || st.seen.includes('c1_9nin')) && (w === 4 || w === 14 || w === 27) && onceThisYear(save, `snack${w}`)) push(genzoSnackEvent())
 
   // 積みすぎない（たまっているときは、新しいもの3つだけ残す）
   if (q.length > 3) q.splice(0, q.length - 3)
 }
 
 /** テスト用：個々のイベントを直接作る */
-export const __test = { campRareEvent, oldGloveEvent, transferEvent, retireDayEvent, testEvent, typhoonEvent, obGameEvent, hatsumodeEvent }
+export const __test = { omikujiEvent, campRareEvent, oldGloveEvent, transferEvent, retireDayEvent, testEvent, typhoonEvent, obGameEvent, hatsumodeEvent }
