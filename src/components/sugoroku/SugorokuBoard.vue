@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { SQUARES } from '@/game/sugoroku'
 import type { SquareType } from '@/game/types'
 import GameIcon from '../GameIcon.vue'
+import { PERSON_BADGE, type Person } from '@/game/success/board'
 
 const props = defineProps<{
   board: SquareType[]
@@ -15,7 +16,14 @@ const props = defineProps<{
   /** 選んだカードの効果の説明 */
   cardNote?: string | null
   milestone?: string
+  /** サクセス：練習マスに付いている人物（マスの番号 → 人物） */
+  attach?: Record<number, string> | null
 }>()
+
+function badge(i: number): { short: string; label: string; color: string } | null {
+  const p = props.attach?.[i] as Person | undefined
+  return p ? PERSON_BADGE[p] : null
+}
 
 /** マス番号 → 盤面の行・列（時計回り） */
 function cell(i: number): { row: number; col: number } {
@@ -42,6 +50,7 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
       <span class="short">{{ c.info.short }}</span>
       <span class="lbl">{{ c.info.label }}</span>
       <span v-if="c.i === position" class="token"><GameIcon name="cap" :size="18" /></span>
+      <span v-if="badge(c.i)" class="person" :style="{ background: badge(c.i)!.color }" :title="badge(c.i)!.label">{{ badge(c.i)!.short }}</span>
     </div>
     <div class="center">
       <div class="month">{{ month }}<small>月の練習</small></div>
@@ -50,6 +59,7 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
       <div v-if="previewInfo" class="info target-info" :style="{ '--c': previewInfo.color }">
         <b>{{ previewInfo.label }}マス</b>
         <span>{{ previewInfo.description }}</span>
+        <span v-if="preview !== null && badge(preview)" class="person-note">＋{{ badge(preview)!.label }}のイベント</span>
       </div>
       <div v-else class="info" :style="{ '--c': hereInfo.color }">
         <span class="muted">いまの位置</span>
@@ -130,6 +140,27 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
   justify-content: center;
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25), 0 4px 6px rgba(0, 0, 0, 0.25);
   animation: hop 0.3s ease-out;
+}
+.person {
+  position: absolute;
+  bottom: -5px;
+  left: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  border-radius: 9px;
+  border: 2px solid #fff;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 14px;
+  text-align: center;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
+  z-index: 1;
+}
+.person-note {
+  font-weight: 800;
+  color: #c2185b;
 }
 .center {
   grid-row: 2 / 6;

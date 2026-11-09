@@ -2,9 +2,13 @@
 import { computed, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { POSITION_NAME, formatWeek } from '@/game/constants'
+import { listSavedPlayers } from '@/game/success/archive'
+import RankBadge from '@/components/RankBadge.vue'
 
 const game = useGameStore()
-const tab = ref<'alumni' | 'log'>('alumni')
+const tab = ref<'alumni' | 'log' | 'saved'>('alumni')
+/** サクセスで育ててプロ入りした選手（端末に保存） */
+const saved = computed(() => [...listSavedPlayers()].reverse())
 
 const CAREER = { pro: 'プロ入り', university: '大学進学', corporate: '社会人野球', work: '就職', other: 'その他' } as const
 
@@ -24,6 +28,7 @@ const log = computed(() => {
     <div class="row switch">
       <button :class="tab === 'alumni' ? 'sky' : 'secondary'" @click="tab = 'alumni'">OB名鑑</button>
       <button :class="tab === 'log' ? 'sky' : 'secondary'" @click="tab = 'log'">出来事の記録</button>
+      <button :class="tab === 'saved' ? 'sky' : 'secondary'" @click="tab = 'saved'">育成選手</button>
     </div>
 
     <template v-if="tab === 'alumni'">
@@ -40,6 +45,16 @@ const log = computed(() => {
       </div>
     </template>
 
+    <template v-else-if="tab === 'saved'">
+      <p v-if="saved.length === 0" class="muted">まだ保存した選手はいません。第1章で育てた選手がプロ入りすると、ここに保存されます。</p>
+      <div v-for="x in saved" :key="x.savedAt" class="card ob">
+        <div class="row">
+          <b>{{ x.player.surname }} {{ x.player.givenName }}</b>
+          <RankBadge :value="x.rating" size="sm" />
+        </div>
+        <div class="muted">第{{ x.scenario }}章 ・ {{ POSITION_NAME[x.player.mainPosition] }} ・ {{ x.team }} {{ x.round }}位指名</div>
+      </div>
+    </template>
     <div v-else class="card">
       <ul class="log">
         <li v-for="(l, i) in log" :key="i">

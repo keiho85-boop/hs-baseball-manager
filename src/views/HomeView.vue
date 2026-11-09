@@ -23,6 +23,9 @@ import { play } from '@/sound'
 import { portraitUrl } from '@/game/story/art'
 import { chapterGoal } from '@/game/story/engine'
 import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
+import RecruitSheet from '@/components/success/RecruitSheet.vue'
+import { AUTO_WEEKS, EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, evalStars, focusPlayer, repRank, rosterCount, successOf } from '@/game/success/state'
+import type { ClubId } from '@/game/success/types'
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -57,8 +60,54 @@ const aliveInTournament = computed(() => !!game.save && !!tournament.value && ow
 const bracketOpen = ref(false)
 
 async function startTournament(): Promise<void> {
-  await game.startTournamentMatch()
+  const forfeit = await game.startTournamentMatch()
+  if (forfeit) {
+    await ui.alert(forfeit.join('\n'), '棄権')
+    return
+  }
   if (game.match) await router.push({ name: 'match' })
+}
+
+// ---- サクセス（1人の選手を3年間育てる） ----
+const success = computed(() => {
+  void game.rev
+  return game.save ? successOf(game.save) : null
+})
+const focus = computed(() => {
+  void game.rev
+  return game.save ? focusPlayer(game.save) : null
+})
+const roster = computed(() => {
+  void game.rev
+  return game.save ? rosterCount(game.save) : 0
+})
+/** 年末と春休みは、自主練習で自動に進む（1年を約40ターンにする） */
+const autoWeek = computed(() => {
+  void game.rev
+  return !!success.value && AUTO_WEEKS.includes(game.save?.calendar.week ?? 0) && !sg.value?.pending
+})
+const ended = computed(() => success.value?.ended ?? null)
+const recruitOpen = ref(false)
+
+async function goRecruit(club: ClubId): Promise<void> {
+  recruitOpen.value = false
+  const r = await game.recruitAt(club)
+  if (!r) return
+  play(r.result.success ? 'cheer' : 'miss')
+  await ui.alert(r.result.lines.join('\n'), r.result.title)
+  const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
+  if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
+}
+
+async function autoAdvance(): Promise<void> {
+  const r = await game.nextWeek()
+  if (!r) return
+  if (r.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.messages[r.messages.length - 1]!, tone: 'info' })
+}
+
+function stars(v: number): string {
+  const n = evalStars(v)
+  return '★'.repeat(n) + '☆'.repeat(5 - n)
 }
 
 async function nextTournamentWeek(): Promise<void> {
@@ -144,6 +193,17 @@ const nagiTip = computed(() => {
   if (sg.value && sg.value.campWeeks > 0) return '合宿中です。よく伸びますが、疲れもたまります。休みのマスも忘れずに'
   if (teamPower.value.stamina < 50) return 'みんな疲れています。休みのマスも狙いましょう'
   if (st.chapter >= 2) return '第2章は準備中です。それまでは、このまま部を育てていきましょう'
+  const sc = successOf(s)
+  if (sc) {
+    if (roster.value < 9) return `部員はいま${roster.value}人です。「勧誘」で9人そろえれば、練習試合と大会に出られます`
+    const tips = [
+      'マスに付いた人のイベントも狙いましょう。スカウトのマスは、プロ入りへの近道です',
+      `${focus.value?.surname ?? 'あの子'}くんをプロに送るのが目標です。周りの評価も大事ですよ`,
+      '練習試合で勝つと、評判とチームの評価が上がります',
+      '勧誘ばかりだと、練習が足りなくなります。ほどほどに',
+    ]
+    return tips[s.calendar.week % tips.length]!
+  }
   const lines = [
     '狙ったマスに止まるよう、カードの数字を選んでください',
     '練習試合は、下の「練習試合」から申し込めます。実戦の経験も大事です',
@@ -260,10 +320,11 @@ const specialCandidates = computed(() =>
     .filter((p) => !p.retired && !p.condition.injury)
     .sort((a, b) => playerRating(b) - playerRating(a)),
 )
+const info2 = ref(false)
 </script>
 
 <template>
-  <div class="home" :class="{ 'with-tip': !!nagiTip }">
+  <div class="home" :class="{ 'with-tip': !!nagiTip, 'with-focus': !!success && !!focus }">
     <div class="stage">
       <FieldScene :height="84" :evening="evening" />
       <div class="strip">
@@ -286,7 +347,22 @@ const specialCandidates = computed(() =>
           <b>ナギ<span v-if="goal" class="goal" :class="{ done: goal.done }">今年の目安：{{ goal.target }}{{ goal.done ? ' ✓' : '' }}</span></b>{{ nagiTip }}
         </div>
       </div>
-      <button v-if="game.match" class="sun go" @click="router.push({ name: 'match' })">
+      <button v-if="success && focus && !ended" class="focus-bar" @click="info2 = true">
+        <FaceIcon :face="focus.face" :size="26" />
+        <b>{{ focus.surname }}</b>
+        <span class="muted">{{ POSITION_LABEL[focus.mainPosition] }}</span>
+        <RankBadge :value="playerRating(focus)" size="sm" />
+        <span class="fb-item">部員<b :class="{ warn: roster < 9 }">{{ roster }}</b>人</span>
+        <span class="fb-item">評判<b>{{ repRank(school?.reputation ?? 0) }}</b></span>
+        <span class="fb-item">スカウト<b class="star-s">{{ stars(success.eval.scout) }}</b></span>
+      </button>
+      <div v-if="ended" class="card end-card">
+        <h2 class="grass"><GameIcon name="trophy" /> 第1章「ナギ現役編」　{{ ended === 'pro' ? 'クリア' : '終了' }}</h2>
+        <p v-if="ended === 'pro'">{{ focus ? `${focus.surname} ${focus.givenName}` : '育てた選手' }}はプロ入りしました。選手は保存され、第2章が解禁されました（第2章は準備中です）。</p>
+        <p v-else>育てた選手はプロに届きませんでした。もう一度、最初から育ててみましょう。</p>
+        <button class="sun full" @click="router.push({ name: 'title' })">タイトルへ戻る</button>
+      </div>
+      <button v-else-if="game.match" class="sun go" @click="router.push({ name: 'match' })">
         <span class="go-main">試合の続きへ</span>
         <span class="go-sub"><GameIcon name="play" :size="12" /> {{ game.match.options.label }}</span>
       </button>
@@ -314,9 +390,14 @@ const specialCandidates = computed(() =>
               :camp="sg.campWeeks > 0"
               :milestone="`${milestone.label}まで あと${milestone.weeks}週`"
               :card-note="selected !== null && sg.hand[selected] && sg.hand[selected]!.effect !== 'none' ? CARD_EFFECT_DESC[sg.hand[selected]!.effect] : null"
+              :attach="sg.attach ?? null"
             />
           </div>
-          <template v-if="sg.pending && !moving">
+          <template v-if="autoWeek">
+            <p class="auto-note muted">年末年始・春休みの週は、自主練習で進みます。</p>
+            <button class="sun full go-btn" :disabled="game.busy" @click="autoAdvance"><GameIcon name="play" :size="14" /> 自主練習で1週間進む</button>
+          </template>
+          <template v-else-if="sg.pending && !moving">
             <button class="sun full go-btn" :disabled="game.busy" @click="afterLand">{{ squareName(sg.pending.square) }}マスの続きをする</button>
           </template>
           <template v-else>
@@ -333,14 +414,29 @@ const specialCandidates = computed(() =>
       <!-- 練習試合・チームの様子・出来事（詳しくはポップアップで） -->
       <div class="actions">
         <button
-          v-if="tournament && (aliveInTournament || tournamentWeek)"
+          v-if="tournament && (aliveInTournament || tournamentWeek) && !ended"
           class="sky practice-match"
           @click="bracketOpen = true"
         >
           <GameIcon name="trophy" :size="18" /> 組み合わせ
         </button>
-        <button v-else class="sky practice-match" data-tut="practice-match" :disabled="!!game.match || !sg || game.busy || moving || !!sg.pending" @click="picking = true">
-          <GameIcon name="ball" :size="18" /> 練習試合
+        <button
+          v-if="success && !ended && !(tournament && (aliveInTournament || tournamentWeek))"
+          class="sun practice-match"
+          data-tut="recruit-btn"
+          :disabled="!!game.match || !sg || game.busy || moving || !!sg?.pending || autoWeek"
+          @click="recruitOpen = true"
+        >
+          <GameIcon name="megaphone" :size="18" /> 勧誘
+        </button>
+        <button
+          v-if="!(tournament && (aliveInTournament || tournamentWeek)) && !ended"
+          class="sky practice-match"
+          data-tut="practice-match"
+          :disabled="!!game.match || !sg || game.busy || moving || !!sg.pending || (!!success && roster < 9)"
+          @click="picking = true"
+        >
+          <GameIcon name="ball" :size="18" /> {{ success && roster < 9 ? '練習試合（9人から）' : '練習試合' }}
         </button>
         <button v-if="tournament && !aliveInTournament && !tournamentWeek" class="icon-btn" aria-label="大会の組み合わせ" @click="bracketOpen = true">
           <TabIcon name="records" :size="34" />
@@ -400,6 +496,22 @@ const specialCandidates = computed(() =>
         <button class="secondary full" @click="info = null">閉じる</button>
       </div>
     </div>
+
+    <RecruitSheet v-if="recruitOpen" @close="recruitOpen = false" @go="goRecruit" />
+    <div v-if="info2 && success && focus" class="picker-backdrop" @click.self="info2 = false">
+      <div class="picker card">
+        <h2 class="grass"><GameIcon name="star" /> {{ focus.surname }} {{ focus.givenName }}への評価</h2>
+        <div class="evals">
+          <div v-for="k in EVAL_KEYS" :key="k" class="ev-row">
+            <b>{{ EVAL_LABEL[k] }}</b>
+            <span class="star-s">{{ stars(success.eval[k]) }}</span>
+            <small class="muted">{{ EVAL_NOTE[k] }}</small>
+          </div>
+        </div>
+        <button class="sky full" @click="viewing = focus.id; info2 = false">能力を見る</button>
+        <button class="secondary full" @click="info2 = false">閉じる</button>
+      </div>
+    </div>
     <EventDialog v-if="eventOpen && sg?.pending?.event" :event="sg.pending.event" @done="onEventDone" />
     <div v-if="specialOpen" class="picker-backdrop">
       <div class="picker card">
@@ -449,8 +561,64 @@ const specialCandidates = computed(() =>
   /* ナギのひとことの高さぶん、盤面を小さくして重ならないようにする */
   --tip-h: 64px;
 }
+.home.with-focus {
+  --focus-h: 42px;
+}
 .home.with-tip .board-card {
   margin-top: 0;
+}
+.focus-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  text-shadow: none;
+  box-shadow: inset 0 0 0 2px #ffd9b8;
+  font-size: 12px;
+  font-weight: 400;
+  position: relative;
+  z-index: 3;
+}
+.fb-item {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.fb-item + .fb-item {
+  margin-left: 6px;
+}
+.fb-item b.warn {
+  color: var(--red);
+}
+.star-s {
+  color: #f5a300;
+  letter-spacing: -1px;
+}
+.end-card {
+  margin-bottom: 12px;
+}
+.auto-note {
+  text-align: center;
+  margin: 12px 0 0;
+}
+.evals {
+  overflow-y: auto;
+  margin: 6px 0 10px;
+}
+.ev-row {
+  display: grid;
+  grid-template-columns: 90px auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 2px dashed #eef3f8;
+}
+.ev-row small {
+  font-size: 11px;
 }
 .nagi-tip {
   position: relative;
@@ -624,7 +792,7 @@ const specialCandidates = computed(() =>
 }
 /* 盤面・カード・進むボタンが1画面に収まるよう、画面の高さに合わせて盤面の大きさを決める */
 .board-fit {
-  width: min(100%, max(170px, calc(100dvh - 476px - var(--stage-h) - var(--tip-h, 0px) - env(safe-area-inset-top, 0px) - var(--safe-bottom))));
+  width: min(100%, max(170px, calc(100dvh - 476px - var(--stage-h) - var(--tip-h, 0px) - var(--focus-h, 0px) - env(safe-area-inset-top, 0px) - var(--safe-bottom))));
   margin: 0 auto;
 }
 .h-note {

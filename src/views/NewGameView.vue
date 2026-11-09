@@ -70,7 +70,7 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: 'やさしい', nor
         <button :class="story ? 'secondary' : ''" @click="story = false">ストーリーなし</button>
       </div>
       <p class="muted">
-        <template v-if="story">廃部寸前の野球部に、新人マネージャーの朝比奈ナギとして入部します。会話の場面を楽しみながら部を育てます。</template>
+        <template v-if="story">第1章「ナギ現役編」。廃部寸前の野球部に、マネージャーの朝比奈ナギとして入部します。部員を集めながら、幼馴染の選手を3年間育ててプロ入りを目指します。</template>
         <template v-else>会話の場面なしで、監督として自由に部を育てます。</template>
       </p>
     </div>

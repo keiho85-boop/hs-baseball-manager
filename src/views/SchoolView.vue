@@ -9,8 +9,14 @@ import RankBadge from '@/components/RankBadge.vue'
 import { useUiStore } from '@/stores/ui'
 import { facilityCost } from '@/game/tournament'
 import type { Facilities } from '@/game/types'
+import { successOf } from '@/game/success/state'
 
 const game = useGameStore()
+/** サクセスでは中学生のスカウトはしない（部員は勧誘で集める） */
+const success = computed(() => {
+  void game.rev
+  return !!game.save && !!successOf(game.save)
+})
 const ui = useUiStore()
 const school = computed(() => game.ownSchool())
 
@@ -104,7 +110,7 @@ const ownRank = computed(() => ranking.value.findIndex((x) => x.id === school.va
     </div>
 
     <div class="row two">
-      <button class="sun" data-tut="scout-btn" @click="scoutOpen = true"><GameIcon name="search" :size="16" /> スカウト<small class="pts">{{ scoutPoints }}</small></button>
+      <button v-if="!success" class="sun" data-tut="scout-btn" @click="scoutOpen = true"><GameIcon name="search" :size="16" /> スカウト<small class="pts">{{ scoutPoints }}</small></button>
       <button class="secondary" @click="historyOpen = true"><GameIcon name="trophy" :size="16" /> 大会成績</button>
       <button class="secondary" @click="rankOpen = true"><GameIcon name="trophy" :size="16" /> 県内の学校</button>
     </div>

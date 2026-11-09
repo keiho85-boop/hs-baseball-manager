@@ -7,7 +7,7 @@ import FaceIcon from '../FaceIcon.vue'
 import GameIcon from '../GameIcon.vue'
 import type { IconName } from '../icons'
 import PlayerSheet from '../PlayerSheet.vue'
-import { portraitUrl } from '@/game/story/art'
+import { hasPortrait, portraitUrl } from '@/game/story/art'
 import type { CharId } from '@/game/story/types'
 
 const props = defineProps<{ event: EventInstance }>()
@@ -35,7 +35,7 @@ const speakerName = computed(() => {
 /** ストーリーの人物の顔（ナギ・源造・レイカなど） */
 const portrait = computed(() => {
   const s = props.event.speaker
-  if (s.kind === 'player' || !s.portrait || !game.save?.story?.enabled) return null
+  if (s.kind === 'player' || !s.portrait || !game.save?.story?.enabled || !hasPortrait(s.portrait as CharId)) return null
   return portraitUrl(s.portrait as CharId, 'smile')
 })
 const avatar = computed<{ icon: IconName; color: string }>(() => {

@@ -20,6 +20,7 @@ import CutIn from '@/components/match/CutIn.vue'
 import FaceIcon from '@/components/FaceIcon.vue'
 import RankBadge from '@/components/RankBadge.vue'
 import GameIcon from '@/components/GameIcon.vue'
+import { successOf } from '@/game/success/state'
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -275,6 +276,8 @@ function checkCutin(): void {
   const key = `${s.inning}${s.top}${battingTeam(s).battingIndex}`
   if (key === lastCutinKey) return
   lastCutinKey = key
+  // サクセス：試合は基本オートで、ピンチ・チャンスのときにランダムで指示を出せる
+  if (successMode.value && Math.random() < 0.5) return
   s.cutins += 1
   const p = sit === 'chance' ? batter.value : pitcher.value
   if (!p) return
@@ -287,6 +290,15 @@ function closeCutin(): void {
   cutin.value = null
   // チャンス・ピンチでは、自動進行を止めて作戦を選べるようにする
   auto.value = false
+  if (successMode.value) resumeHint.value = true
+}
+
+/** サクセス：試合は基本オート */
+const successMode = computed(() => !!game.save && !!successOf(game.save))
+const resumeHint = ref(false)
+function resume(): void {
+  resumeHint.value = false
+  auto.value = true
 }
 
 // ---- 選手交代 ----
@@ -333,6 +345,7 @@ function back(): void {
 }
 
 if (!game.match) router.replace({ name: 'home' })
+else if (successMode.value && !game.match.finished) setTimeout(() => (auto.value = true), 600)
 else if (game.match.events.length === 0 && game.match.count.balls + game.match.count.strikes === 0) play('whistle')
 </script>
 
@@ -507,6 +520,10 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
     </div>
 
     <!-- 進める -->
+    <div v-if="resumeHint && !auto && !m.finished" class="resume">
+      <span>{{ ownBatting ? 'チャンス！' : 'ピンチ！' }}作戦を選んだら、オートで再開します</span>
+      <button class="sun" @click="resume"><GameIcon name="play" :size="14" /> 再開</button>
+    </div>
     <div v-if="!m.finished" class="controls" data-tut="match-controls">
       <button class="secondary" :disabled="busyStep" @click="step('pitch')">1球</button>
       <button class="sun main" :disabled="busyStep" @click="step('pa')"><GameIcon name="play" :size="14" /> 1打席</button>
@@ -597,6 +614,22 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
   </div>
 </template>
 <style scoped>
+.resume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 10px 0;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: #fff4e5;
+  font-size: 12px;
+  font-weight: 800;
+  color: #b35a00;
+}
+.resume button {
+  margin-left: auto;
+  padding: 6px 12px;
+}
 /* 試合中は、球場の電光掲示板のような暗い配色で、1画面に収める */
 .match {
   height: 100dvh;
