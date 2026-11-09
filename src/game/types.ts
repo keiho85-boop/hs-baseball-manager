@@ -375,6 +375,8 @@ export type EffectOp =
   | { op: 'modifier'; modifier: Modifier }
   /** 印を付ける */
   | { op: 'flag'; key: string; value: string | number | boolean }
+  /** サクセス：フォーカス選手への周りの評価（nagi・makabe・hasumi・daichi・team・genzo・scout） */
+  | { op: 'eval'; key: string; delta: number }
 
 export interface EventChoice {
   label: string
@@ -411,6 +413,8 @@ export interface SugorokuState {
   pending: PendingWeek | null
   /** 合宿の残り週数（練習の効果と疲れが大きくなる） */
   campWeeks: number
+  /** サクセス：練習マスに付いている人物（マスの番号 → 人物）。止まるとその人物のイベントが起きる。毎週入れ替わる */
+  attach?: Record<number, string>
 }
 
 /** 自校のその週の過ごし方（週を進めるときに渡す） */
@@ -419,6 +423,8 @@ export type WeekPlan =
   | { kind: 'match' }
   /** 大会の週（試合をして、残りは軽い調整） */
   | { kind: 'tournament' }
+  /** サクセス：勧誘に行った週（練習は軽め） */
+  | { kind: 'recruit' }
 
 /** 途中の試合の保存データ（セーブデータ本体とは別に、1打席ごとに小さく保存する） */
 export interface MatchRecord {

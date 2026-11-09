@@ -2,6 +2,7 @@
 
 import type { Rng } from '../rng'
 import type { SaveData } from '../types'
+import type { SuccessState } from '../success/types'
 
 /** 立ち絵のある人物 */
 export type CharId =
@@ -26,6 +27,19 @@ export type CharId =
   | 'hasumi'
   /** 合宿の蓮見先生（水着にパーカー） */
   | 'hasumi_beach'
+  /** 夏祭りの蓮見先生（浴衣） */
+  | 'hasumi_yukata'
+  /** 他の部活のエース格（固定キャラ） */
+  | 'iwaki'
+  | 'shiomi'
+  | 'amou'
+  | 'kuon'
+  | 'kobayakawa'
+  | 'senju'
+  | 'shinonome'
+  | 'miki'
+  /** プロのスカウト */
+  | 'pro_scout'
 
 /** 台本の表情（人物ごとの絵の割り当てで、実際の絵に置き換える） */
 export type Face = 'normal' | 'smile' | 'serious' | 'surprise' | 'frustrated' | 'angry' | 'cry' | 'joy' | 'troubled' | 'tease'
@@ -98,6 +112,8 @@ export interface StoryState {
   daichiId: string | null
   /** 主将に選んだ選手 */
   captainId: string | null
+  /** サクセス（1人の選手を育てる遊び方）の状態。以前の版のデータにはない */
+  success?: SuccessState
 }
 
 export interface StoryContext {
