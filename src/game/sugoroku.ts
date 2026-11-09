@@ -3,7 +3,8 @@
 import { Rng, clamp } from './rng'
 import { PRACTICE_BONUS, activeModifiers } from './modifiers'
 import { focusGrowthMult, successOf } from './success/state'
-import { successBoard } from './success/board'
+import { rollAttach, successBoard } from './success/board'
+import { rollClubs } from './success/clubs'
 import { POSITION_NAME, weekToDate } from './constants'
 import { fullName, growWeekly } from './player'
 import { SKILLS, conflicts } from './skills'
@@ -100,6 +101,14 @@ export function ensureSugoroku(save: SaveData): SugorokuState {
       pending: null,
       campWeeks: 0,
     }
+    save.rngState = rng.getState()
+  }
+  // サクセス：始めた週（や以前の版のデータ）は、部活にいる人と練習マスの人物がまだ決まっていない
+  const sc = successOf(save)
+  if (sc && !sc.ended && (!save.sugoroku.attach || sc.clubs.length === 0)) {
+    const rng = new Rng(save.rngState)
+    if (sc.clubs.length === 0) rollClubs(save, rng)
+    if (!save.sugoroku.attach) rollAttach(save, rng)
     save.rngState = rng.getState()
   }
   return save.sugoroku

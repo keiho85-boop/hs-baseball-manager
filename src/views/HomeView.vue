@@ -436,7 +436,7 @@ const info2 = ref(false)
           :disabled="!!game.match || !sg || game.busy || moving || !!sg.pending || (!!success && roster < 9)"
           @click="picking = true"
         >
-          <GameIcon name="ball" :size="18" /> {{ success && roster < 9 ? '練習試合（9人から）' : '練習試合' }}
+          <GameIcon name="ball" :size="18" /> 練習試合
         </button>
         <button v-if="tournament && !aliveInTournament && !tournamentWeek" class="icon-btn" aria-label="大会の組み合わせ" @click="bracketOpen = true">
           <TabIcon name="records" :size="34" />
@@ -824,9 +824,10 @@ const info2 = ref(false)
 }
 .practice-match {
   flex: 1;
+  min-width: 0;
   white-space: nowrap;
   margin-top: 0;
-  padding: 11px;
+  padding: 11px 6px;
 }
 .icon-btn {
   position: relative;
