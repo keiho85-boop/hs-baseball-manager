@@ -19,7 +19,7 @@ export interface GuideStep {
 }
 
 /** 始める順番（同時に待っているときは、この順に流す） */
-export const GUIDE_ORDER = ['practice', 'funds', 'order', 'scout'] as const
+export const GUIDE_ORDER = ['practice', 'recruit', 'funds', 'order', 'scout'] as const
 export type GuideId = (typeof GUIDE_ORDER)[number]
 
 export const GUIDES: Record<GuideId, GuideStep[]> = {
@@ -34,6 +34,22 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
       on: 'tap',
       face: 'smile',
       text: 'これで1週間の練習が終わりです。カードは毎週配られます。狙ったマスに止まれるよう、先を読んで選んでくださいね。',
+    },
+  ],
+
+  /** 勧誘（サクセス）：はじめての勧誘の場面のあと */
+  recruit: [
+    { route: 'home', target: 'recruit-btn', on: 'target', text: '部員集めは「勧誘」からです。練習の代わりに1週間を使います。押してみてください。' },
+    {
+      target: 'recruit-list',
+      on: 'tap',
+      text: '今週、それぞれの部活に誰がいるかが分かります。★の人は、ほかの部のエース。いつもいるとは限りませんし、話しかけられるとも限りません。',
+    },
+    {
+      target: 'recruit-list',
+      on: 'tap',
+      face: 'smile',
+      text: '同じ部活に通うほど、話しかけやすくなります。9人そろえば、練習試合と大会に出られますよ。今日は閉じて、練習から始めましょう。',
     },
   ],
 

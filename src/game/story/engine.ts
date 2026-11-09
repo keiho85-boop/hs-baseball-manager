@@ -6,12 +6,14 @@ import type { SaveData } from '../types'
 import { CHAPTER1 } from './chapter1'
 import { activeOwn, captain, inBracket, month, ownName, ownWins, pendingGame, reachedBest4, schoolName, year } from './query'
 import type { ChoiceStep, Scene, Step, StoryContext, StoryState } from './types'
+import { focusName, newSuccessState, rosterCount, successOf } from '../success/state'
+import { playerRating } from '../player'
 
 export const SCENES: Scene[] = [...CHAPTER1]
 
 /** 章の名前 */
 export const CHAPTER_TITLES: Record<number, string> = {
-  1: '第1章「再建」',
+  1: '第1章「ナギ現役編」',
 }
 
 /** 場面タイトルの上に出す時期（「第1章　1年目 5月」など） */
@@ -34,6 +36,19 @@ export function observeStory(save: SaveData): boolean {
   const d = st.daichiId ? save.players[st.daichiId] : undefined
   if (d && !d.storyCast) {
     d.storyCast = 'daichi'
+    changed = true
+  }
+  // 以前の版（サクセスになる前）のセーブ：一番いい選手を育てる選手にして、1年目の場面は見たことにする
+  if (!st.success) {
+    st.success = newSuccessState()
+    const own = save.schools[save.playerSchoolId]
+    const best = (own?.playerIds ?? []).map((id) => save.players[id]).filter((p) => p && !p.retired && !p.helper && p.id !== st.daichiId).sort((a, b) => playerRating(b!) - playerRating(a!))[0]
+    if (best) {
+      st.success.focusId = best.id
+      best.storyCast = best.storyCast ?? 'focus'
+    }
+    for (const sc of SCENES) if (sc.id !== 'c1_sotsugyou' && save.calendar.year > 1 && !st.seen.includes(sc.id) && /^c1_(ano|mezame|goukaku|nyugaku|kanyu|hokenshitsu|9nin|ryugamine|sofu|fuyu)/.test(sc.id)) st.seen.push(sc.id)
+    if (rosterCount(save) >= 9) st.flags.join9 = save.calendar.year
     changed = true
   }
   const set = (key: string, value: string | number | boolean): void => {
@@ -93,6 +108,8 @@ export function varsOf(save: SaveData, st: StoryState): Record<string, string> {
     新入生: freshman ? freshman.surname : '新入生',
     ライバル: schoolName(save, st.rivalId),
     球団: teamName(save.prefCode),
+    フォーカス: focusName(save).surname,
+    フォーカス名: focusName(save).full,
   }
 }
 
@@ -168,6 +185,8 @@ export function noteMatch(save: SaveData, info: { practice: boolean; won: boolea
   if (!st?.enabled) return
   if (info.practice) {
     if (st.flags.firstPractice === undefined) st.flags.firstPractice = info.won === true ? 'win' : 'lose'
+    // テニス部のエースは、練習試合で1勝するまで話を聞いてくれない
+    if (info.won === true && st.flags.practiceWin === undefined) st.flags.practiceWin = save.calendar.year
   }
   if (st.rivalId && info.opponentId === st.rivalId) st.flags[`metRival_${save.calendar.year}`] = true
 }
@@ -181,6 +200,10 @@ const LEVEL_NAME = ['', '公式戦1勝', '県ベスト4', '全国大会出場', 
 export function chapterGoal(save: SaveData): { goal: string; target: string; done: boolean } | null {
   const st = save.story
   if (!st?.enabled || st.chapter !== 1) return null
+  // サクセス：まずは9人。そろったら、プロ入り（ドラフト指名）を目指す
+  if (successOf(save)) {
+    if (st.flags.join9 === undefined) return { goal: 'プロ入り', target: `部員を9人に（いま${rosterCount(save)}人）`, done: false }
+  }
   const y = save.calendar.year
   const best = st.flags.national !== undefined ? 3 : st.flags.best4 !== undefined ? 2 : st.flags.firstWin !== undefined ? 1 : 0
   const base = Math.min(3, y)

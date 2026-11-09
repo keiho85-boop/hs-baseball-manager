@@ -38,6 +38,9 @@ import type { LineupConfig, Player, SaveData, SaveSummary, School, SquareType } 
 import { setupStoryWorld } from '@/game/story/setup'
 import { buildSteps, completeScene, markStory, nextScene, noteMatch, observeStory } from '@/game/story/engine'
 import type { Scene, Step } from '@/game/story/types'
+import { evalAfterMatch, rosterCount, successOf } from '@/game/success/state'
+import { recruit as recruitLogic, type RecruitResult } from '@/game/success/clubs'
+import type { ClubId } from '@/game/success/types'
 
 export const useGameStore = defineStore('game', () => {
   const save = shallowRef<SaveData | null>(null)
@@ -233,14 +236,22 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  /** 大会の次の試合を始める */
-  async function startTournamentMatch(): Promise<void> {
+  /** 大会の次の試合を始める。サクセスで部員が9人に満たないときは棄権になり、その知らせを返す */
+  async function startTournamentMatch(): Promise<string[] | null> {
     const s = save.value
-    if (!s || busy.value || match.value) return
+    if (!s || busy.value || match.value) return null
     const p = pendingOwnGame(s)
-    if (!p) return
+    if (!p) return null
     busy.value = true
     try {
+      if (successOf(s) && rosterCount(s) < 9) {
+        const rng = new Rng(s.rngState)
+        const msgs = [`部員が9人に満たないため、${p.t.name}は棄権となった…。`, ...recordOwnResult(s, rng, p.t, p.round, false, 0, 9, '人数不足で棄権')]
+        s.rngState = rng.getState()
+        touch()
+        await writeSave(s)
+        return msgs
+      }
       matchRng = new Rng(s.rngState)
       // 他県の学校など、選手を持っていない相手はその場で選手を作る
       ensureDetailed(s, matchRng, p.t, p.opponentId)
@@ -262,6 +273,7 @@ export const useGameStore = defineStore('game', () => {
       touch()
       await writeSave(s)
       await persistMatch()
+      return null
     } finally {
       busy.value = false
     }
@@ -338,6 +350,8 @@ export const useGameStore = defineStore('game', () => {
     try {
       const finish = finishMatchLogic(s, m, matchRng)
       const tm = m.options.tournament
+      // サクセス：勝敗とフォーカス選手の活躍で、周りの評価が動く
+      finish.messages.push(...evalAfterMatch(s, m, !!tm, finish.won))
       noteMatch(s, {
         practice: !tm,
         won: finish.won,
@@ -392,7 +406,7 @@ export const useGameStore = defineStore('game', () => {
       const rng = new Rng(s.rngState)
       const result = playCard(s, rng, index)
       const pending = s.sugoroku!.pending!
-      pending.event = buildEvent(s, rng, result.square)
+      pending.event = buildEvent(s, rng, result.square, s.sugoroku!.position)
       s.rngState = rng.getState()
       touch()
       await writeSave(s)
@@ -425,6 +439,29 @@ export const useGameStore = defineStore('game', () => {
       touch()
       await writeSave(s)
       return { week, eventResult }
+    } finally {
+      busy.value = false
+    }
+  }
+
+  /** サクセス：勧誘に行く（1週間を使う） */
+  async function recruitAt(club: ClubId): Promise<{ result: RecruitResult; week: WeekResult } | null> {
+    const s = save.value
+    if (!s || !successOf(s) || busy.value || match.value || s.sugoroku?.pending) return null
+    busy.value = true
+    try {
+      const rng = new Rng(s.rngState)
+      const result = recruitLogic(s, rng, club)
+      s.rngState = rng.getState()
+      const before = takeSnapshot(ownPlayers())
+      const week = afterWeek(advanceWeek(s, { kind: 'recruit' }))
+      lastResult.value = week
+      lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
+      growthTitle.value = '残った部員の練習'
+      showGrowth.value = false
+      touch()
+      await writeSave(s)
+      return { result, week }
     } finally {
       busy.value = false
     }
@@ -569,6 +606,7 @@ export const useGameStore = defineStore('game', () => {
     saveLineup,
     upgradeFacility,
     scoutAction,
+    recruitAt,
     useCard,
     finishSquare,
     refreshSlots,

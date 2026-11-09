@@ -1,13 +1,14 @@
 // ストーリーを始めるときの世界の準備
 //
-// ・自校の部員を8人に減らす（前の監督の不祥事で半分が辞めた）。投手と各守備位置に最低1人ずつ残す
-// ・9人目として、日向大地（1年生の捕手）を入れる
+// 第1章「ナギ現役編」はサクセス（1人の選手を3年間育てる）。構想書18節
+// ・廃部寸前：部員は3年の主将1人、日向大地（1年生の捕手）、フォーカス選手（大地の幼馴染）の3人から始まる
+// ・残りは勧誘で集める（9人そろうと練習試合と大会に出られる）
 // ・県内で一番強い学校を、ライバル校「龍ヶ峰学園」にする
-// ・4月の終わりに、仮入部の1年生が加わる（場面の効果で呼ぶ）
 
 import { Rng, clamp } from '../rng'
 import { defaultPracticeMenu, generatePlayer, playerRating } from '../player'
 import { computeOverall, generateGrade, newId, schoolStrength } from '../world'
+import { newSuccessState } from '../success/state'
 import type { Player, Position, SaveData } from '../types'
 import type { StoryState } from './types'
 
@@ -27,20 +28,20 @@ export function newStoryState(): StoryState {
   }
 }
 
-/** 新しいゲームをストーリーありで始めるときに呼ぶ */
+/** 新しいゲームをストーリーありで始めるときに呼ぶ（第1章はサクセス：1人の選手を3年間育てる） */
 export function setupStoryWorld(save: SaveData): void {
   const rng = new Rng(save.rngState)
   const st = newStoryState()
+  st.success = newSuccessState()
   const own = save.schools[save.playerSchoolId]!
 
-  // 1. 自校の部員を8人にする（1年生は全員外し、2・3年生から残す）
-  //    捕手は大地が入るので、残りの8つの守備位置（投・一・二・三・遊・左・中・右）に1人ずつ
+  // 1. 廃部寸前：部員は3年の主将1人だけ（前の監督の不祥事で、ほかは辞めた）
   const members = own.playerIds.map((id) => save.players[id]).filter((p): p is Player => !!p)
-  const upper = members.filter((p) => p.grade >= 2).sort((a, b) => playerRating(b) - playerRating(a))
-  const keep = pickByPosition(upper)
-  const keepIds = new Set(keep.map((p) => p.id))
-  for (const p of members) if (!keepIds.has(p.id)) delete save.players[p.id]
-  own.playerIds = own.playerIds.filter((id) => keepIds.has(id))
+  const captain = members.filter((p) => p.grade === 3).sort((a, b) => playerRating(b) - playerRating(a))[0] ?? members[0]!
+  for (const p of members) if (p.id !== captain.id) delete save.players[p.id]
+  own.playerIds = [captain.id]
+  captain.grade = 3
+  own.reputation = 10
 
   // 2. 日向大地（1年生の捕手。肩が強い）
   const d = generatePlayer(rng, {
@@ -48,7 +49,7 @@ export function setupStoryWorld(save: SaveData): void {
     schoolId: own.id,
     grade: 1,
     year: save.calendar.year,
-    strength: schoolStrength(own),
+    strength: 50,
     kind: own.kind,
     position: 'C',
     managerExperience: save.managerExperience,
@@ -65,9 +66,13 @@ export function setupStoryWorld(save: SaveData): void {
   save.players[d.id] = d
   own.playerIds.push(d.id)
   st.daichiId = d.id
+
+  // 3. フォーカス選手（大地の幼馴染。守備位置は合格発表の場面で決める）
+  const f = makeFocus(save, rng, 'SS')
+  st.success.focusId = f.id
   own.overall = computeOverall(own, save.players)
 
-  // 3. ライバル校：県内で一番強い学校を龍ヶ峰学園にする
+  // 4. ライバル校：県内で一番強い学校を龍ヶ峰学園にする
   const rival = Object.values(save.schools)
     .filter((s) => s.prefCode === save.prefCode && s.id !== own.id)
     .sort((a, b) => b.overall - a.overall)[0]
@@ -81,6 +86,43 @@ export function setupStoryWorld(save: SaveData): void {
   save.managerName = '朝比奈 ナギ'
   save.log = [{ year: 1, week: 1, text: `${own.name}の野球部に、マネージャーとして入部した。` }]
   save.rngState = rng.getState()
+}
+
+/** フォーカス選手を作る。才能はふつうB程度まで、ごくまれにA〜Sまで伸びる */
+function makeFocus(save: SaveData, rng: Rng, position: Position, keep?: Player): Player {
+  const own = save.schools[save.playerSchoolId]!
+  const f = generatePlayer(rng, {
+    id: keep?.id ?? newId(save, 'p'),
+    schoolId: own.id,
+    grade: 1,
+    year: save.calendar.year,
+    strength: 52,
+    kind: own.kind,
+    position,
+    managerExperience: save.managerExperience,
+  })
+  if (keep) {
+    f.surname = keep.surname
+    f.givenName = keep.givenName
+    f.face = keep.face
+  }
+  f.hidden.potential = rng.chance(0.06) ? rng.int(85, 93) : 72 + rng.int(-4, 4)
+  f.condition.motivation = clamp(Math.max(f.condition.motivation, 65), 0, 100)
+  f.storyCast = 'focus'
+  save.players[f.id] = f
+  if (!own.playerIds.includes(f.id)) own.playerIds.push(f.id)
+  return f
+}
+
+/** 合格発表の場面：フォーカス選手の守備位置を決める（その守備位置向けに作り直す） */
+export function setFocusPosition(save: SaveData, rng: Rng, position: Position): Player | null {
+  const id = save.story?.success?.focusId
+  const old = id ? save.players[id] : undefined
+  if (!old) return null
+  const f = makeFocus(save, rng, position, old)
+  const own = save.schools[save.playerSchoolId]!
+  own.overall = computeOverall(own, save.players)
+  return f
 }
 
 /** 捕手以外の8つの守備位置に1人ずつ選ぶ。本職がいなければ、適性のある選手（いなければ一番うまい選手）を回す */
