@@ -133,7 +133,8 @@ const ART: Record<CharId, CharArt> = {
   kuon: fixedArt('kuon_hs_tennis_bust_', '#00897b'),
   kobayakawa: fixedArt('kobayakawa_hs_tabletennis_bust_', '#e65100'),
   senju: fixedArt('senju_hs_shogi_bust_', '#5e35b1'),
-  shinonome: fixedArt('shinonome_hs_council_bust_', '#37474f'),
+  // 生徒会長は驚き顔がまだないので、通常の顔で代用する
+  shinonome: { ...fixedArt('shinonome_hs_council_bust_', '#37474f'), faces: { smile: 'smile', joy: 'smile', serious: 'serious', angry: 'serious', frustrated: 'serious' } },
   miki: fixedArt('miki_hs_newspaper_bust_', '#795548'),
   pro_scout: fixedArt('pro_scout_40s_bust_', '#455a64'),
 }
@@ -150,7 +151,7 @@ function fixedArt(prefix: string, color: string): CharArt {
 }
 
 /** 絵ができた人物（public/chara に置いたら、ここに足すと pending より優先される） */
-export const CHAR_READY = new Set<CharId>(['hasumi', 'hasumi_beach'])
+export const CHAR_READY = new Set<CharId>(['hasumi', 'hasumi_beach', 'miki', 'shinonome'])
 
 /** 実際に絵を出す人物（絵がなければ代わりの人物、代わりもなければ null） */
 function resolveChar(char: CharId): CharId | null {
@@ -200,6 +201,18 @@ export const BG_READY = new Set<string>([
   'bg_national_stadium',
   'bg_entrance_ceremony',
   'bg_school_gate_sakura',
+  'bg_stadium_road_night',
+  'bg_infirmary_day',
+  'bg_clubroom_tv',
+  'bg_summer_festival_night',
+  'bg_newspaper_room',
+  'bg_student_council',
+  'bg_shogi_room',
+  'bg_gym_table_tennis',
+  'bg_tennis_court',
+  'bg_soccer_field',
+  'bg_sumo_room',
+  'bg_track_field',
 ])
 
 /** まだ絵がない背景の代わり（絵ができたら BG_READY に足すだけで差し替わる） */
