@@ -431,16 +431,17 @@ export const CHAPTER1: Scene[] = [
     when: (c) => Y(c) === 1 && W(c) >= 2,
     steps: () => [
       bg('bg_classroom_day'),
-      n('昼休みの教室。大地が、眠そうな男子の首根っこをつかんで連れてきた'),
-      daichiSay('smile', '朝比奈、一人確保！　帰宅部の、同じクラスのやつ'),
+      n('昼休みの教室。大地が、帰宅部の男子を5人、ぞろぞろと連れてきた'),
+      daichiSay('smile', '朝比奈、5人確保！　全員帰宅部、全員うちのクラス'),
       voice('帰宅部の男子', '…放課後ひまだし、まあいいけど。ボール、当たると痛い？'),
+      voice('帰宅部の男子たち', '大地がしつこいからさ。…ま、やるだけやってみるよ'),
       nagi('smile', 'ようこそ、野球部へ'),
-      think('勧誘は1週間がかりの仕事だ。行き先の部活に、誰がいるか見てから決める。…あとは、通い詰めることだ', 'serious'),
+      think('9人まで、あと少しだ。勧誘は1週間がかりの仕事だ。行き先の部活に、誰がいるか見てから決める。…あとは、通い詰めることだ', 'serious'),
     ],
     onEnd: (c) => {
-      const p = addFriendOfDaichi(c.save, c.rng)
+      const joined = Array.from({ length: 5 }, () => addFriendOfDaichi(c.save, c.rng))
       startGuide(c, 'recruit')
-      return [`${fullName(p)}が入部した！（部員 ${rosterCount(c.save)}人）`, ...evals(c, [['daichi', 2]])]
+      return [`${joined.map(fullName).join('、')}が入部した！（部員 ${rosterCount(c.save)}人）`, ...evals(c, [['daichi', 2]])]
     },
   },
   {

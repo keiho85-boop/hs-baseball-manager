@@ -266,6 +266,24 @@ export function cgUrl(name: string): string {
 }
 
 /** 主人公側（画面の左に立つ人物） */
+/**
+ * 立ち絵の元の絵の向き（見る人から見て、顔や体が向いている側）。
+ * 正面に近い絵は 'front'（反転しない）
+ */
+const FACING: Partial<Record<CharId, 'left' | 'right'>> = {
+  nagi: 'left',
+  nagi_jh: 'left',
+  daichi: 'right',
+  focus: 'right',
+  mob_cap: 'right',
+  okochi: 'left',
+  amou: 'left',
+  kuon: 'left',
+}
+export function facingOf(char: CharId): 'left' | 'right' | 'front' {
+  return FACING[resolveChar(char) ?? char] ?? 'front'
+}
+
 export function isLeftSide(char: CharId): boolean {
   return char === 'nagi' || char === 'nagi_jh'
 }

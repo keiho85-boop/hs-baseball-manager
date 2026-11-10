@@ -4,7 +4,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
-import { bgUrl, cgUrl, hasPortrait, isLeftSide, nameColor, portraitUrl } from '@/game/story/art'
+import { bgUrl, cgUrl, facingOf, hasPortrait, isLeftSide, nameColor, portraitUrl } from '@/game/story/art'
 import { sceneSub } from '@/game/story/engine'
 import type { CharId, ChoiceStep, Face, SayStep, Step } from '@/game/story/types'
 
@@ -299,6 +299,13 @@ onBeforeUnmount(() => {
   clearCutTimer()
 })
 
+/** 立ち絵の向き：左の人物は右向き、右の人物は左向きにして、向かい合って話しているように見せる */
+function flipStyle(char: CharId, side: 'left' | 'right'): Record<string, string> {
+  const f = facingOf(char)
+  const flip = (side === 'left' && f === 'left') || (side === 'right' && f === 'right')
+  return { '--sx': flip ? '-1' : '1' }
+}
+
 const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.value)})` } : {}))
 </script>
 
@@ -314,6 +321,7 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
           :key="`l-${left.char}`"
           class="fig left"
           :class="{ dim: speaker !== left.char }"
+          :style="flipStyle(left.char, 'left')"
           :src="portraitUrl(left.char, left.face)"
           alt=""
         />
@@ -324,6 +332,7 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
           :key="`r-${right.char}`"
           class="fig right"
           :class="{ dim: speaker !== right.char }"
+          :style="flipStyle(right.char, 'right')"
           :src="portraitUrl(right.char, right.face)"
           alt=""
         />
@@ -408,6 +417,8 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
   width: min(62vw, 360px);
   height: auto;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
+  transform: scaleX(var(--sx, 1));
+  transform-origin: bottom center;
   transition: filter 0.25s, transform 0.25s;
 }
 .fig.left {
@@ -418,7 +429,7 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
 }
 .fig.dim {
   filter: brightness(0.55) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
-  transform: scale(0.96);
+  transform: scaleX(var(--sx, 1)) scale(0.96);
   transform-origin: bottom center;
 }
 .fig-enter-active,
@@ -617,7 +628,7 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
   color: #fff;
   font-size: 14.5px;
   line-height: 1.8;
-  text-align: center;
+  text-align: left;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 .choices {
