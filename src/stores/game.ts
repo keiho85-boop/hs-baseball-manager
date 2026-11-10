@@ -449,13 +449,13 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /** サクセス：勧誘に行く（1週間を使う） */
-  async function recruitAt(club: ClubId): Promise<{ result: RecruitResult; week: WeekResult } | null> {
+  async function recruitAt(club: ClubId, target?: number): Promise<{ result: RecruitResult; week: WeekResult } | null> {
     const s = save.value
     if (!s || !successOf(s) || busy.value || match.value || s.sugoroku?.pending) return null
     busy.value = true
     try {
       const rng = new Rng(s.rngState)
-      const result = recruitLogic(s, rng, club)
+      const result = recruitLogic(s, rng, club, target)
       s.rngState = rng.getState()
       const before = takeSnapshot(ownPlayers())
       const week = afterWeek(advanceWeek(s, { kind: 'recruit' }))

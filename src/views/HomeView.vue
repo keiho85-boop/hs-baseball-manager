@@ -89,9 +89,9 @@ const autoWeek = computed(() => {
 const ended = computed(() => success.value?.ended ?? null)
 const recruitOpen = ref(false)
 
-async function goRecruit(club: ClubId): Promise<void> {
+async function goRecruit(club: ClubId, target?: number): Promise<void> {
   recruitOpen.value = false
-  const r = await game.recruitAt(club)
+  const r = await game.recruitAt(club, target)
   if (!r) return
   play(r.result.success ? 'cheer' : 'miss')
   await ui.alert(r.result.lines.join('\n'), r.result.title)

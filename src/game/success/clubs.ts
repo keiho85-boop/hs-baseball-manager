@@ -209,7 +209,11 @@ export interface RecruitResult {
 }
 
 /** 勧誘に行く（1週分を使う）。結果の文を返す。週を進めるのは呼び出した側 */
-export function recruit(save: SaveData, rng: Rng, clubId: ClubId): RecruitResult {
+/**
+ * 勧誘する。target は声をかける相手（その部活にいる人の並び順）。
+ * 省略したときは、エースがいればエースに、いなければ誰かに声をかける
+ */
+export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: number): RecruitResult {
   const s = successOf(save)!
   const own = save.schools[save.playerSchoolId]!
   const club = CLUBS.find((c) => c.id === clubId)!
@@ -220,8 +224,13 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId): RecruitResult
   const rep = own.reputation
   const lines: string[] = []
   const evals: (string | null)[] = []
-  const fixedHere = roster?.members.find((m): m is Extract<ClubMember, { kind: 'fixed' }> => m.kind === 'fixed' && !s.joined[m.id])
-  const mobs = (roster?.members ?? []).filter((m): m is Extract<ClubMember, { kind: 'mob' }> => m.kind === 'mob')
+  const chosen = target !== undefined ? roster?.members[target] : undefined
+  const fixedAll = roster?.members.find((m): m is Extract<ClubMember, { kind: 'fixed' }> => m.kind === 'fixed' && !s.joined[m.id])
+  // モブを選んだときは、エースには声をかけない
+  const fixedHere = chosen && chosen.kind === 'mob' ? undefined : fixedAll
+  const mobsAll = (roster?.members ?? []).filter((m): m is Extract<ClubMember, { kind: 'mob' }> => m.kind === 'mob')
+  // エースを選んだときは、ほかの人には声をかけない
+  const mobs = chosen?.kind === 'fixed' ? [] : chosen?.kind === 'mob' ? [chosen] : mobsAll
   let success = false
   let fixed: FixedId | undefined
   // 固定キャラがいれば、話しかけられるか（通うほど話しやすくなる）
@@ -261,6 +270,8 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId): RecruitResult
             : '「悪いけど、今は自分の部で手いっぱいだ」断られてしまった。',
       )
     }
+  } else if (fixedHere && chosen?.kind === 'fixed') {
+    lines.push(`${club.name}へ。${FIXED[fixedHere.id].surname}の姿は見えたが、話しかけるきっかけがなかった。`)
   } else if (mobs.length > 0) {
     const m = rng.pick(mobs)
     if (fixedHere) lines.push(`${club.name}へ。${FIXED[fixedHere.id].surname}の姿は見えたが、話しかけるきっかけがなかった。`)
