@@ -36,6 +36,7 @@ import {
 } from '@/game/tournament'
 import type { LineupConfig, Player, SaveData, SaveSummary, School, SquareType } from '@/game/types'
 import { setupStoryWorld } from '@/game/story/setup'
+import { setFictionalPlaces } from '@/game/constants'
 import { buildSteps, completeScene, markStory, nextScene, noteMatch, observeStory } from '@/game/story/engine'
 import type { Scene, Step } from '@/game/story/types'
 import { evalAfterMatch, rosterCount, successOf } from '@/game/success/state'
@@ -86,14 +87,16 @@ export const useGameStore = defineStore('game', () => {
     if (persistent.value === null) persistent.value = await requestPersistentStorage()
   }
 
-  async function startNewGame(input: Omit<NewGameInput, 'seed'> & { story?: boolean }): Promise<void> {
+  async function startNewGame(input: Omit<NewGameInput, 'seed'> & { story?: boolean; focusName?: { surname: string; givenName: string } }): Promise<void> {
     busy.value = true
     try {
       await ensurePersistence()
       // 少し待って画面に「作成中」を表示してから重い処理をする
       await new Promise((r) => setTimeout(r, 30))
+      // 選手育成モード（ストーリーあり）は、地名をすべて架空のものにする
+      setFictionalPlaces(!!input.story)
       const data = createNewGame({ ...input, seed: (Math.random() * 2 ** 32) >>> 0 })
-      if (input.story) setupStoryWorld(data)
+      if (input.story) setupStoryWorld(data, { focusName: input.focusName })
       ensureSugoroku(data)
       {
         const rng = new Rng(data.rngState)
@@ -117,6 +120,7 @@ export const useGameStore = defineStore('game', () => {
       await ensurePersistence()
       const result = await readSave(slot)
       if (!result.save) throw new Error('セーブデータを読み込めませんでした。')
+      setFictionalPlaces(!!result.save.story?.enabled)
       ensureSugoroku(result.save)
       // 大会の期間中なのに大会がない、スカウトのリストがない（以前の版のデータ）ときは、ここで作る
       {

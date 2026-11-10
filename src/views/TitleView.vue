@@ -1,22 +1,55 @@
 <script setup lang="ts">
+// タイトル画面：解禁した章の1枚絵 →「TAP TO START」→ モード選択（セーブ選択）
 import GameIcon from '@/components/GameIcon.vue'
-import { defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
-import { formatWeek } from '@/game/constants'
-// 3DCGの球場（three.js）は容量が大きいので、別ファイルで後から読み込む
-const Field3D = defineAsyncComponent(() => import('@/components/match/Field3D.vue'))
-const noBases = [null, null, null]
+import { formatWeek, PLAYER_MODE_SLOTS, POSITION_LABEL, TEAM_MODE_SLOTS, type GameMode } from '@/game/constants'
+import { listSavedPlayers, unlockedScenarios } from '@/game/success/archive'
 
 const game = useGameStore()
 const ui = useUiStore()
 const router = useRouter()
+const BASE = import.meta.env.BASE_URL
+
+/** splash：タイトル絵　mode：モード選択 */
+const phase = ref<'splash' | 'mode'>('splash')
+const mode = ref<GameMode>('player')
 const managing = ref(false)
 const importTarget = ref<number | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 onMounted(() => game.refreshSlots())
+
+/** 解禁した章（タイトル絵は一番新しい章のものを出す） */
+const chapter = computed(() => Math.max(1, ...unlockedScenarios()))
+const titleArt = computed(() => `${BASE}title/title_ch${Math.min(chapter.value, 1)}.webp`)
+const savedCount = computed(() => listSavedPlayers().length)
+
+/** チーム育成モードは、すべてのシナリオをクリアすると解禁（確認用の版では最初から遊べる） */
+const ALL_SCENARIOS = [2]
+const teamUnlocked = computed(
+  () => import.meta.env.MODE !== 'production' || ALL_SCENARIOS.every((n) => unlockedScenarios().includes(n)),
+)
+
+const slotNumbers = computed(() => (mode.value === 'player' ? PLAYER_MODE_SLOTS : TEAM_MODE_SLOTS))
+const rows = computed(() =>
+  slotNumbers.value.map((n, i) => ({ n, no: i + 1, s: game.slots[n - 1] ?? null })),
+)
+
+function start(): void {
+  phase.value = 'mode'
+}
+
+function pickMode(m: GameMode): void {
+  if (m === 'team' && !teamUnlocked.value) {
+    void ui.alert('チーム育成モードは、選手育成モードのシナリオをすべてクリアすると遊べるようになります。', 'まだ遊べません')
+    return
+  }
+  mode.value = m
+  managing.value = false
+}
 
 function updatedLabel(iso: string): string {
   const d = new Date(iso)
@@ -35,9 +68,9 @@ async function play(slot: number): Promise<void> {
   }
 }
 
-async function startNew(slot: number): Promise<void> {
+async function startNew(slot: number, no: number): Promise<void> {
   if (game.slots[slot - 1]) {
-    const ok = await ui.confirm(`セーブ${slot}のデータを消して、新しく始めますか？\nこの操作は取り消せません。`, {
+    const ok = await ui.confirm(`データ${no}を消して、新しく始めますか？\nこの操作は取り消せません。`, {
       okLabel: '消して始める',
       cancelLabel: 'やめる',
       danger: true,
@@ -59,7 +92,7 @@ async function onFile(e: Event): Promise<void> {
   const slot = importTarget.value
   if (!file || slot === null) return
   if (game.slots[slot - 1]) {
-    const ok = await ui.confirm(`セーブ${slot}のデータを、読み込むファイルで上書きしますか？`, {
+    const ok = await ui.confirm('このデータを、読み込むファイルで上書きしますか？', {
       okLabel: '上書きする',
       cancelLabel: 'やめる',
       danger: true,
@@ -68,7 +101,7 @@ async function onFile(e: Event): Promise<void> {
   }
   try {
     await game.importToSlot(slot, file)
-    ui.showToast(`セーブ${slot}に読み込みました`)
+    ui.showToast('セーブデータを読み込みました')
   } catch (err) {
     await ui.alert((err as Error).message, '読み込みに失敗しました')
   }
@@ -82,8 +115,8 @@ async function exportSlot(slot: number): Promise<void> {
   }
 }
 
-async function remove(slot: number): Promise<void> {
-  const ok = await ui.confirm(`セーブ${slot}のデータを削除しますか？\nこの操作は取り消せません。`, {
+async function remove(slot: number, no: number): Promise<void> {
+  const ok = await ui.confirm(`データ${no}を削除しますか？\nこの操作は取り消せません。`, {
     okLabel: '削除する',
     cancelLabel: 'やめる',
     danger: true,
@@ -93,241 +126,375 @@ async function remove(slot: number): Promise<void> {
 </script>
 
 <template>
-  <div class="title-page">
-    <div class="hero">
-      <div class="stage3d">
-        <Field3D :bases="noBases" :names="{}" :last-event="null" :own-batting="true" cinematic />
+  <div class="title-page" :class="`is-${phase}`" :style="{ '--art': `url(${titleArt})` }">
+    <div class="art" />
+
+    <!-- タイトル -->
+    <div v-if="phase === 'splash'" class="splash" role="button" tabindex="0" @click="start" @keydown.enter="start">
+      <div class="logo">
+        <span class="l1">転生名将</span>
+        <span class="l2">ナギ</span>
       </div>
-      <div class="vignette" />
-      <div class="logo-wrap">
-        <div class="kicker">HIGH SCHOOL BASEBALL</div>
-        <h1 class="logo">
-          <span class="l1">転生名将</span>
-          <span class="l2">ナギ</span>
-        </h1>
-        <div class="rule"><i /><GameIcon name="ball" :size="18" /><i /></div>
-        <p class="sub">テンナギ</p>
+      <div class="tap">TAP TO START</div>
+      <div v-if="ui.updateAvailable" class="update" @click.stop>
+        新しい版があります　<button class="sun" @click="ui.runUpdate()">更新する</button>
       </div>
     </div>
 
-    <div class="page">
-      <div v-if="ui.updateAvailable" class="card update">
-        <div>新しい版があります。</div>
-        <button @click="ui.runUpdate()">更新する</button>
+    <!-- モード選択（セーブ選択） -->
+    <div v-else class="menu">
+      <div class="menu-head">
+        <button class="back" aria-label="タイトルへ戻る" @click="phase = 'splash'"><GameIcon name="back" :size="18" /></button>
+        <div class="logo small">
+          <span class="l1">転生名将</span>
+          <span class="l2">ナギ</span>
+        </div>
+        <button class="back" :aria-label="managing ? 'データ管理を閉じる' : 'データ管理'" @click="managing = !managing">
+          <img :src="`${BASE}ui/ui_settings.webp`" alt="" />
+        </button>
       </div>
 
-      <div class="row head">
-        <h2>{{ managing ? 'データ管理' : 'セーブデータ' }}</h2>
-        <button class="plain" @click="managing = !managing">{{ managing ? '戻る' : 'データ管理' }}</button>
+      <div class="modes">
+        <button class="mode" :class="{ on: mode === 'player' }" @click="pickMode('player')">
+          <img :src="`${BASE}icon/icon_focus.webp`" alt="" />
+          <span class="m-name">選手育成モード</span>
+          <span class="m-sub">1人を3年間育ててプロへ</span>
+        </button>
+        <button class="mode" :class="{ on: mode === 'team', locked: !teamUnlocked }" @click="pickMode('team')">
+          <img :src="`${BASE}ui/ui_trophy.webp`" alt="" />
+          <span class="m-name">チーム育成モード</span>
+          <span class="m-sub">{{ teamUnlocked ? '監督として部を頂点へ' : '全シナリオクリアで解禁' }}</span>
+          <span v-if="!teamUnlocked" class="lock" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+          </span>
+        </button>
       </div>
 
-      <div v-for="(s, i) in game.slots" :key="i" class="card slot">
-        <div class="slot-title">SAVE {{ i + 1 }}</div>
-        <template v-if="s">
-          <div class="school">{{ s.schoolName }}<span class="muted">（{{ s.prefName }}）</span></div>
-          <div class="muted">{{ formatWeek(s.year, s.week) }} ／ 監督 {{ s.managerName }} ／ 保存 {{ updatedLabel(s.updatedAt) }}</div>
+      <div v-for="r in rows" :key="r.n" class="slot">
+        <div class="slot-no">DATA {{ r.no }}</div>
+        <template v-if="r.s">
+          <template v-if="mode === 'player'">
+            <div class="slot-main">
+              <img class="slot-face" :src="`${BASE}icon/icon_focus.webp`" alt="" />
+              <div>
+                <div class="slot-chapter">第1章 ナギ現役編</div>
+                <div class="slot-name">
+                  {{ r.s.focus?.name ?? '育成中の選手' }}
+                  <small v-if="r.s.focus">{{ POSITION_LABEL[r.s.focus.position] }}</small>
+                </div>
+              </div>
+            </div>
+          </template>
+          <div v-else class="slot-name">{{ r.s.schoolName }}<small>（{{ r.s.prefName }}）</small></div>
+          <div class="slot-meta">{{ formatWeek(r.s.year, r.s.week) }}　保存 {{ updatedLabel(r.s.updatedAt) }}</div>
         </template>
-        <div v-else class="muted">データなし</div>
+        <div v-else class="slot-empty">データなし</div>
 
         <div v-if="!managing" class="actions">
-          <button v-if="s" class="sun" :disabled="game.busy" @click="play(i + 1)"><GameIcon name="play" :size="16" /> 続きから</button>
-          <button :class="s ? 'secondary' : ''" :disabled="game.busy" @click="startNew(i + 1)">はじめから</button>
+          <button v-if="r.s" class="sun" :disabled="game.busy" @click="play(r.n)"><GameIcon name="play" :size="15" /> 続きから</button>
+          <button :class="r.s ? 'secondary' : ''" :disabled="game.busy" @click="startNew(r.n, r.no)">はじめから</button>
         </div>
         <div v-else class="actions">
-          <button class="secondary" :disabled="!s" @click="exportSlot(i + 1)">書き出し</button>
-          <button class="secondary" @click="chooseImport(i + 1)">読み込み</button>
-          <button class="danger" :disabled="!s" @click="remove(i + 1)">削除</button>
+          <button class="secondary" :disabled="!r.s" @click="exportSlot(r.n)">書き出し</button>
+          <button class="secondary" @click="chooseImport(r.n)">読み込み</button>
+          <button class="danger" :disabled="!r.s" @click="remove(r.n, r.no)">削除</button>
         </div>
       </div>
 
-      <p v-if="managing" class="muted">
-        「書き出し」でセーブデータをファイルに保存できます。機種変更やアプリの削除に備えて、ときどき書き出しておくと安心です。
-      </p>
-      <p v-if="game.busy" class="muted">読み込み中…</p>
-      <a class="intro-link" href="./intro/">ゲーム紹介ページ（友達に紹介する）</a>
-      <a class="intro-link small" href="./privacy/">プライバシーポリシー</a>
+      <div v-if="mode === 'player' && savedCount > 0" class="saved">
+        <img :src="`${BASE}ui/ui_eval.webp`" alt="" /> プロ入りした育成選手　<b>{{ savedCount }}</b>人
+      </div>
+
+      <p v-if="managing" class="note">「書き出し」でセーブデータをファイルに保存できます。機種変更やアプリの削除に備えて、ときどき書き出しておくと安心です。</p>
+      <p v-if="game.busy" class="note">読み込み中…</p>
+      <div class="links">
+        <a href="./intro/">ゲーム紹介ページ</a>
+        <a href="./privacy/">プライバシーポリシー</a>
+      </div>
       <input ref="fileInput" type="file" accept=".hsbm,application/gzip,application/octet-stream" hidden @change="onFile" />
     </div>
   </div>
 </template>
 
 <style scoped>
-/* タイトルはナイターの球場を背景に、暗い配色で引き締める */
 .title-page {
-  min-height: 100dvh;
-  background: radial-gradient(120% 60% at 50% 0%, #17305a 0%, #0a1426 55%, #060c18 100%);
-  color: #e8eef8;
-}
-.hero {
   position: relative;
-  height: min(52dvh, 420px);
+  min-height: 100dvh;
   overflow: hidden;
+  color: #1b2638;
+  background: #8ec5ef;
 }
-.stage3d {
-  position: absolute;
+.art {
+  position: fixed;
   inset: 0;
+  background: var(--art) center top / cover no-repeat;
+  transition: filter 0.4s ease, transform 0.6s ease;
 }
-.vignette {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(6, 12, 24, 0.55) 0%, rgba(6, 12, 24, 0) 30%, rgba(6, 12, 24, 0) 60%, #0a1426 100%),
-    radial-gradient(60% 26% at 50% 48%, rgba(6, 12, 24, 0.55) 0%, rgba(6, 12, 24, 0) 100%),
-    radial-gradient(90% 70% at 50% 40%, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.45) 100%);
+.title-page.is-mode .art {
+  filter: blur(6px) brightness(0.85) saturate(1.1);
+  transform: scale(1.06);
 }
-.logo-wrap {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding-top: env(safe-area-inset-top, 0px);
-  pointer-events: none;
-}
-.kicker {
-  font-family: 'M PLUS Rounded 1c', sans-serif;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.42em;
-  color: #ffd36b;
-  text-shadow: 0 0 10px rgba(255, 211, 107, 0.6);
-  animation: rise 0.8s ease-out both;
-}
+
+/* ---- ロゴ ---- */
 .logo {
-  margin: 4px 0 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   line-height: 1;
+  font-family: 'M PLUS Rounded 1c', sans-serif;
   font-weight: 900;
-  font-style: italic;
-  animation: rise 0.8s ease-out 0.12s both;
+  filter: drop-shadow(0 4px 0 #0d2a52) drop-shadow(0 8px 16px rgba(10, 30, 60, 0.45));
 }
-.l1 {
-  font-size: 30px;
-  letter-spacing: 0.18em;
-  color: #fff;
-  text-shadow: 0 2px 0 #0b1a33, 0 0 18px rgba(120, 180, 255, 0.55);
-}
-.l2 {
-  margin-top: 4px;
-  font-size: 50px;
-  letter-spacing: 0.04em;
-  /* 金属のような光沢のある文字 */
-  background: linear-gradient(180deg, #fffbe6 0%, #ffe07a 38%, #f2a516 52%, #ffd84d 70%, #fff1b8 100%);
+.logo .l1,
+.logo .l2 {
+  background: linear-gradient(180deg, #fff8d6 0%, #ffd34d 45%, #f08a1c 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  -webkit-text-stroke: 1.5px #6b3d00;
-  filter: drop-shadow(0 4px 0 #3a2000) drop-shadow(0 0 16px rgba(255, 196, 61, 0.55));
+  -webkit-text-stroke: 2px #0d2a52;
+  paint-order: stroke fill;
+}
+.logo .l1 {
+  font-size: 34px;
+  letter-spacing: 0.12em;
+}
+.logo .l2 {
+  font-size: 84px;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+.logo.small .l1 {
+  font-size: 15px;
+  -webkit-text-stroke-width: 1px;
+}
+.logo.small .l2 {
+  font-size: 34px;
+  -webkit-text-stroke-width: 1.5px;
+}
+
+/* ---- タイトル ---- */
+.splash {
   position: relative;
-}
-.rule {
+  min-height: 100dvh;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 7dvh) 16px calc(env(safe-area-inset-bottom, 0px) + 6dvh);
+  cursor: pointer;
+}
+.splash .logo {
+  animation: drop 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.tap {
+  font-family: 'M PLUS Rounded 1c', sans-serif;
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: 0.24em;
   color: #fff;
-  animation: rise 0.8s ease-out 0.24s both;
+  text-shadow: 0 2px 0 #0d2a52, 0 0 12px rgba(13, 42, 82, 0.8);
+  animation: blink 1.6s ease-in-out infinite;
 }
-.rule i {
-  display: block;
-  width: 70px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #ffd36b);
+.update {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  right: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 12px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 700;
 }
-.rule i:last-child {
-  background: linear-gradient(90deg, #ffd36b, transparent);
+.update button {
+  padding: 4px 10px;
+  font-size: 12px;
 }
-.sub {
-  margin: 8px 0 0;
-  font-size: 10px;
-  font-weight: 800;
-  color: #9fb4cc;
-  letter-spacing: 0.2em;
-}
-@keyframes rise {
+@keyframes drop {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.96);
+    transform: translateY(-24px) scale(0.9);
   }
-  to {
+}
+@keyframes blink {
+  0%,
+  100% {
     opacity: 1;
-    transform: none;
+  }
+  50% {
+    opacity: 0.25;
   }
 }
-.page {
+
+/* ---- モード選択 ---- */
+.menu {
   position: relative;
-  margin-top: -36px;
+  min-height: 100dvh;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 14px calc(env(safe-area-inset-bottom, 0px) + 20px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fade 0.35s ease both;
 }
-.head h2 {
-  color: #fff;
+@keyframes fade {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
 }
-.head .plain {
-  color: #ffd36b;
+.menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
-.slot.card {
-  background: linear-gradient(160deg, rgba(34, 58, 96, 0.85), rgba(16, 30, 54, 0.92));
-  border: 1px solid rgba(140, 180, 230, 0.25);
-  border-left: 5px solid #ffd36b;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  color: #e8eef8;
-  backdrop-filter: blur(6px);
+.back {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1a6fc2;
+  box-shadow: 0 3px 0 rgba(13, 42, 82, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.slot .muted,
-.page > .muted {
-  color: #9fb4cc;
+.back img {
+  width: 30px;
+  height: 30px;
 }
-.slot-title {
+.modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.mode {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 3px solid transparent;
+  color: #1b2638;
+  box-shadow: 0 4px 0 rgba(13, 42, 82, 0.3);
+}
+.mode img {
+  width: 58px;
+  height: 58px;
+}
+.mode.on {
+  background: #fff;
+  border-color: #ffc93c;
+  box-shadow: 0 4px 0 #d99400, 0 0 0 4px rgba(255, 201, 60, 0.35);
+}
+.mode.locked {
+  background: rgba(225, 232, 242, 0.85);
+  color: #5f6f86;
+}
+.mode.locked img {
+  filter: grayscale(1) opacity(0.6);
+}
+.m-name {
+  font-size: 15px;
+  font-weight: 900;
+}
+.m-sub {
+  font-size: 11px;
+  font-weight: 700;
+  color: #5f6f86;
+}
+.lock {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+.slot {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 18px;
+  padding: 10px 14px 12px;
+  box-shadow: 0 4px 0 rgba(13, 42, 82, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.slot-no {
+  align-self: flex-start;
   font-size: 11px;
   font-weight: 900;
-  color: #ffd36b;
-  letter-spacing: 0.2em;
-}
-.school {
-  font-weight: 900;
-  font-size: 17px;
+  letter-spacing: 0.12em;
   color: #fff;
+  background: #1a6fc2;
+  border-radius: 999px;
+  padding: 1px 10px;
+}
+.slot-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.slot-face {
+  width: 46px;
+  height: 46px;
+}
+.slot-chapter {
+  font-size: 12px;
+  font-weight: 800;
+  color: #237d2e;
+}
+.slot-name {
+  font-size: 17px;
+  font-weight: 900;
+}
+.slot-name small {
+  margin-left: 6px;
+  font-size: 12px;
+  color: #5f6f86;
+}
+.slot-meta,
+.slot-empty {
+  font-size: 12px;
+  color: #5f6f86;
 }
 .actions {
   display: flex;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 4px;
 }
 .actions button {
   flex: 1;
-  padding: 10px 8px;
 }
-.update {
+.saved {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  background: #fff8e6;
-  border-color: #ecd9a4;
-  color: var(--ink);
-}
-.intro-link {
-  display: block;
-  text-align: center;
-  margin: 18px 0 8px;
-  color: #ffd36b;
+  gap: 6px;
+  align-self: center;
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 999px;
+  padding: 4px 14px 4px 6px;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
 }
-.intro-link.small {
-  margin-top: 0;
-  font-size: 11px;
-  color: #9fb4cc;
+.saved img {
+  width: 28px;
+  height: 28px;
 }
-.head {
-  justify-content: space-between;
-  margin: 4px 0 8px;
+.note {
+  margin: 0;
+  font-size: 12px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
-.head h2 {
-  font-size: 17px;
-  font-weight: 900;
+.links {
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  font-size: 12px;
+}
+.links a {
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 </style>

@@ -29,7 +29,7 @@ export function newStoryState(): StoryState {
 }
 
 /** 新しいゲームをストーリーありで始めるときに呼ぶ（第1章はサクセス：1人の選手を3年間育てる） */
-export function setupStoryWorld(save: SaveData): void {
+export function setupStoryWorld(save: SaveData, opts: { focusName?: { surname: string; givenName: string } } = {}): void {
   const rng = new Rng(save.rngState)
   const st = newStoryState()
   st.success = newSuccessState()
@@ -69,6 +69,8 @@ export function setupStoryWorld(save: SaveData): void {
 
   // 3. フォーカス選手（大地の幼馴染。守備位置は合格発表の場面で決める）
   const f = makeFocus(save, rng, 'SS')
+  if (opts.focusName?.surname) f.surname = opts.focusName.surname
+  if (opts.focusName?.givenName) f.givenName = opts.focusName.givenName
   st.success.focusId = f.id
   own.overall = computeOverall(own, save.players)
 

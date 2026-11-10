@@ -289,21 +289,21 @@ export const DRAFT_WEEK = 31
 
 /** 架空のプロリーグの球団 */
 const PRO_TEAMS = [
-  '札幌ノースベアーズ',
-  '仙台フォレスターズ',
-  '東京スカイライツ',
-  '千葉オーシャンウェーブ',
-  '横浜ブルーアンカーズ',
-  '名古屋ゴールデンシャチズ',
-  '京都ミヤビナイツ',
-  '大阪ファイヤーバーズ',
-  '神戸ポートパイレーツ',
-  '岡山ピーチボーイズ',
-  '松山シトラススターズ',
-  '福岡ブレイズ',
+  '北嶺ノースベアーズ',
+  '杜宮フォレスターズ',
+  '都央スカイライツ',
+  '潮房オーシャンウェーブ',
+  '浜風ブルーアンカーズ',
+  '鯱浜ゴールデンシャチズ',
+  '雅京ミヤビナイツ',
+  '七海ファイヤーバーズ',
+  '神凪ポートパイレーツ',
+  '桃原ピーチボーイズ',
+  '橘浜シトラススターズ',
+  '博浜ブレイズ',
 ]
 
-/** ストーリーで鬼頭鉄郎が率いた球団の名前（選んだ都道府県の名前を冠する。例：大阪スカイライツ） */
+/** ストーリーで鬼頭鉄郎が率いた球団の名前（県の名前を冠する。選手育成モードでは架空の県名。例：七海スカイライツ） */
 export function skylightsName(prefCode: number): string {
   const pref = prefName(prefCode)
   const short = pref === '北海道' ? pref : pref.replace(/[都府県]$/, '')
@@ -316,7 +316,7 @@ function proTeams(save: SaveData): string[] {
   const sky = skylightsName(save.prefCode)
   const short = sky.replace('スカイライツ', '')
   // 地元に別の球団がある場合は、スカイライツと入れ替える
-  return [...PRO_TEAMS.filter((t) => t !== '東京スカイライツ' && !t.startsWith(short)), sky]
+  return [...PRO_TEAMS.filter((t) => t !== '都央スカイライツ' && !t.startsWith(short)), sky]
 }
 
 /** 自校の引退した3年生のうち、指名された選手 */

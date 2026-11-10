@@ -439,6 +439,8 @@ export interface SaveSummary {
   schoolName: string
   prefName: string
   managerName: string
+  /** 選手育成モードで育てている選手 */
+  focus?: { name: string; position: Position }
   year: number
   week: number
   updatedAt: string

@@ -64,6 +64,11 @@ export function summarize(save: SaveData): SaveSummary {
     schoolName: save.schools[save.playerSchoolId]?.name ?? '不明',
     prefName: prefName(save.prefCode),
     managerName: save.managerName,
+    focus: (() => {
+      const id = save.story?.success?.focusId
+      const f = id ? save.players[id] : undefined
+      return f ? { name: `${f.surname} ${f.givenName}`, position: f.mainPosition } : undefined
+    })(),
     year: save.calendar.year,
     week: save.calendar.week,
     updatedAt: save.updatedAt,

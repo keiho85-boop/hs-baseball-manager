@@ -1,7 +1,14 @@
 import type { Position, PitchType, PracticeMenu } from './types'
 
 export const SAVE_VERSION = 1
-export const SAVE_SLOTS = 3
+/** セーブ枠：1〜2は選手育成モード、3〜4はチーム育成モード */
+export const SAVE_SLOTS = 4
+export const PLAYER_MODE_SLOTS = [1, 2]
+export const TEAM_MODE_SLOTS = [3, 4]
+export type GameMode = 'player' | 'team'
+export function modeOfSlot(slot: number): GameMode {
+  return PLAYER_MODE_SLOTS.includes(slot) ? 'player' : 'team'
+}
 export const WEEKS_PER_YEAR = 52
 /** 1つの都道府県の学校数 */
 export const SCHOOLS_PER_PREF = 32
@@ -65,8 +72,31 @@ export const PREFECTURES: Prefecture[] = [
   { code: 47, name: '沖縄県', region: '九州' },
 ]
 
+/** 選手育成モードで使う架空の県名（都道府県コードごと） */
+export const FICTIONAL_PREF: Record<number, string> = {
+  1: '北嶺県', 2: '雪森県', 3: '霧原県', 4: '杜宮県', 5: '稲穂県', 6: '紅野県', 7: '磐瀬県',
+  8: '筑野県', 9: '光野県', 10: '赤峰県', 11: '秩川県', 12: '潮房県', 13: '都央県', 14: '浜風県',
+  15: '白鳥県', 16: '雷鳥県', 17: '金鞍県', 18: '若越県', 19: '峡央県', 20: '信嶺県', 21: '清流県',
+  22: '富峰県', 23: '鯱浜県', 24: '真珠県', 25: '鳰湖県', 26: '雅京県', 27: '七海県', 28: '神凪県',
+  29: '鹿野原県', 30: '紀峰県', 31: '白砂県', 32: '神在県', 33: '桃原県', 34: '鯉城県', 35: '門浜県',
+  36: '渦潮県', 37: '讃浜県', 38: '橘浜県', 39: '黒潮県', 40: '博浜県', 41: '明海県', 42: '蘭浜県',
+  43: '炎野県', 44: '湯ノ里県', 45: '陽南県', 46: '火ノ島県', 47: '南風県',
+}
+/** 選手育成モードの舞台（県） */
+export const PLAYER_MODE_PREF = 27
+/** 選手育成モードの学校名（固定） */
+export const PLAYER_MODE_SCHOOL = '七海東高校'
+
+let fictionalPlaces = false
+/** 地名を架空のものにするか（選手育成モードのとき true） */
+export function setFictionalPlaces(on: boolean): void {
+  fictionalPlaces = on
+}
+
 export function prefName(code: number): string {
-  return PREFECTURES.find((p) => p.code === code)?.name ?? '不明'
+  const real = PREFECTURES.find((p) => p.code === code)?.name
+  if (!real) return '不明'
+  return fictionalPlaces ? (FICTIONAL_PREF[code] ?? real) : real
 }
 
 export const POSITIONS: Position[] = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF']
