@@ -426,7 +426,12 @@ const focusSkills = computed(() =>
 </script>
 
 <template>
-  <div v-if="draft" class="ob" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
+  <div v-if="members.length < 9" class="ob-empty">
+    <GameIcon name="clipboard" :size="28" />
+    <p>部員が9人そろうと、オーダーを組めます。</p>
+    <p class="muted">いまの部員：{{ members.length }}人</p>
+  </div>
+  <div v-else-if="draft" class="ob" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
     <!-- 上：選んだ選手 -->
     <div v-if="focus" class="focus">
       <div class="f-top">
@@ -647,6 +652,21 @@ const focusSkills = computed(() =>
 </template>
 
 <style scoped>
+.ob-empty {
+  margin: 16px 0;
+  padding: 28px 16px;
+  background: #fff;
+  border-radius: 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+.ob-empty p {
+  margin: 0;
+}
 .ob {
   display: flex;
   flex-direction: column;

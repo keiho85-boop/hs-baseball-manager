@@ -79,9 +79,10 @@ export function autoLineup(players: Player[], wantDH: boolean): LineupConfig {
   const hitters = [...positions.entries()]
     .filter(([pos]) => pos !== 'P')
     .map(([position, p]) => ({ position, p }))
+  // 部員が9人に満たないときは、打者が足りないぶん空いたまま組む
   const take = (score: (p: Player) => number) => {
     hitters.sort((a, b) => score(b.p) - score(a.p))
-    return hitters.shift()!
+    return hitters.shift()
   }
   const order: { position: Position | 'DH'; p: Player }[] = []
   const third = take(batScore)
@@ -89,7 +90,7 @@ export function autoLineup(players: Player[], wantDH: boolean): LineupConfig {
   const first = take((p) => p.running.speed * 0.45 + p.batting.contact * 0.35 + p.batting.eye * 0.2)
   const second = take((p) => p.batting.contact * 0.6 + p.batting.eye * 0.2 + p.running.speed * 0.2)
   const fifth = take((p) => p.batting.power * 0.6 + p.batting.contact * 0.4)
-  order.push(first, second, third, fourth, fifth)
+  for (const o of [first, second, third, fourth, fifth]) if (o) order.push(o)
   hitters.sort((a, b) => batScore(b.p) - batScore(a.p))
   order.push(...hitters)
   if (!useDH) order.push({ position: 'P', p: starter })

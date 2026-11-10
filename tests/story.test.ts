@@ -230,3 +230,13 @@ describe('ストーリー 第1章（サクセス）', () => {
     }
   })
 })
+
+describe('部員が9人未満のオーダー', () => {
+  it('3人でもオーダーを作れて、エラーにならない', () => {
+    const save = newGame(77)
+    expect(rosterCount(save)).toBeLessThan(9)
+    const line = ownLineup(save)
+    expect(line.batters.length).toBeLessThan(9)
+    expect(line.batters.every((b) => !!save.players[b.playerId])).toBe(true)
+  })
+})
