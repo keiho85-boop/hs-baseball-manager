@@ -1,7 +1,7 @@
 # 画像プロンプト（選手育成モード・第1章の追加分）
 
 どれも「見本を1枚添付」して使います。見本の画像名は各項目に書いてあります。
-作る順番は **① → ② → ③ → ④** がおすすめです（②と③は①の絵を見本に使うため）。
+①の育成選手と、③の大地のアイコンは受け取り済みです。残りは②③④⑤です。
 
 ---
 
@@ -39,7 +39,7 @@ Plain pure white background, no text, no logos.
 ## ② タイトル画面の1枚絵（第1章）
 
 - **ファイル名：** `title_ch1.webp`
-- **添付する見本：** `REF_title_ch1.png`（①ができたら、ナギ・大地・育成選手・夕方のグラウンドを1枚にまとめた見本をこちらで作ってお渡しします）
+- **添付する見本：** `REF_title_ch1.png`（ナギ・大地・育成選手・夕方のグラウンドを1枚にまとめた見本）
 - **サイズ：** 縦長 1024×1536
 
 ```
@@ -68,7 +68,7 @@ No text, no logos.
 
 ### 2枚目以降
 
-大地のアイコンができたら、その人物の立ち絵（左）と大地のアイコン（右）を並べた見本を、こちらで人物ごとに作ってお渡しします。プロンプトは共通です。
+人物ごとに、立ち絵（左）と大地のアイコン（右）を並べた見本 `REF_icon_〇〇.png` を用意しました。下の一覧の人物の見本を添付してください。プロンプトは共通です。
 
 ```
 The attached sheet has two images. Use the LEFT image for the character: same hair, eye color, skin tone, outfit colors and accessories. Use the RIGHT image for the icon style only: match its chibi proportions, line weight, flat coloring, framing and margin exactly. Do not copy the right character.
@@ -78,25 +78,24 @@ No text, no logos.
 
 ### 作るアイコンの一覧
 
-| ファイル名 | 人物 | 左に置く立ち絵 |
+| ファイル名 | 人物 | 添付する見本 |
 |---|---|---|
-| icon_focus | 育成選手 | ①の normal |
-| icon_mob | モブ選手（全員共通） | mob_captain_practice_bust_normal |
-| icon_nagi | ナギ | nagi_hs_uniform_bust_smile |
-| icon_makabe | 真壁先生 | makabe_20s_teacher_bust_normal |
-| icon_hasumi | 蓮見先生 | hasumi_nurse_bust_smile |
-| icon_genzo | 源造 | genzo_50s_shop_bust_smile |
-| icon_scout | スカウト | pro_scout_40s_bust_normal |
-| icon_iwaki | 岩城（陸上） | iwaki_hs_track_bust_normal |
-| icon_shiomi | 塩見（相撲） | shiomi_hs_sumo_bust_normal |
-| icon_amou | 天羽（サッカー） | amou_hs_soccer_bust_normal |
-| icon_kuon | 久遠（テニス） | kuon_hs_tennis_bust_normal |
-| icon_kobayakawa | 小早川（卓球） | kobayakawa_hs_tabletennis_bust_normal |
-| icon_senju | 千手（将棋） | senju_hs_shogi_bust_normal |
-| icon_shinonome | 東雲（生徒会長） | shinonome_hs_council_bust_normal |
-| icon_miki | 三木（新聞部） | miki_hs_newspaper_bust_normal |
+| icon_focus | 育成選手 | REF_icon_focus.png |
+| icon_mob | モブ選手（全員共通） | REF_icon_mob.png |
+| icon_nagi | ナギ | REF_icon_nagi.png |
+| icon_makabe | 真壁先生 | REF_icon_makabe.png |
+| icon_hasumi | 蓮見先生 | REF_icon_hasumi.png |
+| icon_genzo | 源造 | REF_icon_genzo.png |
+| icon_scout | スカウト | REF_icon_scout.png |
+| icon_iwaki | 岩城（陸上） | REF_icon_iwaki.png |
+| icon_shiomi | 塩見（相撲） | REF_icon_shiomi.png |
+| icon_amou | 天羽（サッカー） | REF_icon_amou.png |
+| icon_kuon | 久遠（テニス） | REF_icon_kuon.png |
+| icon_kobayakawa | 小早川（卓球） | REF_icon_kobayakawa.png |
+| icon_senju | 千手（将棋） | REF_icon_senju.png |
+| icon_shinonome | 東雲（生徒会長） | REF_icon_shinonome.png |
+| icon_miki | 三木（新聞部） | REF_icon_miki.png |
 
-※ 岩城と塩見は描き直しをお願いしている途中なので、新しい立ち絵ができてからアイコンを作るのがおすすめです。
 
 ---
 
@@ -139,7 +138,7 @@ Icons, left to right, top to bottom:
 
 ## ⑤ エンディング用の1枚絵（任意・華やかにするため）
 
-①ができたら、ナギ・大地・育成選手を並べた見本をこちらで作ってお渡しします。
+添付する見本：`REF_trio.png`（ナギ・大地・育成選手を並べた見本）
 
 ### ドラフト指名（通常エンディング）
 

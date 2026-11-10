@@ -24,6 +24,7 @@ const NAMES: Record<CharId, string> = {
   nagi: 'ナギ',
   nagi_jh: 'ナギ',
   daichi: '大地',
+  focus: '{フォーカス}',
   reika: 'レイカ',
   genzo: '源造',
   makabe: '真壁',
@@ -86,8 +87,8 @@ const reika = (face: Face, text: string): SayStep => say('reika', face, text)
 const hasumi = (face: Face, text: string): SayStep => say('hasumi', face, text)
 const cap1 = (text: string, face: Face = 'normal'): SayStep => say('mob_cap', face, text)
 const grandpa = (text: string): SayStep => say('grandpa', 'smile', text)
-/** フォーカス選手（顔の絵はないので名前だけ） */
-const fv = (text: string): SayStep => voice('{フォーカス}', text)
+/** 育成選手（いつもの主人公の絵で出す） */
+const fv = (text: string, face: Face = 'normal'): SayStep => say('focus', face, text)
 
 /** 場面のあとに、操作のチュートリアルを始める */
 function startGuide(c: StoryContext, id: 'practice' | 'funds' | 'order' | 'recruit'): void {

@@ -7,6 +7,7 @@ import type { SuccessState } from '../success/types'
 /** 立ち絵のある人物 */
 export type CharId =
   | 'nagi'
+  | 'focus'
   | 'nagi_jh'
   | 'daichi'
   | 'reika'

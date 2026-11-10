@@ -77,6 +77,12 @@ const ART: Record<CharId, CharArt> = {
     fallback: 'smile',
     color: '#d84315',
   },
+  focus: {
+    prefix: 'focus_hs_practice_bust_',
+    faces: { smile: 'smile', joy: 'joy', serious: 'serious', surprise: 'surprise', troubled: 'frustrated', frustrated: 'frustrated', angry: 'frustrated', cry: 'frustrated' },
+    fallback: 'normal',
+    color: '#1a6fc2',
+  },
   grandpa_hosp: {
     prefix: 'grandpa_70s_hospital_bust_',
     faces: {},
