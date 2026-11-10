@@ -38,14 +38,42 @@ Plain pure white background, no text, no logos.
 
 ## ② タイトル画面の1枚絵（第1章）
 
+- **タイトル：** 転生名将ナギ（略称：テンナギ）
 - **ファイル名：** `title_ch1.webp`
-- **添付する見本：** `REF_title_ch1.png`（ナギ・大地・育成選手・夕方のグラウンドを1枚にまとめた見本）
-- **サイズ：** 縦長 1024×1536
+- **サイズ：** 縦長 9:16（スマホの画面いっぱいに出すため）
+- **添付する見本：** `REF_title_cast.png`（上段：ナギ・大地・育成選手、下段：各部のエース6人）
+- タイトルの文字は絵に入れず、ゲーム側でロゴを重ねます（画像生成は漢字の文字が崩れやすいため）。
+- 参考にいただいた他社タイトルの絵は、生成ツールに添付しないでください。構図の考え方だけを言葉で指定しています。
+
+### 案A：みんなでこちらへ駆けてくる（勢い重視）
 
 ```
-Use the attached reference sheet for the characters and the art style: the girl, the catcher and the boy in the white practice uniform must keep the same faces, hair and outfits, and the background must keep the same painting style and warm sunset light.
-Key visual for a high school baseball game, vertical composition. A small, worn-out public high school baseball ground at golden-hour sunset, with an old backstop net and a tired clubhouse. In the front center, the girl (the team manager, brown ponytail with a red ribbon, school blazer, holding a notebook covered with colorful sticky notes) smiles brightly toward the viewer. Just behind her on the left, the catcher boy in a dirty practice uniform with his cap on backwards rests his catcher's mitt on his shoulder and grins. On the right, the boy in the clean white practice uniform grips a baseball and looks forward with determination. Far in the background, small silhouettes of students from other sports clubs (a runner, a big sumo wrestler, a soccer player, a tennis player) watch from beyond the fence.
-Leave the top quarter as open sky for a title logo and keep the bottom 15 percent simple ground for a "tap to start" line.
+Use the attached reference sheet for the characters and the art style: keep every character's face, hair, skin tone and outfit exactly as shown, and match the line art and coloring.
+Vertical 9:16 key visual for a high school baseball game. A low camera angle on bright green baseball outfield grass under a vivid blue summer sky with big white clouds. The whole cast runs straight toward the viewer with energy and big smiles, motion streaks and grass blades flying.
+In the front center, the manager girl with the brown ponytail and red ribbon runs toward the camera, one hand reaching forward, holding her sticky-note notebook in the other, eyes shining. Just behind her on the left, the catcher boy with his cap on backwards runs with his catcher's mitt raised. On the right, the boy in the clean white practice uniform runs with a baseball in his hand and a determined face.
+Behind them, smaller and layered toward the horizon, the other club aces run along: the big muscular boy in a navy track jacket, the round sumo boy in a white tank top and navy gym shorts, the soccer boy with a ball, the tennis boy with his racket, the red-haired table tennis boy, and the glasses boy in a black school uniform holding a shogi piece.
+Leave the top fifth of the image as open sky for a title logo, and keep the bottom tenth as simple grass for a "tap to start" line.
+No text, no letters, no numbers, no logos anywhere.
+```
+
+### 案B：主役3人を大きく重ねる（キャラ重視）
+
+```
+Use the attached reference sheet for the characters and the art style: keep the faces, hair, skin tones and outfits exactly as shown, and match the line art and coloring.
+Vertical 9:16 key visual for a high school baseball game, a layered character collage. Bright stadium scene behind: a scoreboard, light towers, green trees and a blue sky with sunlight flares.
+Large in the center, the boy in the clean white practice uniform swings a bat with full power, eyes fierce. Lower right, the catcher boy with his cap on backwards catches a ball in his mitt toward the viewer. Lower left in front, the manager girl with the brown ponytail hugs her sticky-note notebook and smiles at the viewer with a confident wink.
+Upper left and upper right, smaller busts of the other club aces overlap the sky: the big boy in the navy track jacket, the tennis boy with his racket on his shoulder, the red-haired table tennis boy, the soccer boy, the round sumo boy in a white tank top, and the glasses boy holding a shogi piece.
+Leave the top fifth for a title logo and the bottom tenth simple for a "tap to start" line.
+No text, no letters, no numbers, no logos anywhere.
+```
+
+### 案C：大きな球場を見上げる後ろ姿（物語重視）
+
+```
+Use the attached reference sheet for the characters and the art style: keep the hair, skin tones and outfits exactly as shown, and match the line art and coloring.
+Vertical 9:16 key visual for a high school baseball game. Seen from behind, a small line of students stands on a worn dirt infield at sunrise, looking up at a huge, shining baseball stadium floating far away above a sea of glowing clouds, their dream stage. The ground under their feet reflects the sky like a thin layer of water.
+From left to right: the big boy in the navy track jacket, the soccer boy with a ball under his arm, the catcher boy with his cap on backwards and a mitt, the manager girl with the brown ponytail and red ribbon in the center, the boy in the clean white practice uniform holding a bat over his shoulder, the tennis boy with his racket, and the red-haired table tennis boy. The manager girl turns her face slightly back toward the viewer with a smile.
+Leave the top fifth as sky for a title logo and the bottom tenth simple for a "tap to start" line.
 No text, no letters, no numbers, no logos anywhere.
 ```
 

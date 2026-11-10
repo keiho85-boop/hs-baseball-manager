@@ -38,8 +38,8 @@ export default defineConfig(({ mode }) => {
       registerType: 'prompt',
       includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
       manifest: {
-        name: '高校野球監督ゲーム（仮）',
-        short_name: '監督ゲーム',
+        name: '転生名将ナギ',
+        short_name: 'テンナギ',
         description: '高校野球の監督として、選手を育て、采配を振るい、学校を強くする',
         lang: 'ja',
         start_url: '/hs-baseball-manager/',

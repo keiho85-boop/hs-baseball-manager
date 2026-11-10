@@ -102,11 +102,11 @@ async function remove(slot: number): Promise<void> {
       <div class="logo-wrap">
         <div class="kicker">HIGH SCHOOL BASEBALL</div>
         <h1 class="logo">
-          <span class="l1">高校野球</span>
-          <span class="l2">監督ゲーム</span>
+          <span class="l1">転生名将</span>
+          <span class="l2">ナギ</span>
         </h1>
         <div class="rule"><i /><GameIcon name="ball" :size="18" /><i /></div>
-        <p class="sub">仮タイトル</p>
+        <p class="sub">テンナギ</p>
       </div>
     </div>
 

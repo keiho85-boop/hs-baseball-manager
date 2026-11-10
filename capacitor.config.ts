@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 // Androidアプリ（Google Play 用）の設定。アプリIDは公開後に変えられないので注意
 const config: CapacitorConfig = {
   appId: 'io.github.keiho85boop.hsbaseball',
-  appName: '高校野球監督ゲーム',
+  appName: '転生名将ナギ',
   webDir: 'dist-app',
   backgroundColor: '#0a1426',
   android: {

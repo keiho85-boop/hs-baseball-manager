@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">高校野球監督ゲーム</string>
-    <string name="title_activity_main">高校野球監督ゲーム</string>
+    <string name="app_name">転生名将ナギ</string>
+    <string name="title_activity_main">転生名将ナギ</string>
     <string name="package_name">io.github.keiho85boop.hsbaseball</string>
     <string name="custom_url_scheme">io.github.keiho85boop.hsbaseball</string>
 </resources>
