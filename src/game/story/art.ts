@@ -86,7 +86,8 @@ const ART: Record<CharId, CharArt> = {
   },
   mob_cap: {
     prefix: 'mob_captain_practice_bust_',
-    faces: { normal: 'normal', serious: 'normal', smile: 'normal', joy: 'normal', surprise: 'normal', frustrated: 'frustrated', cry: 'frustrated', troubled: 'frustrated', angry: 'frustrated' },
+    // 悔しい顔はまだないので、すべて通常の顔で出す（届いたら frustrated に戻す）
+    faces: {},
     fallback: 'normal',
     color: '#4f6b8a',
     pending: { alt: null },
@@ -121,7 +122,7 @@ const ART: Record<CharId, CharArt> = {
   },
   hasumi_yukata: {
     prefix: 'hasumi_yukata_bust_',
-    faces: {},
+    faces: { smile: 'smile', joy: 'smile', tease: 'tease' },
     fallback: 'smile',
     color: '#c2477a',
     pending: { alt: 'hasumi' },
@@ -150,7 +151,7 @@ function fixedArt(prefix: string, color: string): CharArt {
 }
 
 /** 絵ができた人物（public/chara に置いたら、ここに足すと pending より優先される） */
-export const CHAR_READY = new Set<CharId>(['hasumi', 'hasumi_beach', 'miki', 'shinonome', 'senju', 'kobayakawa', 'kuon', 'amou'])
+export const CHAR_READY = new Set<CharId>(['hasumi', 'hasumi_beach', 'miki', 'shinonome', 'senju', 'kobayakawa', 'kuon', 'amou', 'grandpa_hosp', 'mob_cap', 'nagi_beach', 'reika_beach', 'hasumi_yukata', 'pro_scout'])
 
 /** 実際に絵を出す人物（絵がなければ代わりの人物、代わりもなければ null） */
 function resolveChar(char: CharId): CharId | null {
@@ -212,6 +213,7 @@ export const BG_READY = new Set<string>([
   'bg_soccer_field',
   'bg_sumo_room',
   'bg_track_field',
+  'bg_street_winter_night',
 ])
 
 /** まだ絵がない背景の代わり（絵ができたら BG_READY に足すだけで差し替わる） */
