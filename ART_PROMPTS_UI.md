@@ -131,6 +131,7 @@ No text, no logos.
 
 - **ファイル名：** `ui_icons_sheet.png`（受け取ったら、こちらで1つずつ切り出します）
 - **添付する見本：** `REF_ui_style.png`（いまのホーム画面。色味を合わせるため）
+- 画面では、アイコンの絵の下に短い文字（「勧誘」など）を添えて表示します。文字はゲーム側で付けるので、絵には文字を入れません。
 
 ```
 Use the attached screenshot only as a color and mood reference: match its bright sky blue, grass green, sunny yellow and red, and its glossy casual mobile game look.
@@ -143,11 +144,11 @@ Icons, left to right, top to bottom:
 13 a gear, 14 a play button, 15 a fast-forward button, 16 a checkered finish flag.
 ```
 
-| 番号 | 使う場所 |
+| 番号 | 絵の下に添える文字 |
 |---|---|
 | 1 | 勧誘 |
 | 2 | 練習試合 |
-| 3 | 部の様子（設備・部費もここ） |
+| 3 | 部の様子（設備・部費・オーダーもここ） |
 | 4 | 出来事 |
 | 5 | 評価（タップで7人の評価を開く） |
 | 6 | 大会・組み合わせ |
