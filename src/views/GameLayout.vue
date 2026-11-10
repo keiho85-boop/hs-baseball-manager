@@ -50,6 +50,10 @@ watch(
   { immediate: true },
 )
 
+const playerMode = computed(() => {
+  void game.rev
+  return !!game.save?.story?.enabled
+})
 const overall = computed(() => {
   void game.rev
   return game.ownSchool()?.overall ?? null
@@ -65,7 +69,7 @@ const overall = computed(() => {
         <div class="cal-week">第{{ date.weekOfMonth }}週</div>
       </div>
       <div class="title">
-        <div class="pref muted-light">{{ game.ownSchool()?.kind === 'private' ? '私立' : '公立' }}</div>
+        <div class="pref muted-light">{{ playerMode ? '第1章 ナギ現役編' : game.ownSchool()?.kind === 'private' ? '私立' : '公立' }}</div>
         <div class="school">{{ game.ownSchool()?.name }}</div>
         <div v-if="milestone.live" class="milestone live">{{ milestone.label }} <b>開催中</b></div>
         <div v-else class="milestone">{{ milestone.label }}まで <b>あと{{ milestone.weeks }}週</b></div>
