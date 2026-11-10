@@ -133,7 +133,6 @@ const ART: Record<CharId, CharArt> = {
   kuon: fixedArt('kuon_hs_tennis_bust_', '#00897b'),
   kobayakawa: fixedArt('kobayakawa_hs_tabletennis_bust_', '#e65100'),
   senju: fixedArt('senju_hs_shogi_bust_', '#5e35b1'),
-  // 生徒会長は驚き顔がまだないので、通常の顔で代用する
   shinonome: fixedArt('shinonome_hs_council_bust_', '#37474f'),
   miki: fixedArt('miki_hs_newspaper_bust_', '#795548'),
   pro_scout: fixedArt('pro_scout_40s_bust_', '#455a64'),
