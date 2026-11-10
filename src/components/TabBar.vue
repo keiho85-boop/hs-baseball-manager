@@ -1,17 +1,34 @@
 <script setup lang="ts">
 import TabIcon from '@/components/TabIcon.vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useGameStore } from '@/stores/game'
+import { successOf } from '@/game/success/state'
 
 const route = useRoute()
 const router = useRouter()
 
-const tabs = [
+const game = useGameStore()
+const BASE = import.meta.env.BASE_URL
+const TEAM_TABS = [
   { name: 'home', label: 'ホーム', color: '#e5484d' },
   { name: 'players', label: '部員', color: '#2a6fd6' },
   { name: 'team', label: 'チーム', color: '#d9731f' },
   { name: 'school', label: '学校', color: '#1f8a42' },
   { name: 'records', label: '記録', color: '#c98a00' },
 ] as const
+/** 選手育成モード：学校の代わりに育成選手の画面（設備と部費はホームの「部の様子」へ） */
+const PLAYER_TABS = [
+  { name: 'home', label: 'ホーム', color: '#e5484d' },
+  { name: 'focus', label: '育成選手', color: '#1a6fc2' },
+  { name: 'players', label: '部員', color: '#2a6fd6' },
+  { name: 'team', label: 'チーム', color: '#d9731f' },
+  { name: 'records', label: '記録', color: '#c98a00' },
+] as const
+const tabs = computed(() => {
+  void game.rev
+  return game.save && successOf(game.save) ? PLAYER_TABS : TEAM_TABS
+})
 
 function isActive(name: string): boolean {
   if (name === 'players') return route.name === 'players' || route.name === 'player'
@@ -34,7 +51,10 @@ function go(name: string): void {
       :data-tut="`tab-${t.name}`"
       @click="go(t.name)"
     >
-      <span class="icon"><TabIcon :name="t.name" :size="30" /></span>
+      <span class="icon">
+        <img v-if="t.name === 'focus'" class="focus-icon" :src="`${BASE}icon/icon_focus.webp`" alt="" />
+        <TabIcon v-else :name="t.name" :size="30" />
+      </span>
       <span class="label">{{ t.label }}</span>
     </button>
   </nav>
@@ -42,6 +62,10 @@ function go(name: string): void {
 </template>
 
 <style scoped>
+.focus-icon {
+  width: 32px;
+  height: 32px;
+}
 .tabbar {
   position: fixed;
   left: 0;

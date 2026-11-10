@@ -24,6 +24,10 @@ import { portraitUrl } from '@/game/story/art'
 import { chapterGoal } from '@/game/story/engine'
 import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 import RecruitSheet from '@/components/success/RecruitSheet.vue'
+import FacilityPanel from '@/components/FacilityPanel.vue'
+import OrderBoard from '@/components/OrderBoard.vue'
+import InfoSheet from '@/components/InfoSheet.vue'
+import type { EvalKey } from '@/game/success/types'
 import { AUTO_WEEKS, EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, evalStars, focusPlayer, repRank, rosterCount, successOf } from '@/game/success/state'
 import type { ClubId } from '@/game/success/types'
 
@@ -88,6 +92,21 @@ const autoWeek = computed(() => {
 })
 const ended = computed(() => success.value?.ended ?? null)
 const recruitOpen = ref(false)
+const orderOpen = ref(false)
+const BASE = import.meta.env.BASE_URL
+/** 評価の顔アイコン */
+const EVAL_ICON: Record<EvalKey, string> = {
+  nagi: 'nagi',
+  makabe: 'makabe',
+  hasumi: 'hasumi',
+  daichi: 'daichi',
+  team: 'mob',
+  genzo: 'genzo',
+  scout: 'scout',
+}
+function motivationLabel(v: number): string {
+  return v >= 80 ? '絶好調' : v >= 60 ? '好調' : v >= 40 ? 'ふつう' : v >= 20 ? '不調' : '絶不調'
+}
 
 async function goRecruit(club: ClubId, target?: number): Promise<void> {
   recruitOpen.value = false
@@ -324,10 +343,33 @@ const info2 = ref(false)
 </script>
 
 <template>
-  <div class="home" :class="{ 'with-tip': !!nagiTip, 'with-focus': !!success && !!focus }">
+  <div class="home" :class="{ 'with-tip': !!nagiTip, succ: !!success }">
     <div class="stage">
       <FieldScene :height="84" :evening="evening" />
-      <div class="strip">
+      <!-- 選手育成モード：育てている選手の様子 -->
+      <div v-if="success && focus" class="strip focus-strip">
+        <button class="fs-face" aria-label="育成選手を見る" @click="router.push({ name: 'focus' })">
+          <img :src="`${BASE}icon/icon_focus.webp`" alt="" />
+        </button>
+        <div class="fs-main">
+          <div class="fs-name">
+            <b>{{ focus.surname }}</b>
+            <span class="fs-pos" :class="{ p: focus.mainPosition === 'P' }">{{ POSITION_LABEL[focus.mainPosition] }}</span>
+            <RankBadge :value="playerRating(focus)" size="sm" />
+          </div>
+          <div class="fs-cond">
+            <img :src="`${BASE}ui/ui_stamina.webp`" alt="体力" />
+            <span class="bar"><i :style="{ width: `${focus.condition.stamina}%` }" :class="{ low: focus.condition.stamina < 50 }" /></span>
+            <img :src="`${BASE}ui/ui_motivation.webp`" alt="やる気" />
+            <b class="mot">{{ motivationLabel(focus.condition.motivation) }}</b>
+          </div>
+        </div>
+        <button class="fs-eval" aria-label="まわりの評価" @click="info2 = true">
+          <img :src="`${BASE}ui/ui_eval.webp`" alt="" />
+          <small>評価</small>
+        </button>
+      </div>
+      <div v-else class="strip">
         <div v-for="it in teamPower.items" :key="it.label" class="tp">
           <small>{{ it.label }}</small>
           <RankBadge :value="it.value" size="sm" />
@@ -347,15 +389,6 @@ const info2 = ref(false)
           <b>ナギ<span v-if="goal" class="goal" :class="{ done: goal.done }">今年の目安：{{ goal.target }}{{ goal.done ? ' ✓' : '' }}</span></b>{{ nagiTip }}
         </div>
       </div>
-      <button v-if="success && focus && !ended" class="focus-bar" @click="info2 = true">
-        <FaceIcon :face="focus.face" :size="26" />
-        <b>{{ focus.surname }}</b>
-        <span class="muted">{{ POSITION_LABEL[focus.mainPosition] }}</span>
-        <RankBadge :value="playerRating(focus)" size="sm" />
-        <span class="fb-item">部員<b :class="{ warn: roster < 9 }">{{ roster }}</b>人</span>
-        <span class="fb-item">評判<b>{{ repRank(school?.reputation ?? 0) }}</b></span>
-        <span class="fb-item">スカウト<b class="star-s">{{ stars(success.eval.scout) }}</b></span>
-      </button>
       <div v-if="ended" class="card end-card">
         <h2 class="grass"><GameIcon name="trophy" /> 第1章「ナギ現役編」　{{ ended === 'pro' ? 'クリア' : '終了' }}</h2>
         <p v-if="ended === 'pro'">{{ focus ? `${focus.surname} ${focus.givenName}` : '育てた選手' }}はプロ入りしました。選手は保存され、第2章が解禁されました（第2章は準備中です）。</p>
@@ -412,7 +445,39 @@ const info2 = ref(false)
       </template>
 
       <!-- 練習試合・チームの様子・出来事（詳しくはポップアップで） -->
-      <div class="actions">
+      <div v-if="success && !ended" class="actions icons">
+        <button
+          v-if="tournament && (aliveInTournament || tournamentWeek)"
+          class="ib"
+          @click="bracketOpen = true"
+        >
+          <img :src="`${BASE}ui/ui_trophy.webp`" alt="" /><span>組み合わせ</span>
+        </button>
+        <button
+          v-else
+          class="ib"
+          data-tut="recruit-btn"
+          :disabled="!!game.match || !sg || game.busy || moving || !!sg?.pending || autoWeek"
+          @click="recruitOpen = true"
+        >
+          <img :src="`${BASE}ui/ui_recruit.webp`" alt="" /><span>勧誘</span>
+        </button>
+        <button
+          class="ib"
+          data-tut="practice-match"
+          :disabled="!!game.match || !sg || game.busy || moving || !!sg?.pending || roster < 9 || !!(tournament && (aliveInTournament || tournamentWeek))"
+          @click="picking = true"
+        >
+          <img :src="`${BASE}ui/ui_practice_match.webp`" alt="" /><span>{{ roster < 9 ? '9人から' : '練習試合' }}</span>
+        </button>
+        <button class="ib" @click="info = 'team'">
+          <img :src="`${BASE}ui/ui_club.webp`" alt="" /><span>部の様子</span><i v-if="summary.injured > 0" class="dot" />
+        </button>
+        <button class="ib" @click="info = 'log'">
+          <img :src="`${BASE}ui/ui_news.webp`" alt="" /><span>出来事</span>
+        </button>
+      </div>
+      <div v-else-if="!success" class="actions">
         <button
           v-if="tournament && (aliveInTournament || tournamentWeek) && !ended"
           class="sky practice-match"
@@ -421,19 +486,10 @@ const info2 = ref(false)
           <GameIcon name="trophy" :size="18" /> 組み合わせ
         </button>
         <button
-          v-if="success && !ended && !(tournament && (aliveInTournament || tournamentWeek))"
-          class="sun practice-match"
-          data-tut="recruit-btn"
-          :disabled="!!game.match || !sg || game.busy || moving || !!sg?.pending || autoWeek"
-          @click="recruitOpen = true"
-        >
-          <GameIcon name="megaphone" :size="18" /> 勧誘
-        </button>
-        <button
           v-if="!(tournament && (aliveInTournament || tournamentWeek)) && !ended"
           class="sky practice-match"
           data-tut="practice-match"
-          :disabled="!!game.match || !sg || game.busy || moving || !!sg.pending || (!!success && roster < 9)"
+          :disabled="!!game.match || !sg || game.busy || moving || !!sg.pending"
           @click="picking = true"
         >
           <GameIcon name="ball" :size="18" /> 練習試合
@@ -452,7 +508,7 @@ const info2 = ref(false)
     <div v-if="info" class="picker-backdrop" @click.self="info = null">
       <div class="picker card">
         <template v-if="info === 'team'">
-          <h2 class="grass"><GameIcon name="cap" /> チームの様子</h2>
+          <h2 class="grass"><img v-if="success" class="h-icon" :src="`${BASE}ui/ui_club.webp`" alt="" /><GameIcon v-else name="cap" /> {{ success ? '部の様子' : 'チームの様子' }}</h2>
           <div class="stats">
             <div class="stat">
               <div class="num">{{ summary.count }}<small>人</small></div>
@@ -483,6 +539,13 @@ const info2 = ref(false)
             </span>
             <RankBadge :value="playerRating(p)" />
           </button>
+          <template v-if="success">
+            <div class="sub-h">部の設備と部費</div>
+            <FacilityPanel />
+            <button class="sky full order-btn" :disabled="roster < 9" @click="orderOpen = true; info = null">
+              <GameIcon name="clipboard" :size="16" /> {{ roster < 9 ? 'オーダーは部員が9人そろってから' : 'オーダーを組む' }}
+            </button>
+          </template>
         </template>
         <template v-else>
           <h2><GameIcon name="megaphone" /> 最近の出来事</h2>
@@ -497,18 +560,22 @@ const info2 = ref(false)
       </div>
     </div>
 
+    <InfoSheet v-if="orderOpen" @close="orderOpen = false">
+      <h2 class="orange"><GameIcon name="clipboard" /> オーダー</h2>
+      <OrderBoard />
+    </InfoSheet>
     <RecruitSheet v-if="recruitOpen" @close="recruitOpen = false" @go="goRecruit" />
     <div v-if="info2 && success && focus" class="picker-backdrop" @click.self="info2 = false">
       <div class="picker card">
-        <h2 class="grass"><GameIcon name="star" /> {{ focus.surname }} {{ focus.givenName }}への評価</h2>
+        <h2 class="grass"><img class="h-icon" :src="`${BASE}ui/ui_eval.webp`" alt="" /> {{ focus.surname }} {{ focus.givenName }}への評価</h2>
         <div class="evals">
           <div v-for="k in EVAL_KEYS" :key="k" class="ev-row">
-            <b>{{ EVAL_LABEL[k] }}</b>
+            <img :src="`${BASE}icon/icon_${EVAL_ICON[k]}.webp`" alt="" />
+            <span class="ev-name"><b>{{ EVAL_LABEL[k] }}</b><small>{{ EVAL_NOTE[k] }}</small></span>
             <span class="star-s">{{ stars(success.eval[k]) }}</span>
-            <small class="muted">{{ EVAL_NOTE[k] }}</small>
           </div>
         </div>
-        <button class="sky full" @click="viewing = focus.id; info2 = false">能力を見る</button>
+        <button class="sky full" @click="info2 = false; router.push({ name: 'focus' })">育成選手の画面へ</button>
         <button class="secondary full" @click="info2 = false">閉じる</button>
       </div>
     </div>
@@ -606,19 +673,164 @@ const info2 = ref(false)
   margin: 12px 0 0;
 }
 .evals {
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   margin: 6px 0 10px;
 }
 .ev-row {
-  display: grid;
-  grid-template-columns: 90px auto 1fr;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px dashed #e2eef8;
+}
+.ev-row img {
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
+.ev-name {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ev-name b {
+  font-size: 14px;
+}
+.ev-name small {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.h-icon {
+  width: 28px;
+  height: 28px;
+  vertical-align: middle;
+}
+.order-btn {
+  margin-top: 10px;
+}
+/* ---- 選手育成モード：上の帯（育成選手の様子） ---- */
+.focus-strip {
   align-items: center;
   gap: 8px;
-  padding: 6px 0;
-  border-bottom: 2px dashed #eef3f8;
+  padding: 4px 6px;
 }
-.ev-row small {
+.fs-face,
+.fs-eval {
+  flex: none;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 12px;
+}
+.fs-face img {
+  width: 46px;
+  height: 46px;
+  display: block;
+}
+.fs-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.fs-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fs-name b {
+  font-size: 16px;
+  font-weight: 900;
+}
+.fs-pos {
   font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+  background: #2a6fd6;
+  border-radius: 6px;
+  padding: 0 6px;
+}
+.fs-pos.p {
+  background: #e53935;
+}
+.fs-cond {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.fs-cond img {
+  width: 18px;
+  height: 18px;
+}
+.fs-cond .bar {
+  flex: 1;
+  height: 7px;
+}
+.fs-cond .mot {
+  font-size: 12px;
+  font-weight: 900;
+  color: #d9731f;
+  white-space: nowrap;
+}
+.fs-eval {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 50px;
+}
+.fs-eval img {
+  width: 38px;
+  height: 38px;
+}
+.fs-eval small {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--ink);
+  margin-top: -2px;
+}
+/* ---- 選手育成モード：下のボタン（絵＋短い文字） ---- */
+.actions.icons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.ib {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 4px 2px 6px;
+  border-radius: 16px;
+  color: var(--ink);
+  background:
+    radial-gradient(120% 90% at 30% 10%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(180deg, #ffffff, #e4eef9);
+  box-shadow: inset 0 0 0 2px #cfe0f1, 0 4px 0 #b7cde3, 0 6px 10px rgba(0, 0, 0, 0.12);
+}
+.ib:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: inset 0 0 0 2px #cfe0f1, 0 1px 0 #b7cde3;
+}
+.ib:disabled {
+  opacity: 0.55;
+}
+.ib img {
+  width: 40px;
+  height: 40px;
+}
+.ib span {
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.ib .dot {
+  top: 6px;
+  right: 10px;
 }
 .nagi-tip {
   position: relative;
@@ -687,10 +899,10 @@ const info2 = ref(false)
   .home {
     --stage-h: 0px;
   }
-  .stage {
+  .home:not(.succ) .stage {
     display: none;
   }
-  .board-card {
+  .home:not(.succ) .board-card {
     margin-top: 0 !important;
   }
 }

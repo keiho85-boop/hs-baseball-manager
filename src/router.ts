@@ -19,6 +19,7 @@ export const router = createRouter({
       meta: { requiresGame: true },
       children: [
         { path: 'home', name: 'home', component: () => import('./views/HomeView.vue') },
+        { path: 'focus', name: 'focus', component: () => import('./views/FocusView.vue') },
         { path: 'players', name: 'players', component: () => import('./views/PlayersView.vue') },
         { path: 'players/:id', name: 'player', component: () => import('./views/PlayerDetailView.vue'), props: true },
         { path: 'team', name: 'team', component: () => import('./views/TeamView.vue') },

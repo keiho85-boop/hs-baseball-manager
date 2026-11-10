@@ -22,13 +22,13 @@ export const EVAL_LABEL: Record<EvalKey, string> = {
 
 /** 評価が主に影響すること（画面の説明） */
 export const EVAL_NOTE: Record<EvalKey, string> = {
-  nagi: '告白の条件。ナギのイベントの効果',
-  makabe: '練習試合の組まれ方。卒業時のひとこと',
-  hasumi: 'ケガの治りやすさ。合宿やレアイベント',
-  daichi: '告白の条件。大地との特殊能力イベント',
-  team: '試合中のやる気。チームワーク',
-  genzo: '部費。差し入れ',
-  scout: 'プロ入り（ドラフト指名）',
+  nagi: 'マネージャーとの信頼',
+  makabe: '顧問の期待',
+  hasumi: '体のケア',
+  daichi: '幼馴染との絆',
+  team: '部の仲間からの信頼',
+  genzo: '商店会の応援',
+  scout: 'プロからの注目',
 }
 
 /** 告白が成功する評価の目安（5段階の4以上） */

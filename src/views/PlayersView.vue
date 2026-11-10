@@ -9,10 +9,16 @@ import type { Player, PracticeMenu } from '@/game/types'
 import GameIcon from '@/components/GameIcon.vue'
 import FormIcon from '@/components/FormIcon.vue'
 import { getSkill } from '@/game/skills'
+import { successOf } from '@/game/success/state'
 
 const game = useGameStore()
 const ui = useUiStore()
 const router = useRouter()
+/** 選手育成モードでは練習メニューを選ばない（すごろくのマスで決まる） */
+const noMenu = computed(() => {
+  void game.rev
+  return !!game.save && !!successOf(game.save)
+})
 
 const kind = ref<'bat' | 'pit'>('bat')
 const view = ref<'a1' | 'a2' | 'st' | 'sk'>('a1')
@@ -182,7 +188,7 @@ function posKind(p: Player): string {
       </label>
     </div>
 
-    <div class="table">
+    <div class="table" :class="{ 'no-menu': noMenu }">
       <div class="thead" :class="{ skv: view === 'sk' }">
         <span class="c-pos">守</span>
         <span class="c-f">調</span>
@@ -191,7 +197,7 @@ function posKind(p: Player): string {
           {{ c.label }}<i v-if="sort?.key === c.key">{{ sort.desc ? '▼' : '▲' }}</i>
         </button>
         <span v-if="view === 'sk'" class="c-sk">特殊能力</span>
-        <span class="c-m">練習</span>
+        <span v-if="!noMenu" class="c-m">練習</span>
       </div>
       <div class="tbody">
         <div v-for="p in list" :key="p.id" class="tr" :class="{ off: p.retired, skv: view === 'sk' }" @click="openPlayer(p.id)">
@@ -210,7 +216,7 @@ function posKind(p: Player): string {
             <i v-for="sk in skillsOf(p)" :key="sk.id" :class="sk.good ? 'good' : 'bad'">{{ sk.name }}</i>
             <em v-if="p.skills.length === 0">なし</em>
           </span>
-          <button class="c-m" :disabled="p.retired" @click.stop="menuFor = p">{{ MENU_SHORT[p.practiceMenu] }}</button>
+          <button v-if="!noMenu" class="c-m" :disabled="p.retired" @click.stop="menuFor = p">{{ MENU_SHORT[p.practiceMenu] }}</button>
         </div>
         <p v-if="list.length === 0" class="empty">該当する部員はいません</p>
       </div>
@@ -303,6 +309,14 @@ function posKind(p: Player): string {
 .thead.skv,
 .tr.skv {
   grid-template-columns: 0.55fr 0.42fr 1.45fr 5fr 0.95fr;
+}
+.no-menu .thead,
+.no-menu .tr {
+  grid-template-columns: 0.55fr 0.42fr 1.45fr repeat(5, 1fr);
+}
+.no-menu .thead.skv,
+.no-menu .tr.skv {
+  grid-template-columns: 0.55fr 0.42fr 1.45fr 5fr;
 }
 .c-sk {
   display: flex;
