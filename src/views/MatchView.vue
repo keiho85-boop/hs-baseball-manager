@@ -33,6 +33,9 @@ const m = computed(() => {
 const players = computed(() => game.save?.players ?? {})
 const ownId = computed(() => game.save?.playerSchoolId ?? '')
 const ownTeam = computed<TeamState | null>(() => (m.value ? (m.value.home.schoolId === ownId.value ? m.value.home : m.value.away) : null))
+const BASE = import.meta.env.BASE_URL
+const ownName = computed(() => (m.value ? (m.value.home.schoolId === ownId.value ? m.value.home.name : m.value.away.name) : ''))
+const oppName = computed(() => (m.value ? (m.value.home.schoolId === ownId.value ? m.value.away.name : m.value.home.name) : ''))
 const ownBatting = computed(() => !!m.value && battingTeam(m.value).schoolId === ownId.value)
 const sc = computed(() => (m.value ? score(m.value) : [0, 0]))
 const batter = computed<Player | null>(() => (m.value && !m.value.finished ? players.value[currentBatterId(m.value)] ?? null : null))
@@ -259,6 +262,27 @@ function scheduleAuto(): void {
 }
 
 watch(auto, (on) => (on ? scheduleAuto() : clearTimeout(timer)))
+
+// ---- 攻守交代の演出（「3回裏　〇〇の攻撃」） ----
+const change = ref<{ text: string; own: boolean; key: number } | null>(null)
+let changeTimer: ReturnType<typeof setTimeout> | undefined
+let changeKey = 0
+watch(
+  () => (m.value && !m.value.finished ? `${m.value.inning}-${m.value.top}` : ''),
+  (now, before) => {
+    if (!now || !before || now === before || !m.value) return
+    const t = battingTeam(m.value)
+    change.value = {
+      text: `${m.value.inning}回${m.value.top ? '表' : '裏'}`,
+      own: t.schoolId === ownId.value,
+      key: ++changeKey,
+    }
+    play('whistle')
+    clearTimeout(changeTimer)
+    changeTimer = setTimeout(() => (change.value = null), 1600)
+  },
+)
+onBeforeUnmount(() => clearTimeout(changeTimer))
 onBeforeUnmount(() => clearTimeout(timer))
 // 試合中は画面を広く使うため、広告を隠す
 void hideBanner(true)
@@ -296,6 +320,8 @@ function closeCutin(): void {
 /** サクセス：試合は基本オート */
 const successMode = computed(() => !!game.save && !!successOf(game.save))
 const resumeHint = ref(false)
+/** 選手育成モードでは、作戦は指示を出す場面（チャンス・ピンチ）だけ出す */
+const showCommand = computed(() => !successMode.value || (resumeHint.value && !auto.value))
 function resume(): void {
   resumeHint.value = false
   auto.value = true
@@ -399,6 +425,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
     <!-- BSO -->
     <div class="bso">
       <span class="inning">{{ m.inning }}回{{ m.top ? '表' : '裏' }}</span>
+      <span class="side" :class="ownBatting ? 'atk' : 'def'">{{ ownBatting ? '攻撃' : '守備' }}</span>
       <span class="lamp"><b>B</b><i v-for="n in 3" :key="n" :class="{ on: n <= m.count.balls }" class="g" /></span>
       <span class="lamp"><b>S</b><i v-for="n in 2" :key="n" :class="{ on: n <= m.count.strikes }" class="y" /></span>
       <span class="lamp"><b>O</b><i v-for="n in 2" :key="n" :class="{ on: n <= m.outs }" class="r" /></span>
@@ -417,7 +444,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
     </div>
 
     <!-- 作戦コマンド（その場で選ぶ） -->
-    <div v-if="!m.finished" class="command" data-tut="match-command">
+    <div v-if="!m.finished && showCommand" class="command" data-tut="match-command">
       <template v-if="ownBatting">
         <div class="cmd-grid">
           <button
@@ -524,7 +551,18 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
       <span>{{ ownBatting ? 'チャンス！' : 'ピンチ！' }}作戦を選んだら、オートで再開します</span>
       <button class="sun" @click="resume"><GameIcon name="play" :size="14" /> 再開</button>
     </div>
-    <div v-if="!m.finished" class="controls" data-tut="match-controls">
+    <div v-if="!m.finished && successMode" class="controls icons" data-tut="match-controls">
+      <button :class="{ on: auto }" @click="auto = !auto">
+        <img :src="`${BASE}ui/ui_auto.webp`" alt="" /><span>{{ auto ? '自動中' : '自動' }}</span>
+      </button>
+      <button :disabled="busyStep" @click="step('inning')">
+        <img :src="`${BASE}ui/ui_fast.webp`" alt="" /><span>この回まで</span>
+      </button>
+      <button :disabled="busyStep" @click="step('end')">
+        <img :src="`${BASE}ui/ui_result.webp`" alt="" /><span>結果へ</span>
+      </button>
+    </div>
+    <div v-else-if="!m.finished" class="controls" data-tut="match-controls">
       <button class="secondary" :disabled="busyStep" @click="step('pitch')">1球</button>
       <button class="sun main" :disabled="busyStep" @click="step('pa')"><GameIcon name="play" :size="14" /> 1打席</button>
       <button class="secondary" :disabled="busyStep" @click="step('inning')">この回</button>
@@ -610,6 +648,15 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
       <div class="flash-sub">{{ flash.sub }}</div>
     </div>
 
+    <Transition name="chg">
+      <div v-if="change" :key="change.key" class="change" :class="change.own ? 'atk' : 'def'">
+        <div class="chg-band">
+          <span class="chg-inn">{{ change.text }}</span>
+          <span class="chg-side">{{ change.own ? '攻撃' : '守備' }}</span>
+          <span class="chg-team">{{ change.own ? ownName : oppName }}の攻撃</span>
+        </div>
+      </div>
+    </Transition>
     <CutIn v-if="cutin" :kind="cutin.kind" :face="cutin.player.face" :name="cutin.player.surname" :sub="cutin.sub" @close="closeCutin" />
   </div>
 </template>
@@ -752,6 +799,94 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
 .inning {
   font-size: 14px;
   color: #ffd36b;
+}
+.side {
+  font-size: 12px;
+  font-weight: 900;
+  color: #fff;
+  border-radius: 999px;
+  padding: 1px 10px;
+}
+.side.atk {
+  background: linear-gradient(180deg, #ff9f43, #e8590c);
+}
+.side.def {
+  background: linear-gradient(180deg, #4dabf7, #1a6fc2);
+}
+.change {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.chg-band {
+  width: 100%;
+  padding: 14px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.change.atk .chg-band {
+  background: linear-gradient(90deg, rgba(232, 89, 12, 0), rgba(232, 89, 12, 0.92) 20%, rgba(232, 89, 12, 0.92) 80%, rgba(232, 89, 12, 0));
+}
+.change.def .chg-band {
+  background: linear-gradient(90deg, rgba(26, 111, 194, 0), rgba(26, 111, 194, 0.92) 20%, rgba(26, 111, 194, 0.92) 80%, rgba(26, 111, 194, 0));
+}
+.chg-inn {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+}
+.chg-side {
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+}
+.chg-team {
+  font-size: 13px;
+  font-weight: 800;
+}
+.chg-enter-active {
+  transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.chg-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.chg-enter-from {
+  opacity: 0;
+  transform: translateX(-40%);
+}
+.chg-leave-to {
+  opacity: 0;
+  transform: translateX(40%);
+}
+.controls.icons button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 4px 2px 6px;
+  background: #13233a;
+  color: #fff;
+  box-shadow: inset 0 0 0 2px #2a3d5c;
+}
+.controls.icons button.on {
+  box-shadow: inset 0 0 0 3px #ffc93c;
+  background: #2a3d5c;
+}
+.controls.icons img {
+  width: 34px;
+  height: 34px;
+}
+.controls.icons span {
+  font-size: 11px;
+  font-weight: 900;
 }
 .lamp {
   display: flex;

@@ -24,6 +24,7 @@ import { portraitUrl } from '@/game/story/art'
 import { chapterGoal } from '@/game/story/engine'
 import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 import RecruitSheet from '@/components/success/RecruitSheet.vue'
+import EndingCard from '@/components/success/EndingCard.vue'
 import FacilityPanel from '@/components/FacilityPanel.vue'
 import OrderBoard from '@/components/OrderBoard.vue'
 import InfoSheet from '@/components/InfoSheet.vue'
@@ -389,18 +390,14 @@ const info2 = ref(false)
           <b>ナギ<span v-if="goal" class="goal" :class="{ done: goal.done }">今年の目安：{{ goal.target }}{{ goal.done ? ' ✓' : '' }}</span></b>{{ nagiTip }}
         </div>
       </div>
-      <div v-if="ended" class="card end-card">
-        <h2 class="grass"><GameIcon name="trophy" /> 第1章「ナギ現役編」　{{ ended === 'pro' ? 'クリア' : '終了' }}</h2>
-        <p v-if="ended === 'pro'">{{ focus ? `${focus.surname} ${focus.givenName}` : '育てた選手' }}はプロ入りしました。選手は保存され、第2章が解禁されました（第2章は準備中です）。</p>
-        <p v-else>育てた選手はプロに届きませんでした。もう一度、最初から育ててみましょう。</p>
-        <button class="sun full" @click="router.push({ name: 'title' })">タイトルへ戻る</button>
-      </div>
-      <button v-else-if="game.match" class="sun go" @click="router.push({ name: 'match' })">
+      <EndingCard v-if="ended" @title="router.push({ name: 'title' })" />
+      <div v-if="ended" class="end-spacer" />
+      <button v-if="!ended && game.match" class="sun go" @click="router.push({ name: 'match' })">
         <span class="go-main">試合の続きへ</span>
         <span class="go-sub"><GameIcon name="play" :size="12" /> {{ game.match.options.label }}</span>
       </button>
       <TournamentPanel
-        v-else-if="tournamentWeek && tournament"
+        v-else-if="!ended && tournamentWeek && tournament"
         class="t-panel"
         :t="tournament"
         :schools="game.save!.schools"
@@ -412,7 +409,7 @@ const info2 = ref(false)
         @bracket="bracketOpen = true"
         @order="router.push({ name: 'team' })"
       />
-      <template v-else-if="sg">
+      <template v-else-if="!ended && sg">
         <div class="card board-card" data-tut="board">
           <div class="board-fit">
             <SugorokuBoard

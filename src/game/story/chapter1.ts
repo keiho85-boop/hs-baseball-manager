@@ -135,6 +135,7 @@ function confessSteps(c: StoryContext, place: 1 | 2 | 3): Step[] {
   const s = S(c)
   if (s.dating !== null) {
     return [
+      ...(place === 3 ? [bg('bg_school_gate_sakura', 'ev_c1_confess')] : []),
       daichiSay('smile', place === 3 ? '…卒業しても、店に寄れよ。ラムネくらい、毎日出してやる' : '…なあ。来年も、こうして一緒に帰れたらいいな'),
       nagi('smile', '…はい'),
       think('五十七にもなって、なぜ胸が鳴る。…この体のせいだ。そうに決まっている', 'surprise'),
@@ -155,6 +156,7 @@ function confessSteps(c: StoryContext, place: 1 | 2 | 3): Step[] {
     fv('おい、ナギ。逃げるなよ。…こいつ、中学のときからずっとお前の話ばっかりなんだからな'),
     daichiSay('troubled', 'お、お前、余計なこと言うなって！'),
     think('…断る理由を、三つ考えた。どれも、この二人の顔を見たら言えなかった', 'frustrated'),
+    ...(place === 3 ? [bg('bg_school_gate_sakura', 'ev_c1_confess')] : []),
     nagi('smile', '…はい。よろしく、お願いします'),
     daichiSay('smile', '…よっしゃああっ！'),
     fv('（やっと言えたか。…世話の焼けるやつだ）'),
@@ -1055,6 +1057,8 @@ export const CHAPTER1: Scene[] = [
           ? [
               voice('アナウンサー', `${d.team}、${d.round}位指名。{フォーカス名}、{学校名}`),
               n('部室が、歓声で揺れた'),
+              bg('bg_ground_sunset', 'ev_c1_draft'),
+              n('気がつけば、グラウンドで胴上げが始まっていた'),
               daichiSay('cry', 'やった…やったな、お前！'),
               fv('…ナギ。ありがとう'),
               nagi('smile', 'おめでとうございます。…ここからが、本当の勝負ですよ'),
