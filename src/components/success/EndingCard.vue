@@ -3,7 +3,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
 import RankBadge from '@/components/RankBadge.vue'
-import { POSITION_NAME, rankOf, velocityScore } from '@/game/constants'
+import AbilityBar from '@/components/AbilityBar.vue'
+import { PITCH_NAME, POSITION_NAME, rankOf, velocityScore } from '@/game/constants'
 import { playerRating } from '@/game/player'
 import { getSkill } from '@/game/skills'
 import { EVAL_KEYS, EVAL_LABEL, evalStars, focusPlayer, successOf } from '@/game/success/state'
@@ -137,8 +138,35 @@ function stars(v: number): string {
             <img :src="`${BASE}ev/ev_c1_confess.webp`" alt="" />
             <span>大地と、これからも一緒に</span>
           </div>
-          <p class="save-note">{{ pro ? 'この選手は保存されました。第2章「ナギ大学編」が解禁されました。' : 'この選手は保存されません。もう一度、最初から育ててみましょう。' }}</p>
-          <button class="sun full" @click.stop="emit('title')">タイトルへ</button>
+          <div class="detail" @click.stop>
+            <div class="d-h">最終能力</div>
+            <template v-if="f.mainPosition === 'P'">
+              <div class="d-velo">球速 <b>{{ f.pitching.velocity }}</b>km/h</div>
+              <div class="d-grid">
+                <AbilityBar label="コントロール" :value="f.pitching.control" />
+                <AbilityBar label="スタミナ" :value="f.pitching.stamina" />
+                <AbilityBar label="キレ" :value="f.pitching.kire" />
+                <AbilityBar label="クイック" :value="f.pitching.quick" />
+                <AbilityBar label="ピンチ" :value="f.pitching.pinch" />
+                <AbilityBar label="対左打者" :value="f.pitching.vsLeft" />
+              </div>
+              <div class="d-pitches">
+                <span v-for="pt in f.pitching.pitches" :key="pt.type">{{ PITCH_NAME[pt.type] }} {{ pt.level }}</span>
+              </div>
+            </template>
+            <div class="d-grid">
+              <AbilityBar label="ミート" :value="f.batting.contact" />
+              <AbilityBar label="パワー" :value="f.batting.power" />
+              <AbilityBar label="選球眼" :value="f.batting.eye" />
+              <AbilityBar label="走力" :value="f.running.speed" />
+              <AbilityBar label="肩力" :value="f.fielding.arm" />
+              <AbilityBar label="守備範囲" :value="f.fielding.range" />
+              <AbilityBar label="捕球" :value="f.fielding.catching" />
+              <AbilityBar label="送球" :value="f.fielding.throwing" />
+            </div>
+          </div>
+          <p class="save-note">{{ pro ? 'この選手はプロ入りした育成選手として保存されました。第2章「ナギ大学編」が解禁されました。' : 'プロに届かなかったため、この選手は保存されません。' }}<br />育成はこれで終了です（セーブデータは残りません）。</p>
+          <button class="sun full" @click.stop="emit('title')">{{ pro ? '保存して育成を終える' : '育成を終える' }}</button>
         </div>
       </Transition>
 
@@ -414,6 +442,43 @@ function stars(v: number): string {
   padding: 6px 10px;
   font-weight: 900;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(194, 24, 91, 0.75));
+}
+.detail {
+  background: #fff;
+  color: var(--ink);
+  border-radius: 16px;
+  padding: 10px 12px;
+  cursor: default;
+}
+.d-h {
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+.d-velo {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.d-velo b {
+  font-size: 20px;
+}
+.d-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+  margin-bottom: 6px;
+}
+.d-pitches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.d-pitches span {
+  background: #eaf3fc;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .save-note {
   margin: 0;

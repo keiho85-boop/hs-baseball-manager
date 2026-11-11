@@ -698,7 +698,8 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_best4',
     title: 'ベスト4',
     chapter: 1,
-    when: (c) => flag(c, 'best4'),
+    // 先に全国へ行っていたら、ベスト4の場面は出さない
+    when: (c) => flag(c, 'best4') && !national(c),
     steps: () => [
       bg('bg_liquor_day'),
       n('校門に「祝 県大会ベスト4」の垂れ幕。商店街のあちこちから声がかかる'),
@@ -716,7 +717,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_ato_ippo',
     title: 'あと一歩',
     chapter: 1,
-    when: (c) => Y(c) === 2 && !flag(c, 'best4') && ownOut(c.save, 2, 'summerPref'),
+    when: (c) => Y(c) === 2 && !flag(c, 'best4') && !national(c) && ownOut(c.save, 2, 'summerPref'),
     steps: () => [
       bg('bg_stadium_day'),
       daichiSay('frustrated', '…また、あと一歩か'),
@@ -789,7 +790,9 @@ export const CHAPTER1: Scene[] = [
     steps: (c) => [
       bg('bg_ground_sunset'),
       n('春休み。夕暮れのグラウンド'),
-      ...(flag(c, 'best4')
+      ...(national(c)
+        ? [makabe('smile', '全国か。2年前の僕に言っても、信じないだろうな'), makabe('smile', 'それと、インフィールドフライ、分かるようになったよ'), nagi('smile', '先生、それは去年の4月の話です')]
+        : flag(c, 'best4')
         ? [makabe('smile', 'ベスト4か。2年前の僕に言っても、信じないだろうな'), makabe('smile', 'それと、インフィールドフライ、分かるようになったよ'), nagi('smile', '先生、それは去年の4月の話です')]
         : [makabe('normal', '目標には届かなかったけど…この部は、確実に強くなったよ'), think('王者の背中は見えた', 'serious')]),
       nagi('serious', '来年が、私たちの最後の年です'),
@@ -803,13 +806,13 @@ export const CHAPTER1: Scene[] = [
     title: '最後の1年',
     chapter: 1,
     when: (c) => Y(c) === 3,
-    steps: () => [
+    steps: (c) => [
       bg('bg_school_gate_sakura'),
       n('桜の咲く校門。ナギが、新しい部員名簿を眺めている'),
       makabe('normal', '朝比奈さんも、もう3年生か。早いね'),
       think('高校生活も残り1年。…この体のまま年を重ねるのか。それとも、ある朝また別の誰かになっているのか', 'serious'),
       think('…考えても仕方がない。監督は、目の前の試合しか采配できん'),
-      nagi('serious', '先生。今年は、全国に行きます。そして{フォーカス}くんを、プロに送ります'),
+      nagi('serious', national(c) ? '先生。今年も、全国に行きます。そして{フォーカス}くんを、プロに送ります' : '先生。今年は、全国に行きます。そして{フォーカス}くんを、プロに送ります'),
       makabe('smile', '…うん。そう言うと思った'),
     ],
     onEnd: (c) => {
@@ -1009,10 +1012,10 @@ export const CHAPTER1: Scene[] = [
     title: '届かなかった夏',
     chapter: 1,
     when: (c) => Y(c) === 3 && !nat3(c) && ownOut(c.save, 3, 'summerPref'),
-    steps: () => [
+    steps: (c) => [
       bg('bg_stadium_day'),
       n('最後の夏が終わった。誰もいなくなったベンチ'),
-      daichiSay('frustrated', 'ごめん、朝比奈。お前を全国に連れて行けなかった'),
+      daichiSay('frustrated', national(c) ? 'ごめん、朝比奈。最後の夏、もう一度全国に行きたかった' : 'ごめん、朝比奈。お前を全国に連れて行けなかった'),
       nagi('frustrated', '連れて行ってもらうつもりなんて、ありませんでした。一緒に行きたかったんです'),
       nagi('normal', '…信じてくれて、ありがとうございました'),
       think('選手の夏は、毎年必ず終わる。…だが、こいつの野球は、まだ終わらせん', 'serious'),

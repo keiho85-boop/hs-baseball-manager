@@ -18,7 +18,12 @@ const success = computed(() => {
   return !!game.save && !!successOf(game.save)
 })
 const ui = useUiStore()
-const school = computed(() => game.ownSchool())
+const school = computed(() => {
+  void game.rev
+  const s = game.ownSchool()
+  // 学校のデータは反応しないので、写し取って表示を更新させる
+  return s ? { ...s, facilities: { ...s.facilities } } : null
+})
 
 const FACILITY_NAME = {
   batting: '打撃練習場',

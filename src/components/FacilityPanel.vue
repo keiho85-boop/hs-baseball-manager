@@ -9,9 +9,11 @@ import type { Facilities } from '@/game/types'
 const game = useGameStore()
 const ui = useUiStore()
 const BASE = import.meta.env.BASE_URL
+/** 学校のデータは反応しない（markRaw）ので、表示に使う値を毎回写し取る（強化した直後に表示を変えるため） */
 const school = computed(() => {
   void game.rev
-  return game.ownSchool()
+  const s = game.ownSchool()
+  return s ? { funds: s.funds, facilities: { ...s.facilities } } : null
 })
 
 const FACILITY_NAME: Record<keyof Facilities, string> = {

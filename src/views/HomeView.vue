@@ -92,9 +92,19 @@ const autoWeek = computed(() => {
   void game.rev
   return !!success.value && AUTO_WEEKS.includes(game.save?.calendar.week ?? 0) && !sg.value?.pending
 })
-const ended = computed(() => success.value?.ended ?? null)
+const ended = computed(() => {
+  void game.rev
+  return (game.save ? successOf(game.save)?.ended : null) ?? null
+})
 const recruitOpen = ref(false)
 const orderOpen = ref(false)
+/** 育成終了：選手の保存はドラフトの場面で済んでいるので、セーブデータは消してタイトルへ */
+async function finishScenario(): Promise<void> {
+  const slot = game.save?.slot
+  if (slot) await game.removeSlot(slot)
+  game.closeGame()
+  await router.replace({ name: 'title' })
+}
 /** ホーム上部に出す育成選手の主な能力（部員表の「能力1」と同じ項目） */
 const focusStats = computed(() => {
   const p = focus.value
@@ -383,6 +393,23 @@ watch(
   },
   { immediate: true },
 )
+
+/** 選手育成モード：部員が9人に満たないまま大会の試合を迎えたら、そのまま棄権にする（勧誘に進めるように） */
+const forfeited = new Set<string>()
+watch(
+  () => {
+    void game.rev
+    const pg = pendingGame.value
+    if (!success.value || !pg || roster.value >= 9 || game.busy || game.match || game.story) return null
+    return `${game.save?.calendar.year}-${game.save?.calendar.week}-${pg.round}`
+  },
+  async (key) => {
+    if (!key || forfeited.has(key)) return
+    forfeited.add(key)
+    await startTournament()
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -438,7 +465,7 @@ watch(
           <b>ナギ<span v-if="goal" class="goal" :class="{ done: goal.done }">今年の目安：{{ goal.target }}{{ goal.done ? ' ✓' : '' }}</span></b>{{ nagiTip }}
         </div>
       </div>
-      <EndingCard v-if="ended" @title="router.push({ name: 'title' })" />
+      <EndingCard v-if="ended" @title="finishScenario" />
       <div v-if="ended" class="end-spacer" />
       <button v-if="!ended && game.match" class="sun go" @click="router.push({ name: 'match' })">
         <span class="go-main">試合の続きへ</span>
