@@ -6,7 +6,20 @@ import type { Player, Position } from '@/game/types'
 import { POSITION_LABEL_RAW } from '@/game/constants'
 import { score } from '@/game/match/engine'
 
-const props = defineProps<{ m: MatchState; players: Record<string, Player>; ownId: string; busy: boolean }>()
+const props = defineProps<{ m: MatchState; players: Record<string, Player>; ownId: string; busy: boolean; focusId?: string | null }>()
+const BASE = import.meta.env.BASE_URL
+
+/** 選手育成モード：育成選手のこの試合の成績 */
+const focusLine = computed(() => {
+  const id = props.focusId
+  const p = id ? props.players[id] : undefined
+  if (!id || !p) return null
+  const b = props.m.batting[id]
+  const pt = props.m.pitching[id]
+  const bat = b && b.pa > 0 ? [`${b.ab}打数${b.h}安打`, b.hr ? `${b.hr}本塁打` : '', b.rbi ? `${b.rbi}打点` : '', b.bb ? `${b.bb}四死球` : '', b.sb ? `${b.sb}盗塁` : ''].filter(Boolean).join('　') : ''
+  const pit = pt && pt.outs + pt.pitches > 0 ? `${Math.floor(pt.outs / 3)}${pt.outs % 3 ? `回${pt.outs % 3}/3` : '回'}　${pt.k}奪三振　${pt.r}失点（${pt.pitches}球）` : ''
+  return { name: `${p.surname} ${p.givenName}`, bat, pit, played: !!(bat || pit) }
+})
 defineEmits<{ finish: [] }>()
 
 type Tab = 'top' | 'bat' | 'pitch'
@@ -124,6 +137,16 @@ const pitchers = computed(() =>
     <div class="head" :class="verdict.cls">
       <div class="verdict">{{ verdict.title }}</div>
       <div class="sub">{{ m.options.label }}　{{ m.away.name }} vs {{ m.home.name }}</div>
+    </div>
+
+    <div v-if="focusLine" class="focus-line">
+      <img :src="`${BASE}icon/icon_focus.webp`" alt="" />
+      <div>
+        <b>{{ focusLine.name }}</b>
+        <span v-if="focusLine.bat">{{ focusLine.bat }}</span>
+        <span v-if="focusLine.pit">{{ focusLine.pit }}</span>
+        <span v-if="!focusLine.played" class="muted">出場なし</span>
+      </div>
     </div>
 
     <table class="board">
@@ -519,5 +542,36 @@ const pitchers = computed(() =>
   padding: 8px 12px;
   padding-bottom: calc(8px + var(--safe-bottom));
   border-top: 1px solid #2a2f38;
+}
+.focus-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #fff4e0, #fff);
+  box-shadow: inset 0 0 0 2px #ffcf8a;
+}
+.focus-line img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fff;
+  flex-shrink: 0;
+}
+.focus-line div {
+  color: #3b2a12;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  font-weight: 800;
+}
+.focus-line b {
+  font-size: 15px;
+  color: #b35a00;
+}
+.focus-line .muted {
+  color: #8a7a60;
 }
 </style>

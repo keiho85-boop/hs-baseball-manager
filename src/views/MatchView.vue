@@ -6,7 +6,7 @@ import { useUiStore } from '@/stores/ui'
 import { POSITION_LABEL_RAW, velocityScore } from '@/game/constants'
 import { battingTeam, currentBatterId, fieldingTeam, score, situation, activeSkills } from '@/game/match/engine'
 import { canPitch } from '@/game/match/lineup'
-import type { BattingOrder, DefenseShift, FieldPos, PlayEvent, PitchPlan, PitchingOrder, TeamState } from '@/game/match/types'
+import type { BattingOrder, DefenseShift, FieldPos, MatchState, PlayEvent, PitchPlan, PitchingOrder, TeamState } from '@/game/match/types'
 import type { Player } from '@/game/types'
 import Field3D from '@/components/match/Field3D.vue'
 import MatchResult from '@/components/match/MatchResult.vue'
@@ -21,6 +21,7 @@ import FaceIcon from '@/components/FaceIcon.vue'
 import RankBadge from '@/components/RankBadge.vue'
 import GameIcon from '@/components/GameIcon.vue'
 import { successOf } from '@/game/success/state'
+import { portraitUrl } from '@/game/story/art'
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -208,7 +209,10 @@ async function step(kind: 'pitch' | 'pa' | 'inning' | 'end'): Promise<void> {
   const s = m.value
   if (s && kind !== 'end' && s.events.length > before) {
     const e = s.events[s.events.length - 1]!
-    if (!s.finished) flashResult(e)
+    // 選手育成モード：育成選手の打席・登板は大きく、ほかは点が入ったときだけ短く出す
+    const fid = focusId.value
+    const isFocus = !!fid && (e.batterId === fid || e.pitcherId === fid)
+    if (!s.finished && (!successMode.value || isFocus || e.runs > 0 || e.kind === 'homerun')) flashResult(e, successMode.value && isFocus)
     playFor(e)
   } else if (s && kind === 'pitch') {
     // 1球だけ進めたとき：打球にならなかった球はミットの音
@@ -237,25 +241,29 @@ function playFor(e: PlayEvent): void {
 }
 
 // ---- 打席結果の演出（画面中央に一時的に出す） ----
-const flash = ref<{ title: string; tone: string; sub: string; runs: number; key: number } | null>(null)
+const flash = ref<{ title: string; tone: string; sub: string; runs: number; key: number; focus?: boolean } | null>(null)
 let flashTimer: ReturnType<typeof setTimeout> | undefined
 let flashKey = 0
-function flashResult(e: PlayEvent): void {
+function flashResult(e: PlayEvent, focus = false): void {
   const r = bigResult(e)
   const who = players.value[e.batterId]?.surname ?? ''
   const detail = e.text.split('：').slice(1).join('：') || e.text
-  flash.value = { ...r, sub: e.kind === 'steal' || e.kind === 'caughtstealing' ? detail : `${who}　${detail}`, runs: e.runs, key: ++flashKey }
+  flash.value = { ...r, sub: e.kind === 'steal' || e.kind === 'caughtstealing' ? detail : `${who}　${detail}`, runs: e.runs, key: ++flashKey, focus }
   clearTimeout(flashTimer)
-  flashTimer = setTimeout(() => (flash.value = null), e.kind === 'homerun' ? 2200 : 1500)
+  flashTimer = setTimeout(() => (flash.value = null), e.kind === 'homerun' || focus ? 2200 : 1500)
 }
 onBeforeUnmount(() => clearTimeout(flashTimer))
 const busyStep = ref(false)
 
 function scheduleAuto(): void {
   clearTimeout(timer)
-  if (!auto.value || !m.value || m.value.finished || cutin.value) return
-  const delay = [0, 1800, 1200, 700][game.save?.settings.gameSpeed ?? 2] ?? 1200
+  if (!auto.value || !m.value || m.value.finished || cutin.value || nagiAsk.value) return
+  const base = [0, 1800, 1200, 700][game.save?.settings.gameSpeed ?? 2] ?? 1200
+  // 選手育成モード：育成選手が関わらない打席はさっと進める（点が入ったときは結果を見せる）
+  const lastRun = (m.value.events[m.value.events.length - 1]?.runs ?? 0) > 0
+  const delay = successMode.value ? (lastRun || flash.value?.focus ? 1700 : 380) : base
   timer = setTimeout(async () => {
+    if (successMode.value && askIfFocus()) return
     await step('pa')
     scheduleAuto()
   }, delay)
@@ -300,8 +308,8 @@ function checkCutin(): void {
   const key = `${s.inning}${s.top}${battingTeam(s).battingIndex}`
   if (key === lastCutinKey) return
   lastCutinKey = key
-  // サクセス：試合は基本オートで、ピンチ・チャンスのときにランダムで指示を出せる
-  if (successMode.value && Math.random() < 0.5) return
+  // 選手育成モード：カットインは出さない（育成選手の場面で、ナギが指示を出す）
+  if (successMode.value) return
   s.cutins += 1
   const p = sit === 'chance' ? batter.value : pitcher.value
   if (!p) return
@@ -320,12 +328,80 @@ function closeCutin(): void {
 /** サクセス：試合は基本オート */
 const successMode = computed(() => !!game.save && !!successOf(game.save))
 const resumeHint = ref(false)
-/** 選手育成モードでは、作戦は指示を出す場面（チャンス・ピンチ）だけ出す */
-const showCommand = computed(() => !successMode.value || (resumeHint.value && !auto.value))
+/** 選手育成モードでは、作戦の一覧は出さない（育成選手の場面で、ナギの指示から選ぶ） */
+const showCommand = computed(() => !successMode.value)
 function resume(): void {
   resumeHint.value = false
   auto.value = true
 }
+
+// ---- 選手育成モード：育成選手の打席・ピンチの登板で、ナギが指示を出す ----
+const focusId = computed(() => (game.save ? (successOf(game.save)?.focusId ?? null) : null))
+const focusP = computed<Player | null>(() => (focusId.value ? (players.value[focusId.value] ?? null) : null))
+interface NagiOption {
+  label: string
+  say: string
+  orders: Partial<MatchState['pending']>
+}
+const nagiAsk = ref<{ kind: 'bat' | 'pitch'; line: string; options: NagiOption[]; sub: string; opp: Player | null } | null>(null)
+let askedKey = ''
+
+/** いまが育成選手の場面なら、自動進行を止めてナギの指示を出す */
+function askIfFocus(): boolean {
+  const s = m.value
+  const fid = focusId.value
+  if (!s || s.finished || !fid || !newPA.value) return false
+  const key = `${s.inning}${s.top}${battingTeam(s).battingIndex}${s.outs}`
+  if (key === askedKey) return false
+  const outs = ['ノーアウト', 'ワンアウト', 'ツーアウト'][s.outs]
+  const runners = s.bases.every((b) => b) ? '満塁' : s.bases[2] ? '三塁に走者' : s.bases[1] ? '二塁に走者' : s.bases[0] ? '一塁に走者' : '走者なし'
+  const sub = `${s.inning}回${s.top ? '表' : '裏'}　${outs}${runners}`
+  if (ownBatting.value && currentBatterId(s) === fid) {
+    askedKey = key
+    const sit = situation(s)
+    const opts: NagiOption[] = [
+      { label: '思い切り振ってこい', say: '甘い球は、全部フルスイング！', orders: { batting: 'swing' } },
+      { label: 'コンパクトに合わせて', say: '大振りはなし。芯で、強くはじき返して', orders: { batting: 'contact' } },
+    ]
+    if (s.outs < 2 && (s.bases[0] || s.bases[1]) && !s.bases[2]) opts.push({ label: '確実に送ろう', say: 'ここは送りバント。次につなごう', orders: { batting: 'bunt' } })
+    else opts.push({ label: 'よく見ていこう', say: 'ボール球には手を出さない。じっくりね', orders: { batting: 'wait' } })
+    const line = sit === 'chance' ? 'チャンスだよ。…ここで決めよう' : s.inning === 1 && battingTeam(s).battingIndex < 9 && !s.events.some((e) => e.batterId === fid) ? '最初の打席。まずは思い切りよくいこう' : 'さあ、いこう。サインはこれ'
+    nagiAsk.value = { kind: 'bat', line, options: opts, sub, opp: pitcher.value }
+  } else if (!ownBatting.value && fieldingTeam(s).pitcherId === fid && (situation(s) === 'pinch' || !s.events.some((e) => e.pitcherId === fid))) {
+    askedKey = key
+    const first = !s.events.some((e) => e.pitcherId === fid)
+    nagiAsk.value = {
+      kind: 'pitch',
+      line: first ? '立ち上がり、大事にいこう' : 'ピンチだね。…落ち着いて。ここは、こう攻めよう',
+      options: [
+        { label: '力で押そう', say: '全力のストレートで、ねじ伏せて', orders: { pitching: 'fullpower' } },
+        { label: '低めに集めて', say: '低め、低め。打たせて取ろう', orders: { plan: 'low' } },
+        ...(focusP.value && focusP.value.pitching.pitches.length > 0 ? [{ label: '変化球でかわそう', say: '決め球は変化球。タイミングを外して', orders: { plan: 'breaking' as PitchPlan } }] : [{ label: 'コースを突こう', say: '外角いっぱいを丁寧に', orders: { plan: 'outside' as PitchPlan } }]),
+      ],
+      sub,
+      opp: batter.value,
+    }
+  } else return false
+  clearTimeout(timer)
+  play('whistle')
+  return true
+}
+
+/** ナギの指示を選ぶ：その打席だけ作戦を出して、すぐに1打席進め、自動に戻る */
+async function chooseNagi(o: NagiOption): Promise<void> {
+  if (!nagiAsk.value) return
+  const ask = nagiAsk.value
+  nagiAsk.value = null
+  nagiSaid.value = o.say
+  await game.setMatchOrders(o.orders)
+  await step('pa')
+  // 投球の配球は、その打者だけ
+  if (ask.kind === 'pitch' && o.orders.plan) await game.setMatchOrders({ plan: 'auto' })
+  setTimeout(() => (nagiSaid.value = null), 1800)
+  auto.value = true
+  scheduleAuto()
+}
+const nagiSaid = ref<string | null>(null)
 
 // ---- 選手交代 ----
 const sheet = ref<'pitcher' | 'sub' | 'log' | 'lineup' | null>(null)
@@ -571,7 +647,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
     </div>
 
     <!-- 試合終了 -->
-    <MatchResult v-if="m.finished && !flash" :m="m" :players="players" :own-id="ownId" :busy="game.busy" @finish="finish" />
+    <MatchResult v-if="m.finished && !flash" :m="m" :players="players" :own-id="ownId" :busy="game.busy" :focus-id="focusId" @finish="finish" />
 
     <!-- ポップアップ -->
     <div v-if="sheet" class="sheet-backdrop" @click.self="sheet = null">
@@ -642,7 +718,38 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
       </div>
     </div>
 
-    <div v-if="flash" :key="flash.key" class="flash" :class="flash.tone">
+    <!-- 選手育成モード：ナギの指示（育成選手の場面） -->
+    <div v-if="nagiAsk && focusP" class="nagi-ask">
+      <div class="na-duel">
+        <div class="na-side own">
+          <img :src="`${BASE}icon/icon_focus.webp`" alt="" />
+          <b>{{ focusP.surname }}</b>
+          <small v-if="nagiAsk.kind === 'bat'">ミート{{ rankOf(focusP.batting.contact) }}・パワー{{ rankOf(focusP.batting.power) }}</small>
+          <small v-else>{{ focusP.pitching.velocity }}km・制球{{ rankOf(focusP.pitching.control) }}</small>
+        </div>
+        <div class="na-vs">VS</div>
+        <div v-if="nagiAsk.opp" class="na-side opp">
+          <img :src="`${BASE}icon/icon_mob.webp`" alt="" />
+          <b>{{ nagiAsk.opp.surname }}</b>
+          <small v-if="nagiAsk.kind === 'bat'">{{ nagiAsk.opp.pitching.velocity }}km・制球{{ rankOf(nagiAsk.opp.pitching.control) }}</small>
+          <small v-else>ミート{{ rankOf(nagiAsk.opp.batting.contact) }}・パワー{{ rankOf(nagiAsk.opp.batting.power) }}</small>
+        </div>
+      </div>
+      <div class="na-sit">{{ nagiAsk.sub }}</div>
+      <div class="na-talk">
+        <img class="na-face" :src="portraitUrl('nagi', 'serious')" alt="ナギ" />
+        <div class="na-bubble"><b>ナギ</b>{{ nagiAsk.line }}</div>
+      </div>
+      <div class="na-opts">
+        <button v-for="o in nagiAsk.options" :key="o.label" class="na-opt" @click="chooseNagi(o)">{{ o.label }}</button>
+      </div>
+    </div>
+    <div v-if="nagiSaid" class="nagi-said">
+      <img :src="portraitUrl('nagi', 'smile')" alt="" /><span>{{ nagiSaid }}</span>
+    </div>
+
+    <div v-if="flash" :key="flash.key" class="flash" :class="[flash.tone, { focus: flash.focus }]">
+      <img v-if="flash.focus" class="flash-face" :src="`${BASE}icon/icon_focus.webp`" alt="" />
       <div class="flash-title" :class="{ long: flash.title.length >= 7 }">{{ flash.title }}</div>
       <div v-if="flash.runs > 0" class="flash-runs">+{{ flash.runs }}点</div>
       <div class="flash-sub">{{ flash.sub }}</div>
@@ -1523,6 +1630,170 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
   to {
     opacity: 0;
     transform: translateY(-14px);
+  }
+}
+
+/* ---- 選手育成モード：ナギの指示 ---- */
+.nagi-ask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 70;
+  padding: 12px 12px calc(14px + var(--safe-bottom, 0px));
+  background: linear-gradient(180deg, rgba(8, 18, 34, 0) 0%, rgba(8, 18, 34, 0.9) 22%, rgba(8, 18, 34, 0.96) 100%);
+  animation: na-up 0.3s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+.na-duel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+.na-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #fff;
+  min-width: 0;
+}
+.na-side img {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px #ffb02e;
+}
+.na-side.opp img {
+  box-shadow: 0 0 0 3px #7e8ca0;
+  transform: scaleX(-1);
+}
+.na-side b {
+  font-size: 16px;
+  margin-top: 4px;
+}
+.na-side small {
+  font-size: 11px;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+.na-vs {
+  font-size: 28px;
+  font-weight: 900;
+  font-style: italic;
+  color: #ffd33d;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.4);
+}
+.na-sit {
+  text-align: center;
+  color: #ffd9a8;
+  font-size: 12px;
+  font-weight: 800;
+  margin: 6px 0;
+}
+.na-talk {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.na-face {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 8%;
+  background: linear-gradient(180deg, #fff3e6, #ffd9b8);
+  box-shadow: 0 0 0 3px #fff;
+  flex-shrink: 0;
+}
+.na-bubble {
+  flex: 1;
+  background: #fff;
+  color: var(--ink);
+  border-radius: 14px;
+  padding: 7px 11px;
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: left;
+}
+.na-bubble b {
+  display: block;
+  font-size: 11px;
+  color: #ff8a3d;
+}
+.na-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.na-opt {
+  padding: 12px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--ink);
+  background: linear-gradient(180deg, #fff 0%, #ffe8b8 100%);
+  box-shadow: 0 4px 0 #d99400;
+}
+.na-opt:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #d99400;
+}
+.nagi-said {
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  top: 30%;
+  z-index: 66;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  animation: na-up 0.25s ease-out both;
+}
+.nagi-said img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 8%;
+  background: #ffe6cc;
+  box-shadow: 0 0 0 2px #fff;
+}
+.nagi-said span {
+  color: #22324a;
+  background: #fff;
+  border-radius: 12px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+.flash.focus {
+  padding-top: 46px;
+}
+.flash-face {
+  position: absolute;
+  left: 50%;
+  top: -30px;
+  width: 70px;
+  height: 70px;
+  margin-left: -35px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px #ffb02e, 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+@keyframes na-up {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
   }
 }
 </style>
