@@ -225,6 +225,7 @@ export function activeSkills(s: MatchState, players: Record<string, Player>): { 
   on(out.batter, b, 'heat_weak', !!s.options.summer)
   on(out.batter, b, 'summer_child', !!s.options.summer)
   on(out.batter, b, 'all_fields', true)
+  on(out.batter, b, 'fan', true)
   on(out.batter, b, 'double_play', s.bases[0] !== null && s.outs < 2)
   on(out.batter, b, 'bunt', s.pending.batting === 'bunt')
   on(out.batter, b, 'sign_lost', s.pending.batting === 'bunt')
@@ -338,6 +339,8 @@ function batterNow(s: MatchState, ctx: MatchContext, order: BattingOrder): Batte
     power -= 12
   }
   if (s.count.balls === 0 && s.count.strikes === 0 && has(p, 'first_pitch')) contact += 12
+  // 扇風機：空振りが多い（強振のときはなおさら）
+  if (has(p, 'fan')) contact -= order === 'swing' ? 10 : 6
   if (s.count.strikes === 2 && has(p, 'persistent')) contact += 6
   const late = s.inning >= s.options.innings - 1
   if (late && Math.abs(diff) <= 1 && has(p, 'late_hero')) {
@@ -501,6 +504,8 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
     if (batOrder === 'bunt') s.pending.batting = 'bunt'
   } else batOrder = s.pending.batting
   const pitOrder: PitchingOrder = isUser(s, field) ? s.pending.pitching : aiPitchingOrder(s, ctx)
+  if (newPA || !s.paCtx) s.paCtx = { order: batOrder, chance: situation(s) === 'chance' }
+  else if (batOrder !== 'auto') s.paCtx.order = batOrder
 
   // 敬遠
   if (pitOrder === 'walk' && newPA) {
@@ -992,6 +997,14 @@ function attemptSteal(s: MatchState, ctx: MatchContext): PlayEvent | null {
   if (from === 1) p -= 0.08
   p += userTactic(s)
   p = clamp(p, 0.15, 0.95)
+  // 動けず：投手のクイックや牽制でスタートを切れない（その球はふつうに投げる）
+  let stuck = 0.15 + (pitcher.pitching.quick - 50) / 250 - (r.running.steal - 50) / 300
+  if (has(r, 'rocket_start')) stuck -= 0.06
+  if (has(pitcher, 'no_steal')) stuck += 0.06
+  if (rng.chance(clamp(stuck, 0.05, 0.35))) {
+    s.stealStuck = `${name(ctx, id)}、スタートを切れず`
+    return null
+  }
   s.pitching[field.pitcherId]!.pitches += 1
   const success = rng.chance(p)
   s.bases[from] = null
@@ -1039,6 +1052,8 @@ function makeEvent(s: MatchState, ctx: MatchContext, batterId: string, kind: Pla
     outsAfter: s.outs,
     basesAfter: [...s.bases],
     scoreAfter: score(s),
+    order: s.paCtx?.order,
+    chance: s.paCtx?.chance,
   }
 }
 

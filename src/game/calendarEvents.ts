@@ -116,7 +116,7 @@ function testEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance {
       {
         label: story(save) ? '練習の後に、ナギが勉強を見る' : '練習の後に、勉強を見てあげる',
         result: pass
-          ? `${p.surname}は赤点を回避した！（やる気が上がった）${story(save) ? '　ナギ（心）：…連立方程式なら、今は得意だ' : ''}`
+          ? `${p.surname}は赤点を回避した！（調子が上がった）${story(save) ? '　ナギ（心）：…連立方程式なら、今は得意だ' : ''}`
           : `健闘むなしく赤点…。${p.surname}は1週間、補習で練習に出られない。`,
         ops: pass ? [{ op: 'condition', playerId: p.id, key: 'motivation', delta: 5 }] : [{ op: 'injury', playerId: p.id, name: '補習', weeks: 1 }],
       },
@@ -135,7 +135,7 @@ function sportsDayEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance
     choices: [
       {
         label: story(save) ? 'ぶっちぎってください！' : '全力で走れ！',
-        result: win ? '最後の直線で抜き去り、野球部が勝った！（全員の走力が少し上がった）' : 'わずかに届かず、陸上部の勝ち…。（全員のやる気が少し下がった）',
+        result: win ? '最後の直線で抜き去り、野球部が勝った！（全員の走力が少し上がった）' : 'わずかに届かず、陸上部の勝ち…。（全員の調子が少し下がった）',
         ops: win
           ? list.map((p) => ({ op: 'ability' as const, playerId: p.id, key: 'running.speed', delta: 1 }))
           : [{ op: 'condition', playerId: 'all', key: 'motivation', delta: -3 }],
@@ -182,7 +182,7 @@ function festivalEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance 
     choices: [
       {
         label: '大いに盛り上げよう',
-        result: '野球部のストラックアウトは大盛況だった。（評判が少し上がり、全員のやる気が上がった）',
+        result: '野球部のストラックアウトは大盛況だった。（評判が少し上がり、全員の調子が上がった）',
         ops: [
           { op: 'school', key: 'reputation', delta: 1 },
           { op: 'condition', playerId: 'all', key: 'motivation', delta: 6 },
@@ -204,7 +204,7 @@ function schoolTripEvent(save: SaveData, rng: Rng, second: Player[]): EventInsta
     choices: [
       {
         label: '…なんで木刀？',
-        result: '2年生は旅行を楽しんで、元気に帰ってきた。（2年生のやる気と体力が上がった）',
+        result: '2年生は旅行を楽しんで、元気に帰ってきた。（2年生の調子と体力が上がった）',
         ops: second.flatMap((x) => [
           { op: 'condition' as const, playerId: x.id, key: 'motivation' as const, delta: 5 },
           { op: 'condition' as const, playerId: x.id, key: 'stamina' as const, delta: 15 },
@@ -249,7 +249,7 @@ function hatsumodeEvent(save: SaveData, rng: Rng): EventInstance {
         label: '今年の必勝を祈る',
         result: glow
           ? `お守り袋の中で、小さな球が一瞬、白く光った…。（夏の大会の間、部員全員の調子が上がる）${story(save) ? '　ナギ（心）：…まさか、また入れ替わったりせんじゃろうな' : ''}`
-          : '部員たちは、気持ちを新たにした。（全員のやる気が上がった）',
+          : '部員たちは、気持ちを新たにした。（全員の調子が上がった）',
         ops,
       },
     ],
@@ -278,7 +278,7 @@ function omikujiEvent(save: SaveData, rng: Rng): EventInstance | null {
   } else if (r < 0.105) {
     name = '大吉'
     ops = [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 20 }, { op: 'condition', playerId: 'all', key: 'form', delta: 1 }]
-    text = `大吉！　${f.surname}のやる気が大きく上がった。部員全員の調子も良くなった。`
+    text = `大吉！　${f.surname}の調子が大きく上がった。部員全員の調子も良くなった。`
   } else if (r < 0.355) {
     name = '吉'
     ops = abilityOps(f, keys, 2)
@@ -286,7 +286,7 @@ function omikujiEvent(save: SaveData, rng: Rng): EventInstance | null {
   } else if (r < 0.655) {
     name = rng.chance(0.5) ? '中吉' : '小吉'
     ops = [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 10 }]
-    text = `${name}。${f.surname}のやる気が上がった。`
+    text = `${name}。${f.surname}の調子が上がった。`
   } else if (r < 0.855) {
     name = '末吉'
     ops = []
@@ -302,7 +302,8 @@ function omikujiEvent(save: SaveData, rng: Rng): EventInstance | null {
   }
   return {
     id: eid('omikuji'),
-    title: `初詣のおみくじ（${name}）`,
+    // 結果（大吉など）は「開く」を押してから見せる
+    title: '初詣のおみくじ',
     speaker: NARR,
     relatedPlayerIds: [f.id],
     lines: ['部員みんなで、商店街の奥の小さな神社「白球稲荷」へ初詣に行った。', `${f.surname}が、おみくじを引く。`],
@@ -325,7 +326,7 @@ function obGameEvent(save: SaveData, rng: Rng): EventInstance {
       {
         label: '胸を借りよう',
         result: win
-          ? '現役チームがOBに勝った！（全員のやる気が上がった）'
+          ? '現役チームがOBに勝った！（全員の調子が上がった）'
           : 'OBチームの意地に押し切られた…。悔しさで、部員たちの練習に熱が入っている。（1か月、練習の効果が上がる）',
         ops: win
           ? [{ op: 'condition', playerId: 'all', key: 'motivation', delta: 5 }]
@@ -348,8 +349,8 @@ function selectionEvent(save: SaveData, autumn: Tournament): EventInstance {
       {
         label: '結果を聞く',
         result: won
-          ? '秋季大会の優勝校として、春の全国大会への出場が決まった！（全員のやる気が大きく上がった）'
-          : `今年は選ばれなかった。${story(save) ? 'ナギ「悔しいなら、夏に取り返しましょう」' : '悔しさを、夏にぶつけよう。'}（全員のやる気が少し上がった）`,
+          ? '秋季大会の優勝校として、春の全国大会への出場が決まった！（全員の調子が大きく上がった）'
+          : `今年は選ばれなかった。${story(save) ? 'ナギ「悔しいなら、夏に取り返しましょう」' : '悔しさを、夏にぶつけよう。'}（全員の調子が少し上がった）`,
         ops: [{ op: 'condition', playerId: 'all', key: 'motivation', delta: won ? 10 : 3 }],
       },
     ],
@@ -368,7 +369,7 @@ function valentineEvent(save: SaveData): EventInstance {
     choices: [
       {
         label: 'ありがたくいただこう',
-        result: '部員たちは大喜びだった。（全員のやる気が上がった）',
+        result: '部員たちは大喜びだった。（全員の調子が上がった）',
         ops: [{ op: 'condition', playerId: 'all', key: 'motivation', delta: 3 }],
       },
     ],
@@ -390,7 +391,7 @@ function graduationEvent(save: SaveData, seniors: Player[]): EventInstance | nul
     choices: [
       {
         label: '卒業、おめでとう',
-        result: '3年生が、グラウンドに一礼して去っていった。（1・2年生のやる気が上がった）',
+        result: '3年生が、グラウンドに一礼して去っていった。（1・2年生の調子が上がった）',
         ops: [{ op: 'condition', playerId: 'all', key: 'motivation', delta: 3 }],
       },
     ],
@@ -403,7 +404,7 @@ function retireDayEvent(save: SaveData, rng: Rng, retired: Player[], juniors: Pl
   const cap = [...retired].sort((a, b) => playerRating(b) - playerRating(a))[0]!
   const goodSkills = cap.skills.filter((id) => SKILLS.find((s) => s.id === id)?.good)
   const ops: EffectOp[] = [{ op: 'condition', playerId: 'all', key: 'motivation', delta: 5 }]
-  let text = '1・2年生は、先輩の言葉を胸に刻んだ。（全員のやる気が上がった）'
+  let text = '1・2年生は、先輩の言葉を胸に刻んだ。（全員の調子が上がった）'
   if (goodSkills.length && rng.chance(0.3)) {
     const skill = rng.pick(goodSkills)
     const def = SKILLS.find((s) => s.id === skill)!
@@ -472,7 +473,7 @@ function campRareEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance 
         },
         {
           label: '寝かせる',
-          result: `${p.surname}は素直に布団に入った。（体力が回復し、やる気が上がった）`,
+          result: `${p.surname}は素直に布団に入った。（体力が回復し、調子が上がった）`,
           ops: [
             { op: 'condition', playerId: p.id, key: 'stamina', delta: 15 },
             { op: 'condition', playerId: p.id, key: 'motivation', delta: 3 },
@@ -506,7 +507,7 @@ function campRareEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance 
       lines: ['合宿の締めくくりの紅白戦が終わりました。', 'MVPは、誰にしますか？'],
       choices: cands.map((p) => ({
         label: `${p.surname}（${p.grade}年）`,
-        result: `MVPは${p.surname}！　能力が全体的に伸びた。（選ばれなかった二人は、悔しさでやる気が上がった）`,
+        result: `MVPは${p.surname}！　能力が全体的に伸びた。（選ばれなかった二人は、悔しさで調子が上がった）`,
         ops: [
           ...abilityOps(p, mainKeys(p), 2),
           ...cands.filter((x) => x.id !== p.id).map((x) => ({ op: 'condition' as const, playerId: x.id, key: 'motivation' as const, delta: 3 })),
@@ -523,7 +524,7 @@ function campRareEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance 
       choices: [
         {
           label: '早く寝なさい',
-          result: '翌朝、全員が寝不足だった。でも、なぜか一体感が増した。（体力が少し減り、全員のやる気が上がった）',
+          result: '翌朝、全員が寝不足だった。でも、なぜか一体感が増した。（体力が少し減り、全員の調子が上がった）',
           ops: [
             { op: 'condition', playerId: 'all', key: 'stamina', delta: -5 },
             { op: 'condition', playerId: 'all', key: 'motivation', delta: 5 },
@@ -642,7 +643,7 @@ function transferEvent(save: SaveData, rng: Rng): EventInstance {
     choices: [
       {
         label: '理由を聞きに行く',
-        result: 'じっくり話を聞くと、転校生はもう一度ボールを握ると決めた。やる気十分で入部した！',
+        result: 'じっくり話を聞くと、転校生はもう一度ボールを握ると決めた。気合十分で入部した！',
         ops: [{ op: 'recruit', grade: 2, boost: 18, motivation: 85, note: '転校してきて、野球部に入部した。' }],
       },
       {
@@ -666,7 +667,7 @@ function genzoSnackEvent(): EventInstance {
     choices: [
       {
         label: 'ありがとうございます！',
-        result: '部員たちは差し入れをたいらげた。（全員の体力とやる気が上がった）',
+        result: '部員たちは差し入れをたいらげた。（全員の体力と調子が上がった）',
         ops: [
           { op: 'condition', playerId: 'all', key: 'stamina', delta: 8 },
           { op: 'condition', playerId: 'all', key: 'motivation', delta: 3 },
@@ -688,7 +689,7 @@ function ramuneEvent(won: boolean): EventInstance {
     choices: [
       {
         label: 'いただきます',
-        result: won ? '冷えたラムネが、喉にしみた。（全員のやる気が上がった）' : 'ナギ（心）：…二本の日は、何も言わない日らしい。（落ち込んでいた部員たちのやる気が少し戻った）',
+        result: won ? '冷えたラムネが、喉にしみた。（全員の調子が上がった）' : 'ナギ（心）：…二本の日は、何も言わない日らしい。（落ち込んでいた部員たちの調子が少し戻った）',
         ops: [{ op: 'condition', playerId: 'all', key: 'motivation', delta: won ? 4 : 6 }],
       },
     ],
@@ -709,7 +710,7 @@ function draftEvent(save: SaveData, p: Player): EventInstance {
         label: 'おめでとう。プロはここからが長いぞ',
         result: story(save)
           ? `部員たちが歓声を上げた。（評判が上がった）　ナギ（心）：…あいつは打てる。だが守備で苦労する。向こうの監督に、手紙を書いてやりたいところだ`
-          : '部員たちが歓声を上げた。（評判が上がり、全員のやる気が上がった）',
+          : '部員たちが歓声を上げた。（評判が上がり、全員の調子が上がった）',
         ops: [
           { op: 'school', key: 'reputation', delta: 2 },
           { op: 'condition', playerId: 'all', key: 'motivation', delta: 5 },
@@ -730,7 +731,7 @@ function bigLossEvent(save: SaveData, cap: Player | undefined): EventInstance {
     choices: [
       {
         label: story(save) ? '今日の試合を、全部覚えておいてください' : '今日の悔しさを、全部覚えておけ',
-        result: '部員たちは、うつむいていた顔を上げた。（落ち込んだやる気が少し戻った）',
+        result: '部員たちは、うつむいていた顔を上げた。（落ち込んだ調子が少し戻った）',
         ops: [{ op: 'condition', playerId: 'all', key: 'motivation', delta: 6 }],
       },
     ],

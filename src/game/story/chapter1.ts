@@ -6,7 +6,7 @@ import { Rng, clamp } from '../rng'
 import { SEASON_WEEKS, POSITION_NAME, weekToDate } from '../constants'
 import { findTournament, ownAlive } from '../tournament'
 import { decideFocusDraft } from '../scout'
-import { fullName } from '../player'
+import { fullName, shiftForm } from '../player'
 import { learnable, skillName, ABILITY_LABEL, mainKeys } from '../events'
 import { absWeek } from '../modifiers'
 import type { Player, Position, SaveData } from '../types'
@@ -98,8 +98,9 @@ function startGuide(c: StoryContext, id: 'practice' | 'funds' | 'order' | 'recru
 
 // ---------------------------------------------------------------- 効果
 
+/** 調子を動かす（やる気と調子はひとつにまとめた） */
 function motivation(list: Player[], delta: number): void {
-  for (const p of list) p.condition.motivation = clamp(Math.round(p.condition.motivation + delta), 0, 100)
+  for (const p of list) shiftForm(p, delta)
 }
 function form(list: Player[], delta: number): void {
   for (const p of list) p.condition.form = clamp(p.condition.form + delta, 1, 5)
@@ -192,7 +193,7 @@ function confessEnd(c: StoryContext, place: 1 | 2 | 3): string[] {
   if (place === 3) return ['大地の告白が成功した！']
   motivation(regulars(c.save), 10)
   ;(c.save.modifiers ??= []).push({ key: 'practice', until: absWeek(c.save, 3, 52), label: '大地との交際' })
-  return ['大地の告白が成功した！', '部員全員のやる気が上がった。', 'チームの練習の効果が上がった（第1章のあいだ続く）。']
+  return ['大地の告白が成功した！', '部員全員の調子が上がった。', 'チームの練習の効果が上がった（第1章のあいだ続く）。']
 }
 
 // ---------------------------------------------------------------- 固定キャラの加入イベント
@@ -410,7 +411,7 @@ export const CHAPTER1: Scene[] = [
             reply: [makabe('smile', 'はは、頼もしいな')],
             apply: (x) => {
               motivation(regulars(x.save), 10)
-              return ['部員全員のやる気が上がった。']
+              return ['部員全員の調子が上がった。']
             },
           },
           {
@@ -494,7 +495,8 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_9nin',
     title: '9人そろう',
     chapter: 1,
-    when: (c) => Y(c) <= 3 && rosterCount(c.save) >= 9,
+    // 9人目が固定キャラのときは、その入部の場面を先に見せる
+    when: (c) => Y(c) <= 3 && rosterCount(c.save) >= 9 && JOIN.every((j) => !flag(c, `join_${j.id}`) || seen(c, `c1_join_${j.id}`)),
     steps: () => [
       bg('bg_ground_day'),
       n('グラウンドに、初めて9人の部員が並んだ'),
@@ -541,7 +543,7 @@ export const CHAPTER1: Scene[] = [
     ],
     onEnd: (c) => {
       motivation(regulars(c.save), 12)
-      return ['挑発に奮起した！部員全員のやる気が上がった。']
+      return ['挑発に奮起した！部員全員の調子が上がった。']
     },
   },
   {
@@ -596,7 +598,7 @@ export const CHAPTER1: Scene[] = [
     onEnd: (c) => {
       c.st.captainId = c.st.daichiId
       motivation(regulars(c.save), 5)
-      return ['大地が主将になった。', '部員全員のやる気が上がった。']
+      return ['大地が主将になった。', '部員全員の調子が上がった。']
     },
   },
   {
@@ -717,7 +719,7 @@ export const CHAPTER1: Scene[] = [
         return ['王者を倒した！評判が大きく上がった。', ...evals(c, [['scout', 5], ['team', 3]]), ...addAchievement(c.st, '王者撃破')]
       }
       motivation(regulars(c.save), 8)
-      return ['部員全員のやる気が上がった。']
+      return ['部員全員の調子が上がった。']
     },
   },
   {
@@ -843,7 +845,7 @@ export const CHAPTER1: Scene[] = [
     ],
     onEnd: (c) => {
       motivation(regulars(c.save), 5)
-      return ['部員全員のやる気が上がった。']
+      return ['部員全員の調子が上がった。']
     },
   },
   {
@@ -892,7 +894,7 @@ export const CHAPTER1: Scene[] = [
         return ['チーム全体の練習の効果が上がった（第1章のあいだ続く）。', ...evals(c, [['daichi', 5]])]
       }
       motivation(regulars(c.save), -10)
-      return ['部員全員のやる気が下がった…。', ...evals(c, [['team', -2]])]
+      return ['部員全員の調子が下がった…。', ...evals(c, [['team', -2]])]
     },
   },
   {
@@ -989,8 +991,8 @@ export const CHAPTER1: Scene[] = [
     onEnd: (c) => {
       form(regulars(c.save), 1)
       const f = focus(c)
-      if (f) f.condition.motivation = 100
-      return ['試合に出る選手の調子が上がった。', ...(f ? [`${f.surname}のやる気が最大になった！`] : [])]
+      if (f) f.condition.form = 5
+      return ['試合に出る選手の調子が上がった。', ...(f ? [`${f.surname}は絶好調になった！`] : [])]
     },
   },
   {

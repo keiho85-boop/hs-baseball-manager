@@ -103,6 +103,9 @@ export interface PlayEvent {
   outsAfter: number
   basesAfter: (string | null)[]
   scoreAfter: [number, number]
+  /** その打席の作戦と、チャンスの場面だったか（試合後の成長・特殊能力の判定に使う） */
+  order?: BattingOrder
+  chance?: boolean
 }
 
 export type Situation = 'normal' | 'chance' | 'pinch'
@@ -149,6 +152,10 @@ export interface MatchState {
   pitching: Record<string, BoxPitching>
   /** 選手ごとのその日の調子（運の要素） */
   dayForm: Record<string, number>
+  /** 盗塁のサインで、走者がスタートを切れなかった（画面に「動けず」を出したら消す） */
+  stealStuck?: string
+  /** いまの打席の作戦と、打席の初めにチャンスだったか */
+  paCtx?: { order: BattingOrder; chance: boolean }
   events: PlayEvent[]
   /** 直前の1球の説明（画面に出す） */
   lastPitch: string

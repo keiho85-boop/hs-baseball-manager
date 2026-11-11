@@ -114,7 +114,7 @@ export function attachEvent(save: SaveData, rng: Rng, person: Person): EventInst
         },
         {
           label: 'チームのみんなにも共有してもらう',
-          result: '部員みんなが、ナギのノートをのぞき込んだ。（全員のやる気が上がった。チームメイトの評価が上がった）',
+          result: '部員みんなが、ナギのノートをのぞき込んだ。（全員の調子が上がった。チームメイトの評価が上がった）',
           ops: [{ op: 'condition', playerId: 'all', key: 'motivation', delta: 5 }, ev('team', 2), ev('nagi', 1)],
         },
       ],

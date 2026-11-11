@@ -33,7 +33,7 @@ export const SQUARES: Record<SquareType, SquareInfo> = {
   rest: { label: '休養', short: '休', color: '#3aa8f0', description: '体力が大きく回復し、調子が整う' },
   special: { label: '特訓', short: '特', color: '#c2185b', description: '選手を1人選んで、大きく伸ばす（選手育成モードでは育成選手）' },
   event: { label: 'イベント', short: '!', color: '#ff5fa2', description: '何かが起きる' },
-  manager: { label: 'マネージャー', short: 'マ', color: '#ff8fb1', description: 'やる気と調子が上がる' },
+  manager: { label: 'マネージャー', short: 'マ', color: '#ff8fb1', description: '調子が上がる' },
   funds: { label: '部費', short: '¥', color: '#e9a400', description: '部費が増える' },
   scout: { label: 'スカウト', short: 'ス', color: '#5f6f86', description: '中学生を視察できる' },
   rain: { label: '雨', short: '雨', color: '#7e8ca0', description: '練習の効果は半分。ケガもしにくい' },
@@ -327,8 +327,8 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
       intensity = 0.6 * card.gain
       cost = 8 * card.cost
     }
-    // やる気と調子が高いほど伸びる
-    const spirit = 0.85 + p.condition.motivation / 333 + (p.condition.form - 3) * 0.05
+    // 調子が良いほど伸びる（絶不調0.8倍〜普通1.0倍〜絶好調1.2倍）
+    const spirit = 0.8 + (p.condition.form - 1) * 0.1
     // サクセス：育てる選手（フォーカス選手）は大きく伸びる
     const keys = success && plan.card.effect !== 'all' ? SQUARE_STATS[sq] : undefined
     growWeekly(rng, p, intensity * campMult * facilityIntensity * spirit * (success ? focusGrowthMult(save, p) : 1), keys)

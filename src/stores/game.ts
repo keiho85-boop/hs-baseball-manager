@@ -40,6 +40,7 @@ import { setFictionalPlaces } from '@/game/constants'
 import { buildSteps, completeScene, markStory, nextScene, noteMatch, observeStory } from '@/game/story/engine'
 import type { Scene, Step } from '@/game/story/types'
 import { evalAfterMatch, mustForfeit, rosterCount, successOf } from '@/game/success/state'
+import { focusMatchGrowth } from '@/game/success/matchGrowth'
 import { recruit as recruitLogic, type RecruitResult } from '@/game/success/clubs'
 import type { ClubId } from '@/game/success/types'
 
@@ -362,6 +363,8 @@ export const useGameStore = defineStore('game', () => {
       const tm = m.options.tournament
       // サクセス：勝敗とフォーカス選手の活躍で、周りの評価が動く
       finish.messages.push(...evalAfterMatch(s, m, !!tm, finish.won))
+      // 選手育成モード：育成選手の活躍で伸びが変わり、結果で特殊能力がついたり消えたりする
+      finish.messages.push(...focusMatchGrowth(s, m, matchRng, !!tm))
       noteMatch(s, {
         practice: !tm,
         won: finish.won,

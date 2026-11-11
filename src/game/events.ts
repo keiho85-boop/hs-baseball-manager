@@ -3,7 +3,7 @@
 
 import { Rng, clamp } from './rng'
 import { POSITION_NAME } from './constants'
-import { defaultPracticeMenu, fullName } from './player'
+import { defaultPracticeMenu, fullName, shiftForm } from './player'
 import { computeOverall, generateGrade, schoolStrength } from './world'
 import { SKILLS, conflicts } from './skills'
 import type { EffectOp, EventInstance, Player, Position, SaveData, SquareType } from './types'
@@ -81,7 +81,7 @@ function managerEvent(save: SaveData, rng: Rng): EventInstance {
       choices: [
         {
           label: 'ありがたくいただこう',
-          result: '部員たちは元気を取り戻した！（全員の体力とやる気が上がった）',
+          result: '部員たちは元気を取り戻した！（全員の体力と調子が上がった）',
           ops: [
             { op: 'condition', playerId: 'all', key: 'stamina', delta: 12 },
             { op: 'condition', playerId: 'all', key: 'motivation', delta: 5 },
@@ -174,7 +174,7 @@ function fundsEvent(save: SaveData, rng: Rng): EventInstance {
       choices: [
         {
           label: 'ありがとうございます！',
-          result: `部費が${amount}万円増え、部員たちのやる気も上がった！`,
+          result: `部費が${amount}万円増え、部員たちの調子も上がった！`,
           ops: [
             { op: 'school', key: 'funds', delta: amount },
             { op: 'condition', playerId: 'all', key: 'motivation', delta: 5 },
@@ -220,7 +220,7 @@ function schoolEvent(save: SaveData, rng: Rng): EventInstance {
     choices: [
       {
         label: '行事も全力で楽しもう',
-        result: '部員たちは気分転換できた。（体力とやる気が少し回復）',
+        result: '部員たちは気分転換できた。（体力と調子が少し回復）',
         ops: [{ op: 'condition', playerId: 'all', key: 'motivation', delta: 4 }],
       },
     ],
@@ -302,7 +302,7 @@ function rivalEvent(rng: Rng, list: Player[]): EventInstance | null {
       },
       {
         label: 'お互いを認め合え',
-        result: `${a.surname}と${b.surname}は良きライバルになった。（2人のやる気が上がった）`,
+        result: `${a.surname}と${b.surname}は良きライバルになった。（2人の調子が上がった）`,
         ops: [
           { op: 'condition', playerId: a.id, key: 'motivation', delta: 10 },
           { op: 'condition', playerId: b.id, key: 'motivation', delta: 10 },
@@ -366,7 +366,7 @@ function secretPracticeEvent(rng: Rng, list: Player[]): EventInstance {
     choices: [
       {
         label: 'その努力を褒める',
-        result: `${p.surname}の${ABILITY_LABEL[key]}が伸び、やる気も上がった！${skill ? `さらに特殊能力「${skillName(skill)}」を身につけた！` : ''}`,
+        result: `${p.surname}の${ABILITY_LABEL[key]}が伸び、調子も上がった！${skill ? `さらに特殊能力「${skillName(skill)}」を身につけた！` : ''}`,
         ops: praiseOps,
       },
       {
@@ -436,7 +436,7 @@ function quarrelEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance |
     choices: [
       {
         label: '二人で話をさせる',
-        result: `${a.surname}と${b.surname}は、とことん話し合った。（二人のやる気が上がった）`,
+        result: `${a.surname}と${b.surname}は、とことん話し合った。（二人の調子が上がった）`,
         ops: [
           { op: 'condition', playerId: a.id, key: 'motivation', delta: 5 },
           { op: 'condition', playerId: b.id, key: 'motivation', delta: 5 },
@@ -444,7 +444,7 @@ function quarrelEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance |
       },
       {
         label: '放っておく',
-        result: makeUp ? '翌日には、二人とも何事もなかったように練習していた。' : `二人の間に、気まずい空気が残っている…（${a.surname}と${b.surname}のやる気が下がった）`,
+        result: makeUp ? '翌日には、二人とも何事もなかったように練習していた。' : `二人の間に、気まずい空気が残っている…（${a.surname}と${b.surname}の調子が下がった）`,
         ops: makeUp
           ? []
           : [
@@ -468,7 +468,7 @@ function teamMeetingEvent(rng: Rng, list: Player[]): EventInstance {
     choices: [
       {
         label: '任せた！',
-        result: 'チームの雰囲気が良くなった！（全員のやる気が上がった）',
+        result: 'チームの雰囲気が良くなった！（全員の調子が上がった）',
         ops: [{ op: 'condition', playerId: 'all', key: 'motivation', delta: 7 }],
       },
       {
@@ -541,12 +541,12 @@ function beachEvent(rng: Rng, list: Player[]): EventInstance {
     choices: [
       {
         label: 'みんなで思いきり遊ぼう',
-        result: `部員たちは日が暮れるまで、浜辺を駆け回った。（走力や、投手のスタミナが上がった。全員のやる気も上がった）${names ? `${names}はビーチフラッグで踏ん張るうちに体の使い方をつかみ、弾道が上がった！` : ''}`,
+        result: `部員たちは日が暮れるまで、浜辺を駆け回った。（走力や、投手のスタミナが上がった。全員の調子も上がった）${names ? `${names}はビーチフラッグで踏ん張るうちに体の使い方をつかみ、弾道が上がった！` : ''}`,
         ops,
       },
       {
         label: '今日は体を休めるのを優先しよう',
-        result: '部員たちは波の音を聞きながら、のんびり過ごした。（体力とやる気が回復した）',
+        result: '部員たちは波の音を聞きながら、のんびり過ごした。（体力と調子が回復した）',
         ops: [
           { op: 'condition', playerId: 'all', key: 'stamina', delta: 10 },
           { op: 'condition', playerId: 'all', key: 'motivation', delta: 4 },
@@ -582,7 +582,7 @@ function beachVolleyEvent(save: SaveData, rng: Rng, list: Player[]): EventInstan
       {
         label: '受けて立ちます！',
         result: win
-          ? `激戦の末、${own.name}が勝った！　レイカは悔しそうに砂を払っている。（${names}の能力が上がり、全員のやる気が大きく上がった）`
+          ? `激戦の末、${own.name}が勝った！　レイカは悔しそうに砂を払っている。（${names}の能力が上がり、全員の調子が大きく上がった）`
           : `あと一歩で${own.name}が負けた。掃除はこちらの担当に……。それでも、王者の動きから学ぶことは多かった。（${names}の能力が上がった）`,
         ops,
       },
@@ -700,6 +700,8 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
       const targets = op.playerId === 'all' ? all : [save.players[op.playerId]].filter((p): p is Player => !!p)
       for (const p of targets) {
         if (op.key === 'form') p.condition.form = clamp(p.condition.form + op.delta, 1, 5)
+        // やる気は調子にまとめた：やる気の増減は、調子の増減として扱う
+        else if (op.key === 'motivation') shiftForm(p, op.delta)
         else p.condition[op.key] = clamp(Math.round(p.condition[op.key] + op.delta), 0, 100)
       }
     } else if (op.op === 'ability') {

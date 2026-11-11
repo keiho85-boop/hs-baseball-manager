@@ -491,7 +491,18 @@ async function chooseNagi(o: NagiOption): Promise<void> {
   nagiAsk.value = null
   nagiSaid.value = o.say
   await game.setMatchOrders(o.orders)
-  await step('pa')
+  if (o.orders.batting === 'steal') {
+    // 盗塁は1球だけ進める（成功・失敗・動けず）
+    if (m.value) m.value.stealStuck = undefined
+    await step('pitch')
+    const st = m.value
+    if (st?.stealStuck) {
+      flash.value = { title: '動けず', tone: 'out', sub: st.stealStuck, runs: 0, key: ++flashKey }
+      clearTimeout(flashTimer)
+      flashTimer = setTimeout(() => (flash.value = null), 1500)
+      st.stealStuck = undefined
+    }
+  } else await step('pa')
   // 投球の配球は、その打者だけ
   if (ask.kind === 'pitch' && o.orders.plan) await game.setMatchOrders({ plan: 'auto' })
   setTimeout(() => (nagiSaid.value = null), 1800)

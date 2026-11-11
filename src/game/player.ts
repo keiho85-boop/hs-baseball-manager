@@ -415,6 +415,17 @@ export function strengthsOf(p: Player): string[] {
     .map((c) => c.key)
 }
 
+/**
+ * 調子を動かす（やる気と調子はひとつにまとめた）。
+ * 以前の「やる気」の増減（0〜100の幅）を、調子の段階（1〜5）に置きかえる
+ */
+export function shiftForm(p: Player, motivationDelta: number): void {
+  const a = Math.abs(motivationDelta)
+  const steps = a >= 15 ? 2 : a >= 5 ? 1 : 0
+  if (steps === 0) return
+  p.condition.form = Math.max(1, Math.min(5, p.condition.form + Math.sign(motivationDelta) * steps))
+}
+
 export function fullName(p: { surname: string; givenName: string }): string {
   return `${p.surname} ${p.givenName}`
 }

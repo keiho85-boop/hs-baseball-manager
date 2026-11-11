@@ -115,8 +115,8 @@ export function autoLineup(players: Player[], wantDH: boolean): LineupConfig {
 export function lineupValid(lineup: LineupConfig, players: Record<string, Player>): boolean {
   const ids = lineup.batters.map((b) => b.playerId)
   if (ids.length !== 9 || new Set(ids).size !== 9) return false
-  const all = [...ids, lineup.startingPitcherId, ...lineup.bench]
-  for (const id of all) {
+  // スタメンと先発投手は出られる選手であること（控えにケガ人がいても、オーダーは有効。試合では外す）
+  for (const id of [...ids, lineup.startingPitcherId]) {
     const p = players[id]
     if (!p || !available(p)) return false
   }

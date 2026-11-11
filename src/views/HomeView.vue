@@ -145,8 +145,9 @@ const EVAL_ICON: Record<EvalKey, string> = {
   genzo: 'genzo',
   scout: 'scout',
 }
-function motivationLabel(v: number): string {
-  return v >= 80 ? '絶好調' : v >= 60 ? '好調' : v >= 40 ? 'ふつう' : v >= 20 ? '不調' : '絶不調'
+/** 調子（やる気と調子はひとつにまとめた。1〜5） */
+function formLabel(v: number): string {
+  return ['', '絶不調', '不調', 'ふつう', '好調', '絶好調'][v] ?? 'ふつう'
 }
 
 async function goRecruit(club: ClubId, target?: number): Promise<void> {
@@ -475,8 +476,8 @@ watch(
           <div class="fs-cond">
             <img :src="`${BASE}ui/ui_stamina.webp`" alt="体力" />
             <span class="bar"><i :style="{ width: `${focus.condition.stamina}%` }" :class="{ low: focus.condition.stamina < 50 }" /></span>
-            <img :src="`${BASE}ui/ui_motivation.webp`" alt="やる気" />
-            <b class="mot">{{ motivationLabel(focus.condition.motivation) }}</b>
+            <img :src="`${BASE}ui/ui_motivation.webp`" alt="調子" />
+            <b class="mot" :class="`f${focus.condition.form}`">{{ formLabel(focus.condition.form) }}</b>
           </div>
         </div>
         <button class="fs-eval" aria-label="まわりの評価" @click="info2 = true">
@@ -906,6 +907,13 @@ watch(
 .fs-cond .bar {
   flex: 1;
   height: 7px;
+}
+.fs-cond .mot.f1,
+.fs-cond .mot.f2 {
+  color: #3d6fb5;
+}
+.fs-cond .mot.f3 {
+  color: #5a6a80;
 }
 .fs-cond .mot {
   font-size: 12px;

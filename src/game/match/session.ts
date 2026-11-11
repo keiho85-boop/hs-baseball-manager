@@ -5,7 +5,7 @@ import { activeMembers } from '../season'
 import { fullName } from '../player'
 import { newId } from '../world'
 import type { LineupConfig, SaveData } from '../types'
-import { autoLineup, lineupValid } from './lineup'
+import { autoLineup, available, lineupValid } from './lineup'
 import { createMatch, defaultOptions, score, type MatchContext } from './engine'
 import { applyMatchResults } from './results'
 import type { MatchOptions, MatchState } from './types'
@@ -15,7 +15,17 @@ import { TACTIC_BONUS, consumeOnce, hasModifier } from '../modifiers'
 export function ownLineup(save: SaveData): LineupConfig {
   const school = save.schools[save.playerSchoolId]!
   const saved = save.lineup
-  if (saved && lineupValid(saved, save.players)) return saved
+  if (saved && lineupValid(saved, save.players)) {
+    // 控え：出られない選手（ケガ・引退）は外す。選手育成モードでは、スタメン以外の全員が控え
+    const starting = new Set([...saved.batters.map((b) => b.playerId), saved.startingPitcherId])
+    const ok = (id: string): boolean => {
+      const p = save.players[id]
+      return !!p && !p.retired && p.schoolId === school.id && available(p) && !starting.has(id)
+    }
+    const bench = saved.bench.filter(ok)
+    if (save.story?.enabled) for (const p of activeMembers(save, school)) if (ok(p.id) && !bench.includes(p.id)) bench.push(p.id)
+    return { ...saved, bench }
+  }
   return autoLineup(activeMembers(save, school), saved?.useDH ?? true)
 }
 

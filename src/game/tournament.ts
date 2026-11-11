@@ -362,6 +362,12 @@ export function progress(save: SaveData, rng: Rng, t: Tournament, force = false)
         continue
       }
       const res = quickGame(rng, save.schools[g.a]?.overall ?? 30, save.schools[g.b]?.overall ?? 30)
+      // ストーリー：龍ヶ峰は県大会の決勝までは必ず勝ち上がる（自校と当たるのは決勝だけ）
+      const rival = save.story?.rivalId
+      if (rival && !isOwn && t.prefCode !== null && (g.a === rival || g.b === rival) && res.aWins !== (g.a === rival)) {
+        res.aWins = g.a === rival
+        res.score = [res.score[1], res.score[0]]
+      }
       g.winner = res.aWins ? g.a : g.b
       g.score = res.score
       if (isOwn) {

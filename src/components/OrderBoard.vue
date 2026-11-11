@@ -213,10 +213,16 @@ function tap(cell: Cell, part: 'pos' | 'player' = 'player'): void {
     return
   }
   const reserve = (k: string): boolean => k[0] === 'B' || k[0] === 'O'
-  if (cur && selPart.value === part && !(reserve(cur) && reserve(cell.key))) {
-    if (part === 'pos') swapPositions(cur, cell.key)
+  if (cur && cur !== cell.key && !(reserve(cur) && reserve(cell.key))) {
+    // 札どうし（スタメン2人）なら守備位置だけ、それ以外（名前と札が混ざったときも）は選手ごと入れ替える
+    if (selPart.value === 'pos' && part === 'pos') swapPositions(cur, cell.key)
     else swap(cur, cell.key)
     selected.value = null
+    return
+  }
+  if (cur === cell.key) {
+    // 同じ選手の名前と札を続けてタップ：選び直し
+    selPart.value = part
     return
   }
   selected.value = cell.key

@@ -1,7 +1,7 @@
 // ストーリー（第1章）のテスト：3年間を進めて、場面が順に流れ、章が終わるか確かめる
 import { describe, expect, it } from 'vitest'
 import type { Position } from '../src/game/types'
-import { ensureTournament } from '../src/game/tournament'
+import { ensureTournament, progress } from '../src/game/tournament'
 import { createNewGame } from '../src/game/world'
 import { advanceWeek } from '../src/game/season'
 import { ensureSugoroku } from '../src/game/sugoroku'
@@ -288,5 +288,63 @@ describe('龍ヶ峰との組み合わせ', () => {
       expect(ir).toBeGreaterThanOrEqual(0)
       expect(Math.floor(io / half)).not.toBe(Math.floor(ir / half))
     }
+  })
+})
+
+describe('龍ヶ峰は県大会決勝まで勝ち上がる', () => {
+  it('どの組み合わせでも、決勝に龍ヶ峰がいる', () => {
+    for (const seed of [11, 12, 13, 14, 15, 16]) {
+      const save = newGame(seed)
+      save.calendar.week = 5
+      const rng = new Rng([seed, 3, 5, 7])
+      const t = ensureTournament(save, rng)!
+      save.calendar.week = 60
+      progress(save, rng, t, true)
+      const final = t.rounds[t.rounds.length - 1]![0]!
+      expect([final.a, final.b]).toContain(save.story!.rivalId)
+    }
+  })
+})
+
+describe('試合の結果で特殊能力がつく・消える', () => {
+  it('強振で三振を重ねると扇風機がつき、打てば消える', async () => {
+    const { focusMatchGrowth } = await import('../src/game/success/matchGrowth')
+    const save = newGame(21, 'SS')
+    const f = focusPlayer(save)!
+    const ev = (kind: string, order: string) => ({ inning: 1, top: true, batterId: f.id, pitcherId: 'x', kind, text: '', runs: 0, outsAfter: 1, basesAfter: [null, null, null], scoreAfter: [0, 0], order, chance: false })
+    const box = (h: number, k: number) => ({ pa: 4, ab: 4, h, d: 0, t: 0, hr: 0, rbi: 0, bb: 0, k, sb: 0, r: 0 })
+    let got = false
+    for (let i = 0; i < 20 && !got; i++) {
+      const m = { batting: { [f.id]: box(0, 4) }, pitching: {}, events: [0, 1, 2, 3].map(() => ev('strikeout', 'swing')) } as never
+      focusMatchGrowth(save, m, new Rng([i + 1, 2, 3, 4]), true)
+      got = f.skills.includes('fan')
+    }
+    expect(got).toBe(true)
+    let gone = false
+    for (let i = 0; i < 20 && !gone; i++) {
+      const m = { batting: { [f.id]: box(3, 0) }, pitching: {}, events: [ev('single', 'auto'), ev('double', 'auto'), ev('single', 'auto'), ev('groundout', 'auto')] } as never
+      const before = JSON.stringify(f.batting)
+      focusMatchGrowth(save, m, new Rng([i + 7, 2, 3, 4]), true)
+      gone = !f.skills.includes('fan')
+      void before
+    }
+    expect(gone).toBe(true)
+  })
+})
+
+describe('オーダーの保存', () => {
+  it('控えにケガ人がいても、入れ替えたオーダーがそのまま使われる', () => {
+    const save = newGame(31)
+    const rng = new Rng([3, 1, 4, 1])
+    while (rosterCount(save) < 11) addFriendsOfDaichi(save, rng, 1)
+    const line = ownLineup(save)
+    const swapped = structuredClone(line)
+    ;[swapped.batters[0], swapped.batters[1]] = [swapped.batters[1]!, swapped.batters[0]!]
+    const injured = swapped.bench[0]!
+    save.players[injured]!.condition.injury = { name: '捻挫', weeksLeft: 2 }
+    save.lineup = swapped
+    const now = ownLineup(save)
+    expect(now.batters[0]!.playerId).toBe(line.batters[1]!.playerId)
+    expect(now.bench).not.toContain(injured)
   })
 })

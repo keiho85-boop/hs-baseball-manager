@@ -206,7 +206,6 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
         </div>
         <div class="cond-bars">
           <AbilityBar label="体力" :value="p.condition.stamina" hide-rank />
-          <AbilityBar label="やる気" :value="p.condition.motivation" hide-rank />
         </div>
       </div>
       <div class="grid2">

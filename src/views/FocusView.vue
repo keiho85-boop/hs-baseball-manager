@@ -39,15 +39,16 @@ function stars(v: number): string {
   return '★'.repeat(n) + '☆'.repeat(5 - n)
 }
 
-/** 立ち絵：やる気が高いと笑顔 */
+/** 立ち絵：調子が良いと笑顔 */
 const portrait = computed(() => {
-  const m = p.value?.condition.motivation ?? 50
-  const face = m >= 80 ? 'joy' : m >= 60 ? 'smile' : m < 25 ? 'frustrated' : 'normal'
+  const f = p.value?.condition.form ?? 3
+  const face = f >= 5 ? 'joy' : f >= 4 ? 'smile' : f <= 1 ? 'frustrated' : 'normal'
   return `${BASE}chara/focus_hs_practice_bust_${face}.webp`
 })
 
-function motivationLabel(v: number): string {
-  return v >= 80 ? '絶好調' : v >= 60 ? '好調' : v >= 40 ? 'ふつう' : v >= 20 ? '不調' : '絶不調'
+/** 調子（やる気と調子はひとつにまとめた。1〜5） */
+function formLabel(v: number): string {
+  return ['', '絶不調', '不調', 'ふつう', '好調', '絶好調'][v] ?? 'ふつう'
 }
 
 /** スカウトの評価から見たドラフトの見込み */
@@ -86,8 +87,8 @@ const draft = computed(() => {
         </div>
         <div class="c-item">
           <img :src="`${BASE}ui/ui_motivation.webp`" alt="" />
-          <span>やる気</span>
-          <b class="mot">{{ motivationLabel(p.condition.motivation) }}</b>
+          <span>調子</span>
+          <b class="mot" :class="`f${p.condition.form}`">{{ formLabel(p.condition.form) }}</b>
           <template v-if="p.condition.injury">
             <img :src="`${BASE}ui/ui_infirmary.webp`" alt="" />
             <b class="inj">ケガ</b>
@@ -251,6 +252,13 @@ const draft = computed(() => {
 }
 .mot {
   color: #d9731f;
+}
+.mot.f1,
+.mot.f2 {
+  color: #3d6fb5;
+}
+.mot.f3 {
+  color: #5a6a80;
 }
 .inj {
   color: #c62828;

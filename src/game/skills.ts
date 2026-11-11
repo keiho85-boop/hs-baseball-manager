@@ -40,7 +40,7 @@ export const SKILLS: SkillDef[] = [
   { id: 'steel_heart', name: '鋼の心臓', description: '全国大会で能力が上がる', good: true, target: 'all', initialRate: 0.015 },
   { id: 'counterattack', name: '逆襲の狼煙', description: 'リードされている場面で能力が上がる', good: true, target: 'all', initialRate: 0.02 },
   { id: 'pillar', name: 'チームの大黒柱', description: '主将にすると、チーム全体の調子が安定する', good: true, target: 'all', initialRate: 0.015 },
-  { id: 'bench_sun', name: 'ベンチの太陽', description: 'ベンチ入りしていると、チームのやる気が上がる', good: true, target: 'all', initialRate: 0.02 },
+  { id: 'bench_sun', name: 'ベンチの太陽', description: 'ベンチ入りしていると、チームの調子が上がる', good: true, target: 'all', initialRate: 0.02 },
   { id: 'hard_worker', name: '練習の虫', description: '練習での伸びが良い', good: true, target: 'all', initialRate: 0.03 },
   { id: 'summer_child', name: '真夏の申し子', description: '夏の大会で疲れにくい', good: true, target: 'all', initialRate: 0.02 },
   // 弱点
@@ -48,6 +48,7 @@ export const SKILLS: SkillDef[] = [
   { id: 'slow_starter', name: '寝起きが悪い', description: '1回の制球が乱れる', good: false, target: 'pitcher', initialRate: 0.05 },
   { id: 'out_of_gas', name: 'ガス欠', description: '7回以降に球威が落ちる', good: false, target: 'pitcher', initialRate: 0.05 },
   { id: 'glass_heart', name: 'ガラスのハート', description: '連打を浴びると制球が乱れる', good: false, target: 'pitcher', initialRate: 0.05 },
+  { id: 'fan', name: '扇風機', description: '空振りが多い（強振のときはなおさら）', good: false, target: 'batter', initialRate: 0 },
   { id: 'double_play', name: 'ゲッツー量産', description: '内野ゴロや併殺打が多い', good: false, target: 'batter', initialRate: 0.05 },
   { id: 'meatball', name: 'ど真ん中癖', description: '長打を浴びやすい', good: false, target: 'pitcher', initialRate: 0.04 },
   { id: 'sign_lost', name: 'サイン迷子', description: '采配の指示が失敗しやすい', good: false, target: 'all', initialRate: 0.04 },
