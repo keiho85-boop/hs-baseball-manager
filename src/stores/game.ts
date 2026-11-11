@@ -39,7 +39,7 @@ import { setupStoryWorld } from '@/game/story/setup'
 import { setFictionalPlaces } from '@/game/constants'
 import { buildSteps, completeScene, markStory, nextScene, noteMatch, observeStory } from '@/game/story/engine'
 import type { Scene, Step } from '@/game/story/types'
-import { evalAfterMatch, rosterCount, successOf } from '@/game/success/state'
+import { evalAfterMatch, mustForfeit, rosterCount, successOf } from '@/game/success/state'
 import { recruit as recruitLogic, type RecruitResult } from '@/game/success/clubs'
 import type { ClubId } from '@/game/success/types'
 
@@ -248,9 +248,15 @@ export const useGameStore = defineStore('game', () => {
     if (!p) return null
     busy.value = true
     try {
-      if (successOf(s) && rosterCount(s) < 9) {
+      const forfeit = mustForfeit(s, p.t.kind)
+      if (forfeit) {
         const rng = new Rng(s.rngState)
-        const msgs = [`部員が9人に満たないため、${p.t.name}は棄権となった…。`, ...recordOwnResult(s, rng, p.t, p.round, false, 0, 9, '人数不足で棄権')]
+        const head =
+          forfeit === 'story'
+            ? `部員がそろう前に、${p.t.name}のエントリーは締め切られていた。人数不足で棄権となった…。`
+            : `部員が9人に満たないため、${p.t.name}は棄権となった…。`
+        if (forfeit === 'story' && s.story) s.story.flags.y1SpringForfeit = s.calendar.year
+        const msgs = [head, ...recordOwnResult(s, rng, p.t, p.round, false, 0, 9, '人数不足で棄権')]
         s.rngState = rng.getState()
         touch()
         await writeSave(s)

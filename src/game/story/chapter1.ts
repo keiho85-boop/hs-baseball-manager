@@ -465,6 +465,23 @@ export const CHAPTER1: Scene[] = [
     },
   },
   {
+    id: 'c1_haru_kiken',
+    title: '春の大会、棄権',
+    chapter: 1,
+    when: (c) => Y(c) === 1 && c.st.flags.y1SpringForfeit !== undefined,
+    steps: () => [
+      bg('bg_clubroom_day'),
+      n('春の県大会の組み合わせ表。七海東の名前の横に、小さく「棄権」と書かれていた'),
+      makabe('troubled', 'ごめん…。部員がそろう前に、エントリーの締め切りが来ちゃって'),
+      daichiSay('frustrated', 'くっそ…。試合、やりたかったなあ'),
+      nagi('normal', '仕方ないよ。いまの私たちじゃ、9人並ぶこともできないんだから'),
+      think('出られなかった大会のことは、もう考えない。次は夏だ。それまでに、9人。…いや、勝てる9人だ', 'serious'),
+      nagi('smile', '夏までに、ちゃんとそろえよう。それで、初戦から勝とう'),
+      daichiSay('smile', '…おう！'),
+    ],
+    onEnd: (c) => evals(c, [['daichi', 1], ['team', 1]]),
+  },
+  {
     id: 'c1_9nin',
     title: '9人そろう',
     chapter: 1,

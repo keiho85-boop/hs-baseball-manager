@@ -30,7 +30,7 @@ import FacilityPanel from '@/components/FacilityPanel.vue'
 import OrderBoard from '@/components/OrderBoard.vue'
 import InfoSheet from '@/components/InfoSheet.vue'
 import type { EvalKey } from '@/game/success/types'
-import { AUTO_WEEKS, EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, evalStars, focusPlayer, repRank, rosterCount, successOf } from '@/game/success/state'
+import { AUTO_WEEKS, EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, evalStars, focusPlayer, mustForfeit, repRank, rosterCount, successOf } from '@/game/success/state'
 import type { ClubId } from '@/game/success/types'
 
 const game = useGameStore()
@@ -64,6 +64,11 @@ const tournamentWeek = computed(() => {
 })
 const aliveInTournament = computed(() => !!game.save && !!tournament.value && ownAlive(game.save, tournament.value))
 const bracketOpen = ref(false)
+/** 選手育成モード：いまの大会は棄権になる（人数不足、または1年目の春）。組み合わせではなく勧誘を出す */
+const forfeitNow = computed(() => {
+  void game.rev
+  return !!game.save && !!tournament.value && !!mustForfeit(game.save, tournament.value.kind)
+})
 
 async function startTournament(): Promise<void> {
   const forfeit = await game.startTournamentMatch()
@@ -421,13 +426,13 @@ watch(
   { immediate: true },
 )
 
-/** 選手育成モード：部員が9人に満たないまま大会の試合を迎えたら、そのまま棄権にする（勧誘に進めるように） */
+/** 選手育成モード：部員が9人に満たないまま（または1年目の春の県大会）大会の試合を迎えたら、そのまま棄権にする（勧誘に進めるように） */
 const forfeited = new Set<string>()
 watch(
   () => {
     void game.rev
     const pg = pendingGame.value
-    if (!success.value || !pg || roster.value >= 9 || game.busy || game.match || game.story) return null
+    if (!success.value || !pg || !game.save || !mustForfeit(game.save, pg.t.kind) || game.busy || game.match || game.story) return null
     return `${game.save?.calendar.year}-${game.save?.calendar.week}-${pg.round}`
   },
   async (key) => {
@@ -553,7 +558,7 @@ watch(
       <div v-if="success && !ended" class="actions icons">
         <!-- 部員が9人いないうちは試合に出られない（棄権）ので、組み合わせではなく勧誘を出す -->
         <button
-          v-if="tournament && aliveInTournament && roster >= 9"
+          v-if="tournament && aliveInTournament && !forfeitNow"
           class="ib"
           @click="bracketOpen = true"
         >

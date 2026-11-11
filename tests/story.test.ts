@@ -18,7 +18,7 @@ import { chapterGoal, teamName } from '../src/game/story/engine'
 import { buildEvent } from '../src/game/events'
 import { setFocusPosition } from '../src/game/story/setup'
 import { addFriendsOfDaichi, recruit, FIXED } from '../src/game/success/clubs'
-import { rosterCount, successOf, focusPlayer, evalAfterMatch } from '../src/game/success/state'
+import { rosterCount, successOf, focusPlayer, evalAfterMatch, mustForfeit } from '../src/game/success/state'
 import { rollAttach } from '../src/game/success/board'
 
 function newGame(seed: number, position?: Position): SaveData {
@@ -258,4 +258,16 @@ describe('大地の帰宅部5人', () => {
       else expect(ps).toContain('P')
     })
   }
+})
+
+describe('1年目の春の県大会', () => {
+  it('部員がそろっていても、ストーリーとして棄権になる', () => {
+    const save = newGame(11)
+    const rng = new Rng([1, 2, 3, 4])
+    while (rosterCount(save) < 9) addFriendsOfDaichi(save, rng, 1)
+    expect(mustForfeit(save, 'springPref')).toBe('story')
+    expect(mustForfeit(save, 'summerPref')).toBeNull()
+    save.calendar.year = 2
+    expect(mustForfeit(save, 'springPref')).toBeNull()
+  })
 })

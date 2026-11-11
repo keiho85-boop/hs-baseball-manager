@@ -93,6 +93,16 @@ export function rosterCount(save: SaveData): number {
   return own.playerIds.map((id) => save.players[id]).filter((p) => p && !p.retired && !p.helper).length
 }
 
+/**
+ * 選手育成モードで、この大会を棄権するか。
+ * 部員が9人に満たないとき、そして1年目の春の県大会（部員がそろう前にエントリーが締め切られた、というストーリー）
+ */
+export function mustForfeit(save: SaveData, kind: string): 'short' | 'story' | null {
+  if (!successOf(save)) return null
+  if (save.calendar.year === 1 && kind === 'springPref') return 'story'
+  return rosterCount(save) < 9 ? 'short' : null
+}
+
 /** ナギと大地の評価が告白の目安を超えているか */
 export function canConfess(save: SaveData): boolean {
   const s = successOf(save)
