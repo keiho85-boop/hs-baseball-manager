@@ -744,6 +744,19 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
     } else if (op.op === 'modifier') {
       ;(save.modifiers ??= []).push({ ...op.modifier })
     } else if (op.op === 'flag') {
+      // 選手育成モード：夏合宿の行き先
+      if (op.key.startsWith('camp:')) {
+        const sc = successOf(save)
+        if (sc) sc.campChoice = { year: save.calendar.year, level: Number(op.key.slice(5)) }
+        continue
+      }
+      // 蓮見先生の秘密の施術：才能（伸びしろ）が上がる・下がる
+      if (op.key.startsWith('potential:')) {
+        const [, id, d] = op.key.split(':')
+        const p = id ? save.players[id] : undefined
+        if (p) p.hidden.potential = clamp(p.hidden.potential + Number(d), 30, 99)
+        continue
+      }
       // 手当て：その選手のケガと肩・肘の違和感を治す
       if (op.key.startsWith('heal:')) {
         const p = save.players[op.key.slice(5)]

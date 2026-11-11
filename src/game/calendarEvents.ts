@@ -11,7 +11,7 @@ import { ABILITY_LABEL, eid, learnable, mainKeys, players, skillName, story } fr
 import { SKILLS } from './skills'
 import { absWeek } from './modifiers'
 import type { EffectOp, EventInstance, Player, SaveData, Speaker } from './types'
-import { focusPlayer, successOf } from './success/state'
+import { CAMP_PLACES, campStartWeek, focusPlayer, rosterCount, successOf } from './success/state'
 
 // ---------------------------------------------------------------- 話し手
 
@@ -427,6 +427,33 @@ function retireDayEvent(save: SaveData, rng: Rng, retired: Player[], juniors: Pl
 
 // ---------------------------------------------------------------- 合宿
 
+/** 選手育成モード：夏合宿の行き先を選ぶ（合宿の2週前に必ず起きる。部費が足りる行き先だけ選べる） */
+function campChoiceEvent(save: SaveData): EventInstance {
+  const funds = save.schools[save.playerSchoolId]?.funds ?? 0
+  const choices = CAMP_PLACES.map((pl, lv) => ({ pl, lv }))
+    .filter((x) => x.pl.cost <= funds)
+    .reverse()
+    .map(({ pl, lv }) => ({
+      label: `${pl.name}${pl.cost ? `（${pl.cost}万円）` : '（部費なし）'}`,
+      result: `今年の夏合宿は「${pl.name}」に決まった。${pl.note}。（合宿中の練習の効果 ×${pl.mult.toFixed(2)}${pl.cost ? `。部費 -${pl.cost}万円` : ''}）`,
+      ops: [
+        ...(pl.cost ? [{ op: 'school' as const, key: 'funds' as const, delta: -pl.cost }] : []),
+        { op: 'flag' as const, key: `camp:${lv}`, value: true },
+      ],
+    }))
+  return {
+    id: eid('campchoice'),
+    title: '夏合宿の行き先',
+    speaker: mgr(save),
+    lines: [
+      '再来週から、夏合宿です。行き先を決めましょう。',
+      `いい合宿先ほど、合宿中の練習がよく伸びます。いまの部費は${funds}万円です。`,
+      ...CAMP_PLACES.filter((pl) => pl.cost > funds).map((pl) => `（「${pl.name}」は${pl.cost}万円。部費が足りない）`),
+    ],
+    choices,
+  }
+}
+
 /** 合宿の初日：カレー */
 function campCurryEvent(save: SaveData): EventInstance {
   return {
@@ -810,6 +837,9 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng): void {
     const retired = own.playerIds.map((id) => save.players[id]).filter((p): p is Player => !!p && p.retired && p.grade === 3)
     push(retireDayEvent(save, rng, retired, list.filter((p) => p.grade <= 2)))
   }
+
+  // 選手育成モード：合宿の2週前に、行き先を選ぶ
+  if (success && w === campStartWeek(save) - 2 && rosterCount(save) >= 9 && onceThisYear(save, 'campchoice')) push(campChoiceEvent(save))
 
   // 合宿
   const camp = (save.sugoroku?.campWeeks ?? 0) > 0

@@ -51,6 +51,6 @@ export interface SuccessState {
   dating: number | null
   /** シナリオが終わった（'pro' プロ入り、'fail' 育成失敗） */
   ended: 'pro' | 'fail' | null
-  /** 夏合宿の行き先のグレード（0〜3。部費で上げる。古いデータには無い） */
-  campLevel?: number
+  /** 夏合宿の行き先（その年の合宿の前に、イベントで選ぶ。古いデータには無い） */
+  campChoice?: { year: number; level: number }
 }

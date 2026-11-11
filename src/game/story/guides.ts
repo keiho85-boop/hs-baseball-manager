@@ -65,7 +65,7 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
       target: 'facilities',
       on: 'tap',
       face: 'smile',
-      text: '一番下は、夏合宿の行き先です。いい合宿先ほど、合宿中の練習がよく伸びます。部費は毎月の収入と、大会の寄付で増えますよ。',
+      text: '部費は、夏合宿の行き先にも使います。合宿の前に行き先を決めるので、少し残しておくといいですよ。部費は毎月の収入と、大会の寄付で増えます。',
     },
   ],
 

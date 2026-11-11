@@ -11,7 +11,7 @@ import { DRAFT_WEEK, SCOUT_DECISION_WEEK, SCOUT_MONTHLY, addScoutPoints, decideP
 import { currentTournament, ensureTournament, findTournament, kindAtWeek, monthlyFunds, ownAlive, progress } from './tournament'
 import { hasModifier, pruneModifiers } from './modifiers'
 import { queueWeeklyEvents } from './calendarEvents'
-import { campPlaceName, rosterCount, successFreshmen, successOf } from './success/state'
+import { campPlaceName, campStartWeek, rosterCount, successFreshmen, successOf } from './success/state'
 import { autoJoin, rollClubs } from './success/clubs'
 import { rollAttach } from './success/board'
 
@@ -50,7 +50,7 @@ function seasonalEvents(save: SaveData, rng: Rng, list: Player[], messages: stri
   // サクセス：合宿は県大会と全国大会の間の2週間（1年目でも人数がそろっていれば行う。全国に出ていても行う）
   if (successOf(save)) {
     // 3年目は夏の大会の前（6月）に合宿をする（大会のあとは、もう練習がないため）
-    const campWeek = save.calendar.year === 3 ? 12 : 18
+    const campWeek = campStartWeek(save)
     if (week === campWeek && save.sugoroku && rosterCount(save) >= MIN_ROSTER) {
       save.sugoroku.campWeeks = 2
       log(save, `${campPlaceName(save)}での夏合宿が始まった！（2週間、練習の効果と疲れが大きくなる）`, messages)

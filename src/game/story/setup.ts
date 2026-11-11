@@ -121,7 +121,8 @@ function makeFocus(save: SaveData, rng: Rng, position: Position, keep?: Player):
     f.givenName = keep.givenName
     f.face = keep.face
   }
-  f.hidden.potential = rng.chance(0.06) ? rng.int(85, 93) : 72 + rng.int(-4, 4)
+  // 才能：ふつうは総合C〜Bに届く程度。まれ（6%）に天才型（Aも狙える）
+  f.hidden.potential = rng.chance(0.06) ? rng.int(82, 90) : 66 + rng.int(-4, 4)
   f.condition.motivation = clamp(Math.max(f.condition.motivation, 65), 0, 100)
   f.storyCast = 'focus'
   save.players[f.id] = f

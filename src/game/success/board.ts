@@ -7,7 +7,7 @@ import type { Rng } from '../rng'
 import { ABILITY_LABEL, eid, learnable, mainKeys, skillName } from '../events'
 import type { EffectOp, EventInstance, Player, SaveData, SquareType } from '../types'
 import { focusPlayer, successOf } from './state'
-import { levelEvent } from './personEvents'
+import { levelEvent, PERSON_EVAL } from './personEvents'
 
 export type Person = 'scout' | 'nagi' | 'genzo' | 'hasumi' | 'daichi' | 'makabe'
 
@@ -72,6 +72,17 @@ function grow(p: Player, keys: string[], delta: number): EffectOp[] {
 
 /** 練習マスに付いた人物のイベント */
 export function attachEvent(save: SaveData, rng: Rng, person: Person): EventInstance | null {
+  const e = attachEventBase(save, rng, person)
+  if (!e) return null
+  // その人物の評価は、本人のイベントでよく上がる（★5のイベントにも手が届くように）
+  const key = PERSON_EVAL[person]
+  return {
+    ...e,
+    choices: e.choices.map((c) => ({ ...c, ops: c.ops.map((o) => (o.op === 'eval' && o.key === key && o.delta > 0 ? { ...o, delta: Math.round(o.delta * 1.6) } : o)) })),
+  }
+}
+
+function attachEventBase(save: SaveData, rng: Rng, person: Person): EventInstance | null {
   const f = focusPlayer(save)
   if (!f) return null
   // 評価が上がるほど、新しいイベントが解放される（解放済みの中からランダム。★1はこの下のもの）

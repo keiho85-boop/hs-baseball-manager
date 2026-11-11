@@ -31,8 +31,8 @@ export const EVAL_NOTE: Record<EvalKey, string> = {
   scout: 'プロからの注目',
 }
 
-/** 告白が成功する評価の目安（ナギと大地の両方が、5段階の3の中ほど以上。初期評価は低いので、意識して上げる必要がある） */
-export const CONFESS_LINE = 45
+/** 告白が成功する評価の目安（ナギと大地の両方が、5段階の3の後半以上。意識して上げる必要がある） */
+export const CONFESS_LINE = 65
 
 /** 自動で進む週（年末と春休み）。1年を約40ターンにする */
 export const AUTO_WEEKS = [38, 39, 51, 52]
@@ -41,7 +41,7 @@ export function newSuccessState(): SuccessState {
   return {
     focusId: null,
     // はじめはみんな、まだこの部を知らない（評価は低いところから）
-    eval: { nagi: 15, makabe: 10, hasumi: 0, daichi: 20, team: 5, genzo: 0, scout: 0 },
+    eval: { nagi: 40, makabe: 30, hasumi: 25, daichi: 40, team: 30, genzo: 25, scout: 10 },
     clubs: [],
     visits: {},
     talks: {},
@@ -73,8 +73,15 @@ export const CAMP_PLACES: CampPlace[] = [
   { name: 'プロも使うキャンプ地', mult: 1.8, cost: 120, note: 'プロ球団が春季キャンプで使う施設' },
 ]
 
+/** その年の合宿の行き先（選んでいなければ、いちばん安い民宿） */
 export function campLevel(save: SaveData): number {
-  return Math.max(0, Math.min(CAMP_PLACES.length - 1, successOf(save)?.campLevel ?? 0))
+  const c = successOf(save)?.campChoice
+  if (!c || c.year !== save.calendar.year) return 0
+  return Math.max(0, Math.min(CAMP_PLACES.length - 1, c.level))
+}
+/** 夏合宿が始まる週（3年目は夏の大会の前） */
+export function campStartWeek(save: SaveData): number {
+  return save.calendar.year === 3 ? 12 : 18
 }
 export function campPlaceName(save: SaveData): string {
   return CAMP_PLACES[campLevel(save)]!.name
@@ -199,8 +206,8 @@ export function focusDraftChance(save: SaveData, p: Player): number {
   if (!s) return 0
   // スカウトの評価が90以上なら、必ず指名される
   if (s.eval.scout >= 90) return 1
-  // それより下は、スカウトの評価と能力の両方で決まる（どちらかが高ければ望みはある）
-  return clamp((s.eval.scout - 30) / 80 + (playerRating(p) - 60) / 60, 0, 0.9)
+  // それより下は、スカウトの評価と能力の両方で決まる（どちらかが高ければ望みはある。能力C〜Bでも十分狙える）
+  return clamp((s.eval.scout - 20) / 70 + (playerRating(p) - 55) / 50, 0, 0.92)
 }
 
 /** フォーカス選手の名前（台本の置き換え用） */

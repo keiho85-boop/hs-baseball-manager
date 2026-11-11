@@ -5,7 +5,6 @@ import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import { facilityCost } from '@/game/tournament'
 import type { Facilities } from '@/game/types'
-import { CAMP_PLACES, campLevel } from '@/game/success/state'
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -16,23 +15,6 @@ const school = computed(() => {
   const s = game.ownSchool()
   return s ? { funds: s.funds, facilities: { ...s.facilities } } : null
 })
-/** 選手育成モード：夏合宿の行き先（グレード） */
-const camp = computed(() => {
-  void game.rev
-  const sv = game.save
-  if (!sv?.story?.enabled) return null
-  const lv = campLevel(sv)
-  return { lv, now: CAMP_PLACES[lv]!, next: CAMP_PLACES[lv + 1] ?? null }
-})
-async function upgradeCamp(): Promise<void> {
-  const c = camp.value
-  const s = school.value
-  if (!c?.next || !s) return
-  const ok = await ui.confirm(`夏合宿の行き先を「${c.next.name}」にしますか？\n${c.next.note}\n部費 ${c.next.cost}万円（残り ${s.funds}万円）`, { okLabel: '予約する', cancelLabel: 'やめる' })
-  if (!ok) return
-  if (await game.upgradeCamp()) ui.notify({ title: '合宿先を予約！', message: `今年の夏合宿は「${c.next.name}」`, icon: 'up' })
-}
-
 const FACILITY_NAME: Record<keyof Facilities, string> = {
   batting: '打撃練習場',
   pitching: 'ブルペン',
@@ -80,21 +62,6 @@ async function upgrade(key: keyof Facilities): Promise<void> {
         @click="upgrade(key)"
       >
         {{ school.facilities[key] >= 5 ? '最大' : `${facilityCost(school.facilities[key])}万` }}
-      </button>
-    </div>
-    <div v-if="camp" class="fac camp">
-      <div class="fac-main">
-        <span class="fac-name">夏合宿の行き先</span>
-        <span class="lv">{{ '★'.repeat(camp.lv + 1) }}{{ '☆'.repeat(CAMP_PLACES.length - 1 - camp.lv) }}</span>
-        <small>{{ camp.now.name }}（合宿中の練習 ×{{ camp.now.mult.toFixed(2) }}）</small>
-      </div>
-      <button
-        class="small"
-        :class="camp.next && school.funds >= camp.next.cost ? '' : 'secondary'"
-        :disabled="!camp.next || school.funds < camp.next.cost || game.busy"
-        @click="upgradeCamp"
-      >
-        {{ camp.next ? `${camp.next.cost}万` : '最大' }}
       </button>
     </div>
     <p class="fp-note">部費は毎月の収入と、大会で勝ち進んだときの寄付で増えます。</p>
