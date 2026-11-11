@@ -1381,7 +1381,9 @@ watch(
   inset: 0;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.25) 45%, rgba(240, 247, 255, 0.55) 100%);
 }
-.home.succ > :not(.season-bg) {
+/* 背景の上に出すのは帯と本体だけ（ポップアップは position: fixed のまま、画面いっぱいに出す） */
+.home.succ > .stage,
+.home.succ > .page {
   position: relative;
   z-index: 1;
 }
