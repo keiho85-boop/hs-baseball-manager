@@ -3,11 +3,19 @@
 // AI生成イラストのパーツが用意できたら差し替える
 import { computed, useId } from 'vue'
 import type { FaceParts } from '@/game/types'
+import { useGameStore } from '@/stores/game'
+import { faceIconName } from '@/game/success/icons'
 
 const props = withDefaults(defineProps<{ face: FaceParts; size?: number; capColor?: string }>(), {
   size: 40,
   capColor: '#1d3f7a',
 })
+
+const game = useGameStore()
+const BASE = import.meta.env.BASE_URL
+
+/** 選手育成モードでは、顔をアニメ調のアイコンにする */
+const icon = computed(() => faceIconName(game.save ?? null, game.rev, props.face))
 
 const uid = useId()
 const id = (name: string) => `${uid}-${name}`
@@ -86,7 +94,8 @@ const extra = computed(() => props.face.extra ?? [0, 0, 0, 5, 0, 1, 0, 4, 0, 3][
 </script>
 
 <template>
-  <svg :width="size" :height="size" viewBox="0 0 100 100" class="face" aria-hidden="true">
+  <img v-if="icon" :src="`${BASE}icon/icon_${icon}.webp`" :width="size" :height="size" class="face-img" alt="" />
+  <svg v-else :width="size" :height="size" viewBox="0 0 100 100" class="face" aria-hidden="true">
     <defs>
       <radialGradient :id="id('bg')" cx="50%" cy="35%" r="70%">
         <stop offset="0" stop-color="#ffffff" />
