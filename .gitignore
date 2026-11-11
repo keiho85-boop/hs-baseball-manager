@@ -7,3 +7,4 @@ dist-app/
 android/app/release/
 *.keystore
 *.jks
+dist-artifact/
