@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // タイトルロゴ「転生名将ナギ」（文字は画像生成で崩れやすいので、フォントと図形で描く）
-import '@fontsource/dela-gothic-one/400.css'
+import '@/assets/logo-font.css'
 
 withDefaults(defineProps<{ small?: boolean }>(), { small: false })
 </script>
