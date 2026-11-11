@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // タイトル画面：解禁した章の1枚絵 →「TAP TO START」→ モード選択（セーブ選択）
 import GameIcon from '@/components/GameIcon.vue'
+import TitleLogo from '@/components/TitleLogo.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
@@ -131,10 +132,7 @@ async function remove(slot: number, no: number): Promise<void> {
 
     <!-- タイトル -->
     <div v-if="phase === 'splash'" class="splash" role="button" tabindex="0" @click="start" @keydown.enter="start">
-      <div class="logo">
-        <span class="l1">転生名将</span>
-        <span class="l2">ナギ</span>
-      </div>
+      <TitleLogo class="logo-anim" />
       <div class="tap">TAP TO START</div>
       <div v-if="ui.updateAvailable" class="update" @click.stop>
         新しい版があります　<button class="sun" @click="ui.runUpdate()">更新する</button>
@@ -145,10 +143,7 @@ async function remove(slot: number, no: number): Promise<void> {
     <div v-else class="menu">
       <div class="menu-head">
         <button class="back" aria-label="タイトルへ戻る" @click="phase = 'splash'"><GameIcon name="back" :size="18" /></button>
-        <div class="logo small">
-          <span class="l1">転生名将</span>
-          <span class="l2">ナギ</span>
-        </div>
+        <TitleLogo small />
         <button class="back" :aria-label="managing ? 'データ管理を閉じる' : 'データ管理'" @click="managing = !managing">
           <img :src="`${BASE}ui/ui_settings.webp`" alt="" />
         </button>
@@ -283,7 +278,7 @@ async function remove(slot: number, no: number): Promise<void> {
   padding: calc(env(safe-area-inset-top, 0px) + 7dvh) 16px calc(env(safe-area-inset-bottom, 0px) + 6dvh);
   cursor: pointer;
 }
-.splash .logo {
+.logo-anim {
   animation: drop 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
 .tap {

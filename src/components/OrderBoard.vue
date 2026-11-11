@@ -36,7 +36,6 @@ function isFlash(key: string, part: 'pos' | 'player'): boolean {
 const viewing = ref<string | null>(null)
 const posPicker = ref(false)
 /** 名前の下に、能力の代わりに守備適性を出す */
-const aptView = ref(false)
 
 const auto = computed(() => {
   void game.rev
@@ -116,6 +115,12 @@ const MAIN_MARK: Record<string, { label: string; kind: string }> = {
 function subGroups(p: Player): { label: string; kind: string }[] {
   const main = mainGroup(p)
   return APT_GROUPS.filter((g) => g.key !== main && groupApt(p, g.key) >= 1).map((g) => ({ label: g.label, kind: g.kind }))
+}
+
+/** ランクの見出し（ranks と同じ並び） */
+function rankLabels(p: Player, asPitcherSlot?: boolean): string[] {
+  const asPitcher = asPitcherSlot ?? p.mainPosition === 'P'
+  return asPitcher ? ['球速', '制球', 'スタ', 'キレ', '変化'] : ['ミート', 'パワー', '走力', '肩力', '守備']
 }
 
 /** 名前の下に並べる5つのランク（野手：ミ・パ・走・肩・守／投手：球・コ・ス・キ・変） */
@@ -497,11 +502,13 @@ const focusSkills = computed(() =>
                   <small>{{ players[c.id]?.bats === 'L' ? 'L' : players[c.id]?.bats === 'S' ? 'S' : 'R' }}</small>
                   <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>
                 </span>
-                <span v-if="aptView" class="rs aptrow">
+                <span class="rs aptrow">
                   <i v-for="a in aptMarks(players[c.id]!)" :key="a.label" :class="[`m-${a.kind}`, `av-${a.v}`]">{{ a.label }}{{ a.mark }}</i>
                   <i v-if="aptMarks(players[c.id]!).length === 0" class="none">適性なし</i>
                 </span>
-                <span v-else class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              </span>
+              <span class="rs ranks">
+                <i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`"><small>{{ rankLabels(players[c.id]!, c.pitcher)[k] }}</small>{{ r }}</i>
               </span>
             </div>
           </div>
@@ -540,11 +547,13 @@ const focusSkills = computed(() =>
                   <small>{{ players[c.id]?.grade }}年</small>
                   <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>
                 </span>
-                <span v-if="aptView" class="rs aptrow">
+                <span class="rs aptrow">
                   <i v-for="a in aptMarks(players[c.id]!)" :key="a.label" :class="[`m-${a.kind}`, `av-${a.v}`]">{{ a.label }}{{ a.mark }}</i>
                   <i v-if="aptMarks(players[c.id]!).length === 0" class="none">適性なし</i>
                 </span>
-                <span v-else class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              </span>
+              <span class="rs ranks">
+                <i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`"><small>{{ rankLabels(players[c.id]!, c.pitcher)[k] }}</small>{{ r }}</i>
               </span>
             </div>
           </div>
@@ -583,11 +592,13 @@ const focusSkills = computed(() =>
                   <small>{{ c.note ?? `${players[c.id]?.grade}年` }}</small>
                   <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>
                 </span>
-                <span v-if="aptView" class="rs aptrow">
+                <span class="rs aptrow">
                   <i v-for="a in aptMarks(players[c.id]!)" :key="a.label" :class="[`m-${a.kind}`, `av-${a.v}`]">{{ a.label }}{{ a.mark }}</i>
                   <i v-if="aptMarks(players[c.id]!).length === 0" class="none">適性なし</i>
                 </span>
-                <span v-else class="rs"><i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`">{{ r }}</i></span>
+              </span>
+              <span class="rs ranks">
+                <i v-for="(r, k) in ranks(players[c.id]!, c.pitcher)" :key="k" :class="`rk-${r}`"><small>{{ rankLabels(players[c.id]!, c.pitcher)[k] }}</small>{{ r }}</i>
               </span>
             </div>
           </div>
@@ -598,13 +609,12 @@ const focusSkills = computed(() =>
 
     <p v-if="problems.length" class="problems">{{ problems.join('・') }}</p>
     <p v-else class="hint">
-      {{ aptView ? '名前の下は守備適性（◎○△）' : '名前で選手、札で守備位置を入れ替え' }}<span v-if="auto" class="auto">おまかせ中</span>
+      名前で選手、札で守備位置を入れ替え（名前の下は守備適性）<span v-if="auto" class="auto">おまかせ中</span>
     </p>
 
     <!-- 下：操作 -->
     <div class="ops">
       <button class="op cyan" :disabled="!focus" @click="viewing = focus?.id ?? null">選手詳細</button>
-      <button class="op" :class="aptView ? 'on' : 'navy'" data-tut="order-apt" @click="aptView = !aptView">{{ aptView ? '能力表示' : '守備位置' }}</button>
       <button class="op gray" @click="toggleDH">DH{{ draft.useDH ? 'あり' : 'なし' }}</button>
       <button class="op" :class="auto ? 'on' : 'orange'" data-tut="order-auto" @click="setAuto">おまかせ</button>
     </div>
@@ -671,9 +681,20 @@ const focusSkills = computed(() =>
   display: flex;
   flex-direction: column;
   gap: 6px;
-  height: calc(100dvh - 160px - var(--tab-height) - var(--ad-height) - var(--safe-bottom) - env(safe-area-inset-top, 0px));
-  min-height: 330px;
   touch-action: pan-y;
+}
+/* 上の「選んだ選手」と下の操作ボタンは、スクロールしても見えるように固定する */
+.ob > .focus {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.ob > .ops {
+  background: rgba(234, 245, 253, 0.96);
+  padding: 6px 0;
+  position: sticky;
+  bottom: calc(var(--tab-height) + var(--ad-height) + var(--safe-bottom) + 4px);
+  z-index: 3;
 }
 .focus {
   background: #fff;
@@ -790,11 +811,10 @@ const focusSkills = computed(() =>
   color: var(--ink);
 }
 .cols {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1.35fr 1fr 0.8fr;
-  gap: 5px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .col {
   display: flex;
@@ -830,19 +850,46 @@ const focusSkills = computed(() =>
 .cell {
   display: flex;
   align-items: stretch;
-  gap: 2px;
-  padding: 1px 2px;
+  gap: 4px;
+  padding: 2px 4px;
   border-bottom: 1px solid #eef3f8;
   min-height: 0;
-  flex: 1 1 0;
-  max-height: 46px;
+  flex: 0 0 auto;
+  height: 50px;
   cursor: pointer;
   user-select: none;
   touch-action: none;
 }
 .col-body.scroll .cell {
   flex: 0 0 auto;
-  height: 42px;
+  height: 50px;
+}
+.col-body.scroll {
+  max-height: none;
+}
+.rs.ranks {
+  margin-left: auto;
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+.rs.ranks i {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 26px;
+  font-size: 15px;
+  font-style: italic;
+  line-height: 1.05;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 6px;
+  padding: 1px 2px 2px;
+}
+.rs.ranks small {
+  font-size: 8px;
+  font-style: normal;
+  color: var(--ink-soft);
+  font-weight: 800;
 }
 .pz,
 .nz {

@@ -79,12 +79,11 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
       on: 'tap',
       text: 'これが打順と守備位置です。名前をドラッグして別の選手に重ねると、入れ替わります。',
     },
-    { target: 'order-apt', on: 'target', text: '「守備位置」を押してみてください。' },
     {
       target: 'order-board',
       on: 'tap',
       face: 'smile',
-      text: '名前の下が、守備の適性の表示に変わりました。◎○△×で、どこを守れるかがひと目で分かります。もう一度押すと能力の表示に戻ります。',
+      text: '名前の下が守備の適性（◎○△）、右側が主な能力のランクです。どこを守れて、どれくらいの力かがひと目で分かります。',
     },
     {
       target: 'order-auto',
