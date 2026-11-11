@@ -5,6 +5,7 @@
 import { Rng, clamp } from '../rng'
 import { SEASON_WEEKS, POSITION_NAME } from '../constants'
 import { findTournament, ownAlive } from '../tournament'
+import { decideFocusDraft } from '../scout'
 import { fullName } from '../player'
 import { learnable, skillName, ABILITY_LABEL, mainKeys } from '../events'
 import { absWeek } from '../modifiers'
@@ -127,6 +128,17 @@ const flag = (c: StoryContext, k: string): boolean => c.st.flags[k] !== undefine
 const seen = (c: StoryContext, id: string): boolean => c.st.seen.includes(id)
 const S = (c: StoryContext) => c.st.success!
 const national = (c: StoryContext): boolean => flag(c, 'national')
+/** 3年目の夏に全国大会へ出たか */
+const nat3 = (c: StoryContext): boolean => c.st.flags['national_3_summerNational'] !== undefined
+/** 3年目の夏が終わったか（県大会で負けた／全国大会が終わった）。ここで物語は結末へ向かう */
+function summerOver(c: StoryContext): boolean {
+  if (Y(c) !== 3) return false
+  if (nat3(c)) {
+    const t = findTournament(c.save, 3, 'summerNational')
+    return !!t && (t.finished || ownOut(c.save, 3, 'summerNational'))
+  }
+  return ownOut(c.save, 3, 'summerPref')
+}
 
 // ---------------------------------------------------------------- 大地の告白（チャンスは3回）
 
@@ -266,14 +278,6 @@ const joinScenes: Scene[] = JOIN.map((j) => ({
 
 // ---------------------------------------------------------------- 場面
 
-const POS_CHOICES: { label: string; pos: Position }[] = [
-  { label: '投手（大地とバッテリーを組む）', pos: 'P' },
-  { label: '遊撃手', pos: 'SS' },
-  { label: '二塁手', pos: '2B' },
-  { label: '三塁手', pos: '3B' },
-  { label: '一塁手', pos: '1B' },
-  { label: '外野手（中堅）', pos: 'CF' },
-]
 
 export const CHAPTER1: Scene[] = [
   // ======================================== 1年目
@@ -362,18 +366,7 @@ export const CHAPTER1: Scene[] = [
       daichiSay('surprise', 'あ、悪い。…ん？　君も受かった？　俺、日向。こっちは幼馴染の{フォーカス}'),
       fv('どうも。…野球部、廃部寸前らしいけど、こいつと二人で入るつもりなんだ'),
       thinkJh('…この二人の歩き方。重心が低い。どちらも、本気で野球をやってきた体だ', 'serious'),
-      nagiJh('normal', '{フォーカス}くんは、どこを守るんですか？'),
-      {
-        kind: 'choice',
-        options: POS_CHOICES.map((o) => ({
-          label: o.label,
-          reply: [fv(o.pos === 'P' ? '投手。大地が受けてくれるから、それしか考えてない' : `${POSITION_NAME[o.pos]}。中学でもずっとここだった`)],
-          apply: (x: StoryContext) => {
-            const f = setFocusPosition(x.save, x.rng, o.pos)
-            return f ? [`${fullName(f)}（${POSITION_NAME[o.pos]}）を育てます。名前は選手の画面で変えられます。`] : []
-          },
-        })),
-      },
+      fv('ポジションは{フォーカス守備}。中学でもずっとここだった'),
       thinkJh('いい目だ。…この二人を、三年で一人前にしてみたくなった', 'smile'),
     ],
   },
@@ -1015,7 +1008,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_todokanakatta',
     title: '届かなかった夏',
     chapter: 1,
-    when: (c) => Y(c) === 3 && !national(c) && ownOut(c.save, 3, 'summerPref'),
+    when: (c) => Y(c) === 3 && !nat3(c) && ownOut(c.save, 3, 'summerPref'),
     steps: () => [
       bg('bg_stadium_day'),
       n('最後の夏が終わった。誰もいなくなったベンチ'),
@@ -1029,7 +1022,8 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_shinro',
     title: '進路',
     chapter: 1,
-    when: (c) => Y(c) === 3 && W(c) >= 27,
+    // 3年目の夏が終わったら、すぐに進路の話へ
+    when: (c) => summerOver(c) && (seen(c, 'c1_todokanakatta') || nat3(c)),
     steps: () => [
       bg('bg_clubroom_day'),
       n('放課後の部室。机の上に、プロ志望届の用紙'),
@@ -1045,9 +1039,11 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_draft',
     title: 'ドラフト会議',
     chapter: 1,
-    when: (c) => Y(c) === 3 && W(c) >= 32,
+    // 3年目の夏が終わったら、練習はせずにそのままドラフトへ
+    when: (c) => seen(c, 'c1_shinro'),
     steps: (c) => {
       const f = focus(c)
+      if (f && f.drafted === undefined) decideFocusDraft(c.save, c.rng, f)
       const d = f?.drafted
       return [
         bg('bg_clubroom_tv'),
@@ -1086,7 +1082,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_sotsugyou',
     title: '卒業式',
     chapter: 1,
-    when: (c) => Y(c) === 3 && W(c) >= SEASON_WEEKS.graduation,
+    when: (c) => seen(c, 'c1_draft'),
     steps: (c) => {
       const f = focus(c)
       const pro = !!f?.drafted
@@ -1105,7 +1101,6 @@ export const CHAPTER1: Scene[] = [
         ...confessSteps(c, 3),
         bg(null),
         title('第1章「ナギ現役編」　完', pro ? 'プロ入り' : '育成失敗'),
-        n(pro ? '{フォーカス名}はプロの世界へ。選手は保存され、第2章「ナギ大学編」が解禁されました。' : '{フォーカス名}はプロに届かなかった。もう一度、最初から育ててみよう。'),
       ]
     },
     onEnd: (c) => {

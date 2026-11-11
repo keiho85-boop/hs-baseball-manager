@@ -29,7 +29,7 @@ export function newStoryState(): StoryState {
 }
 
 /** 新しいゲームをストーリーありで始めるときに呼ぶ（第1章はサクセス：1人の選手を3年間育てる） */
-export function setupStoryWorld(save: SaveData, opts: { focusName?: { surname: string; givenName: string } } = {}): void {
+export function setupStoryWorld(save: SaveData, opts: { focusName?: { surname: string; givenName: string }; position?: Position } = {}): void {
   const rng = new Rng(save.rngState)
   const st = newStoryState()
   st.success = newSuccessState()
@@ -68,7 +68,9 @@ export function setupStoryWorld(save: SaveData, opts: { focusName?: { surname: s
   st.daichiId = d.id
 
   // 3. フォーカス選手（大地の幼馴染。守備位置は合格発表の場面で決める）
-  const f = makeFocus(save, rng, 'SS')
+  const f = makeFocus(save, rng, opts.position ?? 'SS')
+  // 育成選手が捕手なら、大地は投手にする（バッテリーを組む）
+  if (f.mainPosition === 'C') makeDaichiPitcher(d, rng)
   if (opts.focusName?.surname) f.surname = opts.focusName.surname
   if (opts.focusName?.givenName) f.givenName = opts.focusName.givenName
   st.success.focusId = f.id
@@ -88,6 +90,17 @@ export function setupStoryWorld(save: SaveData, opts: { focusName?: { surname: s
   save.managerName = '朝比奈 ナギ'
   save.log = [{ year: 1, week: 1, text: `${own.name}の野球部に、マネージャーとして入部した。` }]
   save.rngState = rng.getState()
+}
+
+/** 大地を投手にする（育成選手が捕手のとき） */
+function makeDaichiPitcher(d: Player, rng: Rng): void {
+  d.mainPosition = 'P'
+  d.fielding.aptitude.P = 3
+  d.fielding.aptitude.C = 1
+  d.pitching.velocity = Math.max(d.pitching.velocity, 128 + rng.int(0, 6))
+  d.pitching.control = clamp(Math.max(d.pitching.control, 45), 1, 99)
+  d.pitching.stamina = clamp(Math.max(d.pitching.stamina, 55), 1, 99)
+  if (d.pitching.pitches.length === 0) d.pitching.pitches = [{ type: 'slider', level: 2 }]
 }
 
 /** フォーカス選手を作る。才能はふつうB程度まで、ごくまれにA〜Sまで伸びる */

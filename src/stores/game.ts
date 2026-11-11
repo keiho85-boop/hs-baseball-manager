@@ -34,7 +34,7 @@ import {
   recordOwnResult,
   roundName,
 } from '@/game/tournament'
-import type { LineupConfig, Player, SaveData, SaveSummary, School, SquareType } from '@/game/types'
+import type { LineupConfig, Player, Position, SaveData, SaveSummary, School, SquareType } from '@/game/types'
 import { setupStoryWorld } from '@/game/story/setup'
 import { setFictionalPlaces } from '@/game/constants'
 import { buildSteps, completeScene, markStory, nextScene, noteMatch, observeStory } from '@/game/story/engine'
@@ -87,7 +87,7 @@ export const useGameStore = defineStore('game', () => {
     if (persistent.value === null) persistent.value = await requestPersistentStorage()
   }
 
-  async function startNewGame(input: Omit<NewGameInput, 'seed'> & { story?: boolean; focusName?: { surname: string; givenName: string } }): Promise<void> {
+  async function startNewGame(input: Omit<NewGameInput, 'seed'> & { story?: boolean; focusName?: { surname: string; givenName: string }; focusPosition?: Position }): Promise<void> {
     busy.value = true
     try {
       await ensurePersistence()
@@ -96,7 +96,7 @@ export const useGameStore = defineStore('game', () => {
       // 選手育成モード（ストーリーあり）は、地名をすべて架空のものにする
       setFictionalPlaces(!!input.story)
       const data = createNewGame({ ...input, seed: (Math.random() * 2 ** 32) >>> 0 })
-      if (input.story) setupStoryWorld(data, { focusName: input.focusName })
+      if (input.story) setupStoryWorld(data, { focusName: input.focusName, position: input.focusPosition })
       ensureSugoroku(data)
       {
         const rng = new Rng(data.rngState)

@@ -8,7 +8,7 @@ import { useUiStore } from '@/stores/ui'
 import { modeOfSlot, PLAYER_MODE_PREF, PLAYER_MODE_SCHOOL, PREFECTURES } from '@/game/constants'
 import { GIVEN_NAMES, PRIVATE_SUFFIXES, PUBLIC_SUFFIXES, SCHOOL_NAME_HEADS, SURNAMES } from '@/game/names'
 import { unlockedScenarios } from '@/game/success/archive'
-import type { Difficulty, SchoolKind } from '@/game/types'
+import type { Position, SchoolKind } from '@/game/types'
 
 const props = defineProps<{ slot: string }>()
 const game = useGameStore()
@@ -31,6 +31,17 @@ function randomFocusName(): void {
   givenName.value = pick(GIVEN_NAMES)
 }
 randomFocusName()
+/** 育てる選手の守備位置（外野は中堅として扱う） */
+const POS_OPTIONS: { pos: Position; label: string }[] = [
+  { pos: 'P', label: '投手' },
+  { pos: 'C', label: '捕手' },
+  { pos: '1B', label: '一塁手' },
+  { pos: '2B', label: '二塁手' },
+  { pos: '3B', label: '三塁手' },
+  { pos: 'SS', label: '遊撃手' },
+  { pos: 'CF', label: '外野手' },
+]
+const focusPos = ref<Position>('P')
 const ch2Unlocked = computed(() => unlockedScenarios().includes(2))
 
 // ---------------------------------------------------------------- チーム育成モード
@@ -38,7 +49,6 @@ const managerName = ref('')
 const prefCode = ref(27)
 const kind = ref<SchoolKind>('public')
 const schoolName = ref('')
-const injury = ref<Difficulty>('normal')
 
 function randomName(): void {
   schoolName.value = pick(SCHOOL_NAME_HEADS) + pick(kind.value === 'private' ? PRIVATE_SUFFIXES : PUBLIC_SUFFIXES)
@@ -62,9 +72,10 @@ async function start(): Promise<void> {
       prefCode: player ? PLAYER_MODE_PREF : prefCode.value,
       kind: player ? 'public' : kind.value,
       schoolName: player ? PLAYER_MODE_SCHOOL : schoolName.value.trim().slice(0, 16),
+      focusPosition: player ? focusPos.value : undefined,
       focusName: player ? { surname: surname.value.trim().slice(0, 6), givenName: givenName.value.trim().slice(0, 6) } : undefined,
       // 運の大きさは「高校野球らしく少し多め」で固定（構想書の決定事項）
-      settings: { injury: player ? 'normal' : injury.value, luck: 'normal', cutin: true, gameSpeed: 2, lightMode: false },
+      settings: { injury: 'normal', luck: 'normal', cutin: true, gameSpeed: 2, lightMode: false },
     })
     await router.replace({ name: 'home' })
   } catch (e) {
@@ -72,7 +83,6 @@ async function start(): Promise<void> {
   }
 }
 
-const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: 'やさしい', normal: 'ふつう', hard: 'きびしい' }
 </script>
 
 <template>
@@ -113,7 +123,7 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: 'やさしい', nor
           <img class="focus-face" :src="`${BASE}icon/icon_focus.webp`" alt="" />
           <div>
             <div class="label">育てる選手の名前</div>
-            <p class="muted small">ポジションは、はじめの会話で選びます。</p>
+            <p class="muted small">名前と守備位置を決めてください。</p>
           </div>
         </div>
         <div class="names">
@@ -126,7 +136,12 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: 'やさしい', nor
             <input v-model="givenName" maxlength="6" />
           </label>
         </div>
-        <button class="secondary" @click="randomFocusName">おまかせ</button>
+        <button class="secondary" @click="randomFocusName">名前をおまかせ</button>
+        <div class="label">守備位置</div>
+        <div class="positions">
+          <button v-for="o in POS_OPTIONS" :key="o.pos" :class="focusPos === o.pos ? '' : 'secondary'" @click="focusPos = o.pos">{{ o.label }}</button>
+        </div>
+        <p class="muted small">{{ focusPos === 'C' ? '捕手を選ぶと、幼馴染の大地が投手になってバッテリーを組みます。' : focusPos === 'P' ? '投手を選ぶと、幼馴染の大地が捕手としてボールを受けます。' : '大地は捕手です。' }}</p>
       </div>
     </template>
 
@@ -162,17 +177,6 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: 'やさしい', nor
         <p class="muted">はじめは県内で一番の弱小校からのスタートです。</p>
       </div>
 
-      <div class="card stack">
-        <div>
-          <div class="label">ケガの厳しさ</div>
-          <div class="kinds">
-            <button v-for="d in (['easy', 'normal', 'hard'] as const)" :key="d" :class="injury === d ? '' : 'secondary'" @click="injury = d">
-              {{ DIFFICULTY_LABEL[d] }}
-            </button>
-          </div>
-        </div>
-        <p class="muted">あとから設定画面で変更できます。</p>
-      </div>
     </template>
 
     <button class="full start" :disabled="!canStart || game.busy" @click="start">
@@ -292,6 +296,15 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = { easy: 'やさしい', nor
 .focus-face {
   width: 52px;
   height: 52px;
+}
+.positions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.positions button {
+  padding: 8px 2px;
+  font-size: 13px;
 }
 .names {
   display: grid;

@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import GameIcon from '@/components/GameIcon.vue'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useGuideStore } from '@/stores/guide'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
-import { POSITION_LABEL, SEASON_WEEKS, WEEKS_PER_YEAR, formatWeek, weekToDate } from '@/game/constants'
+import { POSITION_LABEL, rankOf, SEASON_WEEKS, WEEKS_PER_YEAR, formatWeek, weekToDate } from '@/game/constants'
 import { fielderRating, pitcherRating, playerRating } from '@/game/player'
 import RankBadge from '@/components/RankBadge.vue'
 import FaceIcon from '@/components/FaceIcon.vue'
@@ -94,6 +95,29 @@ const autoWeek = computed(() => {
 const ended = computed(() => success.value?.ended ?? null)
 const recruitOpen = ref(false)
 const orderOpen = ref(false)
+/** ホーム上部に出す育成選手の主な能力（部員表の「能力1」と同じ項目） */
+const focusStats = computed(() => {
+  const p = focus.value
+  if (!p) return []
+  if (p.mainPosition === 'P') {
+    const brk = p.pitching.pitches.reduce((a, x) => a + x.level, 0)
+    return [
+      { k: '球速', r: '', v: String(p.pitching.velocity) },
+      { k: '制球', r: rankOf(p.pitching.control), v: '' },
+      { k: 'スタ', r: rankOf(p.pitching.stamina), v: '' },
+      { k: 'キレ', r: rankOf(p.pitching.kire), v: '' },
+      { k: '変化', r: '', v: String(brk) },
+    ]
+  }
+  return [
+    { k: 'ミート', r: rankOf(p.batting.contact), v: '' },
+    { k: 'パワー', r: rankOf(p.batting.power), v: '' },
+    { k: '走力', r: rankOf(p.running.speed), v: '' },
+    { k: '肩力', r: rankOf(p.fielding.arm), v: '' },
+    { k: '守備', r: rankOf(p.fielding.range), v: '' },
+  ]
+})
+
 const BASE = import.meta.env.BASE_URL
 /** 評価の顔アイコン */
 const EVAL_ICON: Record<EvalKey, string> = {
@@ -341,6 +365,24 @@ const specialCandidates = computed(() =>
     .sort((a, b) => playerRating(b) - playerRating(a)),
 )
 const info2 = ref(false)
+/** 部員が9人に満たない間は、毎週はじめに勧誘をうながす */
+const guideStore = useGuideStore()
+const shortWarned = new Set<string>()
+watch(
+  () => {
+    void game.rev
+    const s = game.save
+    if (!s || !success.value || ended.value || roster.value >= 9) return null
+    if (game.story || guideStore.active || game.match || sg.value?.pending || game.busy) return null
+    return `${s.calendar.year}-${s.calendar.week}`
+  },
+  async (key) => {
+    if (!key || shortWarned.has(key)) return
+    shortWarned.add(key)
+    await ui.alert(`部員が足りていないよ！（いま${roster.value}人）\n勧誘しよう！`, '人数が足りない')
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -357,6 +399,12 @@ const info2 = ref(false)
             <b>{{ focus.surname }}</b>
             <span class="fs-pos" :class="{ p: focus.mainPosition === 'P' }">{{ POSITION_LABEL[focus.mainPosition] }}</span>
             <RankBadge :value="playerRating(focus)" size="sm" />
+            <span class="fs-stats">
+              <span v-for="x in focusStats" :key="x.k" class="fs-st">
+                <small>{{ x.k }}</small>
+                <b :class="x.r ? `rk-${x.r}` : ''">{{ x.r || x.v }}</b>
+              </span>
+            </span>
           </div>
           <div class="fs-cond">
             <img :src="`${BASE}ui/ui_stamina.webp`" alt="体力" />
@@ -444,7 +492,7 @@ const info2 = ref(false)
       <!-- 練習試合・チームの様子・出来事（詳しくはポップアップで） -->
       <div v-if="success && !ended" class="actions icons">
         <button
-          v-if="tournament && (aliveInTournament || tournamentWeek)"
+          v-if="tournament && aliveInTournament"
           class="ib"
           @click="bracketOpen = true"
         >
@@ -740,8 +788,35 @@ const info2 = ref(false)
   gap: 6px;
 }
 .fs-name b {
-  font-size: 16px;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 3.5em;
   font-weight: 900;
+}
+.fs-stats {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+}
+.fs-st {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 24px;
+  line-height: 1.05;
+}
+.fs-st small {
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.fs-st b {
+  font-size: 14px;
+  font-weight: 900;
+  font-style: italic;
 }
 .fs-pos {
   font-size: 11px;

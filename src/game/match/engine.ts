@@ -4,7 +4,7 @@
 //  1. 配球  2. 制球  3. 打者の判断  4. 当たり判定  5. 打球  6. 守備  7. 状態の更新
 
 import { Rng, clamp } from '../rng'
-import { POSITION_NAME, velocityScore } from '../constants'
+import { POSITION_NAME_RAW, velocityScore } from '../constants'
 import type { LineupConfig, Player, Position } from '../types'
 import { canPitch } from './lineup'
 import type {
@@ -1164,5 +1164,5 @@ export function simulateToEnd(s: MatchState, ctx: MatchContext): void {
 }
 
 export function positionName(pos: FieldPos): string {
-  return pos === 'DH' ? '指名打者' : POSITION_NAME[pos]
+  return pos === 'DH' ? '指名打者' : POSITION_NAME_RAW[pos]
 }

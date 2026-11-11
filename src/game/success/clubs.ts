@@ -239,7 +239,7 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
     const info = FIXED[fixedHere.id]
     const talks = (s.talks[fixedHere.id] ?? 0) + 1
     s.talks[fixedHere.id] = talks
-    const practiceWin = save.story?.flags.practiceWin !== undefined
+    const practiceWin = save.story?.flags.practiceWin !== undefined || hasAnyWin(save)
     const chance = clamp(info.chance(talks - 1, rep, practiceWin), 0, 0.95)
     lines.push(`${club.name}へ。${info.title}の${info.surname}に、思い切って声をかけた。`)
     if (rng.chance(chance)) {
@@ -276,8 +276,9 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
     const m = rng.pick(mobs)
     if (fixedHere) lines.push(`${club.name}へ。${FIXED[fixedHere.id].surname}の姿は見えたが、話しかけるきっかけがなかった。`)
     lines.push(`${m.grade}年の${m.surname}（${POSITION_NAME[m.position as Position] ?? '野手'}向き）に声をかけた。`)
-    const base = clubId === 'kitaku' ? 0.6 : 0.42
-    const chance = clamp(base - (m.strength - 30) / 90 + rep / 300 + (visits >= 3 ? 0.05 : 0), 0.08, 0.9)
+    // モブは声をかければ、わりと入ってくれる（能力が高いほど少し入りにくい）
+    const base = clubId === 'kitaku' ? 0.85 : 0.68
+    const chance = clamp(base - (m.strength - 30) / 160 + rep / 250 + (visits >= 2 ? 0.08 : 0), 0.35, 0.95)
     if (rng.chance(chance)) {
       const p = addMember(save, rng, { grade: m.grade, position: m.position as Position, strength: m.strength, surname: m.surname, givenName: m.givenName })
       success = true
@@ -302,6 +303,12 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
   if (ev.length) lines.push(`（${ev.join('。')}）`)
   save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `勧誘（${club.name}）：${success ? '成功' : '失敗'}` })
   return { title: success ? '勧誘成功！' : '勧誘', lines, success, fixed }
+}
+
+/** 練習試合か公式戦で、一度でも勝ったことがあるか */
+function hasAnyWin(save: SaveData): boolean {
+  const own = save.playerSchoolId
+  return (save.tournaments ?? []).some((t) => t.rounds.some((games) => games.some((g) => !g.bye && g.a && g.b && g.winner === own)))
 }
 
 /** 評判が高いと、自分から入部してくる部員がいる（毎週） */

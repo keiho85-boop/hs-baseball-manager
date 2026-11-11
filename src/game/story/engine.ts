@@ -1,5 +1,6 @@
 // ストーリーの進行：次に流す場面を決め、見終わったら効果を反映する
 
+import { POSITION_NAME } from '../constants'
 import { Rng } from '../rng'
 import { skylightsName } from '../scout'
 import type { SaveData } from '../types'
@@ -110,6 +111,11 @@ export function varsOf(save: SaveData, st: StoryState): Record<string, string> {
     球団: teamName(save.prefCode),
     フォーカス: focusName(save).surname,
     フォーカス名: focusName(save).full,
+    フォーカス守備: (() => {
+      const id = st.success?.focusId
+      const f = id ? save.players[id] : undefined
+      return f ? POSITION_NAME[f.mainPosition] : '内野'
+    })(),
   }
 }
 
@@ -185,9 +191,9 @@ export function noteMatch(save: SaveData, info: { practice: boolean; won: boolea
   if (!st?.enabled) return
   if (info.practice) {
     if (st.flags.firstPractice === undefined) st.flags.firstPractice = info.won === true ? 'win' : 'lose'
-    // テニス部のエースは、練習試合で1勝するまで話を聞いてくれない
-    if (info.won === true && st.flags.practiceWin === undefined) st.flags.practiceWin = save.calendar.year
   }
+  // テニス部のエースは、試合で1勝するまで話を聞いてくれない（練習試合でも公式戦でもよい）
+  if (info.won === true && st.flags.practiceWin === undefined) st.flags.practiceWin = save.calendar.year
   if (st.rivalId && info.opponentId === st.rivalId) st.flags[`metRival_${save.calendar.year}`] = true
 }
 

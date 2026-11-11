@@ -101,7 +101,8 @@ export function prefName(code: number): string {
 
 export const POSITIONS: Position[] = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF']
 
-export const POSITION_LABEL: Record<Position, string> = {
+/** 守備位置の1文字（打順・守備位置の表示用。左中右を分ける） */
+export const POSITION_LABEL_RAW: Record<Position, string> = {
   P: '投',
   C: '捕',
   '1B': '一',
@@ -113,7 +114,7 @@ export const POSITION_LABEL: Record<Position, string> = {
   RF: '右',
 }
 
-export const POSITION_NAME: Record<Position, string> = {
+export const POSITION_NAME_RAW: Record<Position, string> = {
   P: '投手',
   C: '捕手',
   '1B': '一塁手',
@@ -124,6 +125,18 @@ export const POSITION_NAME: Record<Position, string> = {
   CF: '中堅手',
   RF: '右翼手',
 }
+
+const OUTFIELD = new Set<string>(['LF', 'CF', 'RF'])
+/** 選手育成モードでは、選手の守備位置の外野を左中右に分けず「外野」とまとめる */
+function unifyOutfield(base: Record<Position, string>, of: string): Record<Position, string> {
+  return new Proxy(base, {
+    get: (t, k) => (fictionalPlaces && typeof k === 'string' && OUTFIELD.has(k) ? of : t[k as Position]),
+  })
+}
+/** 選手の守備位置の1文字 */
+export const POSITION_LABEL: Record<Position, string> = unifyOutfield(POSITION_LABEL_RAW, '外')
+/** 選手の守備位置の名前 */
+export const POSITION_NAME: Record<Position, string> = unifyOutfield(POSITION_NAME_RAW, '外野手')
 
 export const APTITUDE_LABEL = ['×', '△', '○', '◎']
 

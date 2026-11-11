@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
-import { POSITION_LABEL, velocityScore } from '@/game/constants'
+import { POSITION_LABEL_RAW, velocityScore } from '@/game/constants'
 import { battingTeam, currentBatterId, fieldingTeam, score, situation, activeSkills } from '@/game/match/engine'
 import { canPitch } from '@/game/match/lineup'
 import type { BattingOrder, DefenseShift, FieldPos, PlayEvent, PitchPlan, PitchingOrder, TeamState } from '@/game/match/types'
@@ -52,7 +52,7 @@ const batterSlot = computed(() => {
 })
 
 function posLabel(pos: FieldPos): string {
-  return pos === 'DH' ? '指' : POSITION_LABEL[pos]
+  return pos === 'DH' ? '指' : POSITION_LABEL_RAW[pos]
 }
 
 function todayLine(b: { ab: number; h: number; hr: number; rbi: number; bb: number } | undefined): string {
@@ -602,7 +602,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
             <p class="muted">{{ players[subTarget]?.surname }}に代わって出る選手</p>
             <button v-for="p in benchAll" :key="p.id" class="pick" :disabled="ownTeam?.used.includes(p.id)" @click="pickSub(p.id)">
               <FaceIcon :face="p.face" :size="36" />
-              <span class="pick-name">{{ p.surname }}<small>{{ p.grade }}年・{{ POSITION_LABEL[p.mainPosition] }}</small></span>
+              <span class="pick-name">{{ p.surname }}<small>{{ p.grade }}年・{{ POSITION_LABEL_RAW[p.mainPosition] }}</small></span>
               <span class="muted">ミ{{ p.batting.contact }} パ{{ p.batting.power }} 走{{ p.running.speed }}</span>
             </button>
             <button class="plain" @click="subTarget = null">選び直す</button>

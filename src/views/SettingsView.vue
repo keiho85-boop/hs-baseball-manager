@@ -66,14 +66,6 @@ async function backToTitle(): Promise<void> {
 
     <div class="card stack">
       <h2>ゲームの設定</h2>
-      <div>
-        <div class="label">ケガの厳しさ</div>
-        <div class="choices">
-          <button v-for="d in (['easy', 'normal', 'hard'] as const)" :key="d" :class="settings.injury === d ? '' : 'secondary'" @click="setInjury(d)">
-            {{ LABEL[d] }}
-          </button>
-        </div>
-      </div>
       <label class="row">
         <input type="checkbox" class="check" :checked="sound" @change="toggleSound" />
         効果音を鳴らす

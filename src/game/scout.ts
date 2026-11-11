@@ -259,6 +259,8 @@ export function decideProspects(save: SaveData, rng: Rng): string[] {
       pr.otherSchool = rivals.length ? rng.pick(rivals).name : '県外の学校'
     }
   }
+  // 選手育成モードでは中学生をスカウトしないので、知らせも出さない
+  if (successOf(save)) return []
   const msg = joined.length > 0 ? `スカウトした中学生のうち、${joined.join('・')}が来春の入学を決めてくれた！` : '勧誘した中学生は、みな他の学校への進学を決めた…'
   save.log.push({ year: save.calendar.year, week: save.calendar.week, text: msg })
   return [msg]
@@ -319,6 +321,17 @@ function proTeams(save: SaveData): string[] {
   return [...PRO_TEAMS.filter((t) => t !== '都央スカイライツ' && !t.startsWith(short)), sky]
 }
 
+/** 選手育成モード：育てた選手が指名されるか（スカウトの評価で決まる）。指名なしは null */
+export function decideFocusDraft(save: SaveData, rng: Rng, p: Player): void {
+  const success = successOf(save)
+  if (!success || !rng.chance(focusDraftChance(save, p))) {
+    p.drafted = null
+    return
+  }
+  const round = clamp(Math.round(7 - (success.eval.scout - 40) / 9 + rng.normal(0, 0.8)), 1, 7)
+  p.drafted = { team: rng.pick(proTeams(save)), round }
+}
+
 /** 自校の引退した3年生のうち、指名された選手 */
 export function runDraft(save: SaveData, rng: Rng): string[] {
   const own = save.schools[save.playerSchoolId]!
@@ -334,11 +347,8 @@ export function runDraft(save: SaveData, rng: Rng): string[] {
   for (const p of candidates) {
     // サクセス：育てた選手は、スカウトの評価で指名が決まる
     if (success && p.id === success.focusId) {
-      if (!rng.chance(focusDraftChance(save, p))) continue
-      const round = clamp(Math.round(7 - (success.eval.scout - 40) / 9 + rng.normal(0, 0.8)), 1, 7)
-      const team = rng.pick(proTeams(save))
-      p.drafted = { team, round }
-      messages.push(`ドラフト会議で、${fullName(p)}が${team}から${round}位指名を受けた！`)
+      if (p.drafted === undefined) decideFocusDraft(save, rng, p)
+      if (p.drafted) messages.push(`ドラフト会議で、${fullName(p)}が${p.drafted.team}から${p.drafted.round}位指名を受けた！`)
       continue
     }
     const rating = playerRating(p) + stage

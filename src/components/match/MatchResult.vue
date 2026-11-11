@@ -3,7 +3,7 @@
 import { computed, ref } from 'vue'
 import type { MatchState, TeamState } from '@/game/match/types'
 import type { Player, Position } from '@/game/types'
-import { POSITION_LABEL } from '@/game/constants'
+import { POSITION_LABEL_RAW } from '@/game/constants'
 import { score } from '@/game/match/engine'
 
 const props = defineProps<{ m: MatchState; players: Record<string, Player>; ownId: string; busy: boolean }>()
@@ -30,7 +30,7 @@ const fullName = (id: string) => {
   return p ? `${p.surname} ${p.givenName}` : '？'
 }
 const teamOf = (key: 'away' | 'home') => (key === 'away' ? props.m.away : props.m.home)
-const posLabel = (pos: Position | 'DH') => (pos === 'DH' ? '指' : POSITION_LABEL[pos])
+const posLabel = (pos: Position | 'DH') => (pos === 'DH' ? '指' : POSITION_LABEL_RAW[pos])
 
 /** 本塁打の一覧（今季の通算本数・回・何ラン） */
 const homeRuns = computed(() => {

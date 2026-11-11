@@ -4,7 +4,7 @@
 import { computed, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
-import { APT_GROUPS, APTITUDE_LABEL, aptGroupOf, POSITIONS, POSITION_LABEL, POSITION_NAME, rankOf, velocityScore } from '@/game/constants'
+import { APT_GROUPS, APTITUDE_LABEL, aptGroupOf, POSITIONS, POSITION_LABEL_RAW, POSITION_NAME_RAW, rankOf, velocityScore } from '@/game/constants'
 import { autoLineup, available, BENCH_SIZE, canPitch, lineupValid } from '@/game/match/lineup'
 import { ownLineup } from '@/game/match/session'
 import type { LineupConfig, Player, Position } from '@/game/types'
@@ -60,11 +60,11 @@ function posKind(pos: Position | 'DH'): string {
   return 'if'
 }
 function posShort(pos: Position | 'DH'): string {
-  return pos === 'DH' ? '指' : pos === 'LF' || pos === 'CF' || pos === 'RF' ? POSITION_LABEL[pos] : POSITION_LABEL[pos]
+  return pos === 'DH' ? '指' : pos === 'LF' || pos === 'CF' || pos === 'RF' ? POSITION_LABEL_RAW[pos] : POSITION_LABEL_RAW[pos]
 }
 /** ベンチ・ベンチ外では本職のポジションを出す（外野はまとめて「外」） */
 function mainShort(p: Player): string {
-  return p.mainPosition === 'LF' || p.mainPosition === 'CF' || p.mainPosition === 'RF' ? '外' : POSITION_LABEL[p.mainPosition]
+  return p.mainPosition === 'LF' || p.mainPosition === 'CF' || p.mainPosition === 'RF' ? '外' : POSITION_LABEL_RAW[p.mainPosition]
 }
 
 const starters = computed<(Cell & { pitcher: boolean })[]>(() => {
@@ -225,7 +225,7 @@ async function setConvert(pos: Position | null): Promise<void> {
   if (!p) return
   p.convertTo = pos
   await game.commit()
-  ui.notify({ title: '守備練習', tone: 'info', message: pos ? `${p.surname}が${aptGroupOf(pos) === 'OF' ? '外野手' : POSITION_NAME[pos]}の守備練習を始めました` : `${p.surname}の守備練習をやめました` })
+  ui.notify({ title: '守備練習', tone: 'info', message: pos ? `${p.surname}が${aptGroupOf(pos) === 'OF' ? '外野手' : POSITION_NAME_RAW[pos]}の守備練習を始めました` : `${p.surname}の守備練習をやめました` })
 }
 
 const posChoices = computed<(Position | 'DH')[]>(() => {
@@ -304,7 +304,7 @@ const problems = computed(() => {
   const positions = d.batters.map((b) => b.position)
   const needed: (Position | 'DH')[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', d.useDH ? 'DH' : 'P']
   for (const pos of needed) {
-    if (!positions.includes(pos)) msgs.push(`${pos === 'DH' ? '指名打者' : POSITION_NAME[pos as Position]}がいません`)
+    if (!positions.includes(pos)) msgs.push(`${pos === 'DH' ? '指名打者' : POSITION_NAME_RAW[pos as Position]}がいません`)
   }
   for (const b of d.batters) {
     const p = players.value[b.playerId]
@@ -354,9 +354,9 @@ const focusPos = computed(() => {
   const p = focus.value
   if (!d || !p) return ''
   const slot = d.batters.find((b) => b.playerId === p.id)
-  if (slot) return slot.position === 'DH' ? '指名打者' : POSITION_NAME[slot.position]
+  if (slot) return slot.position === 'DH' ? '指名打者' : POSITION_NAME_RAW[slot.position]
   if (d.startingPitcherId === p.id) return '先発投手'
-  return d.bench.includes(p.id) ? `控え（${POSITION_NAME[p.mainPosition]}）` : `ベンチ外（${POSITION_NAME[p.mainPosition]}）`
+  return d.bench.includes(p.id) ? `控え（${POSITION_NAME_RAW[p.mainPosition]}）` : `ベンチ外（${POSITION_NAME_RAW[p.mainPosition]}）`
 })
 const focusStats = computed(() => {
   const p = focus.value
@@ -458,7 +458,7 @@ const focusSkills = computed(() =>
         <span v-for="g in focusApts" :key="g.key" class="fa" :class="[`m-${g.kind}`, { main: g.main }]">{{ g.name }}<b>{{ g.mark }}</b></span>
         <span v-if="focusApts.length === 0" class="fa none">なし（投手専門）</span>
         <button v-if="selectedPlayer" class="fa-btn" @click="posPicker = true">守備の変更・練習</button>
-        <span v-if="focus.convertTo" class="sk conv">{{ ['LF', 'CF', 'RF'].includes(focus.convertTo) ? '外野手' : POSITION_NAME[focus.convertTo] }}の守備練習中</span>
+        <span v-if="focus.convertTo" class="sk conv">{{ ['LF', 'CF', 'RF'].includes(focus.convertTo) ? '外野手' : POSITION_NAME_RAW[focus.convertTo] }}の守備練習中</span>
       </div>
     </div>
 
@@ -624,7 +624,7 @@ const focusSkills = computed(() =>
               :class="draft.batters[selectedSlot]!.position === pos ? 'sun' : 'secondary'"
               @click="setPosition(pos)"
             >
-              {{ pos === 'DH' ? '指名打者' : POSITION_NAME[pos] }}
+              {{ pos === 'DH' ? '指名打者' : POSITION_NAME_RAW[pos] }}
               <small v-if="pos !== 'DH'">{{ APTITUDE_LABEL[groupApt(selectedPlayer, aptGroupOf(pos))] }}</small>
             </button>
           </div>

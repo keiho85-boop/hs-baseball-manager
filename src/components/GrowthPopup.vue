@@ -65,6 +65,13 @@ const rows = computed<Row[]>(() => {
       total: e.changes.reduce((s, c) => s + c.after - c.before, 0),
     })
   }
+  // 選手育成モード：育成選手 → 各部のエースなど物語の人物 → ほかの部員 の順
+  const st = game.save?.story?.success
+  if (st) {
+    const fixedIds = new Set(Object.values(st.joined ?? {}).filter(Boolean) as string[])
+    const order = (r: Row) => (r.p.id === st.focusId ? 0 : r.p.storyCast === 'daichi' || fixedIds.has(r.p.id) ? 1 : 2)
+    list.sort((a, b) => order(a) - order(b))
+  }
   return list
 })
 
