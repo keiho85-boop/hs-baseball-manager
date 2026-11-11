@@ -319,6 +319,53 @@ export function abilityCap(p: Player, key: string): number {
   return clamp(p.hidden.potential + offset, 25, 99)
 }
 
+/** 球速の上限（才能で決まる） */
+export function velocityCap(p: Player): number {
+  return Math.round(122 + p.hidden.potential * 0.36 + (hash(p.id + 'velo') % 7) - 3)
+}
+
+/**
+ * 能力を上げる（イベント・試合の伸びに使う）。才能の上限＋5までしか上がらない。
+ * もともと上限を超えている能力は、下げはしないがそれ以上は上がらない。key は 'batting.contact' の形
+ */
+export function raiseAbility(p: Player, key: string, delta: number): boolean {
+  const [group, k] = key.split('.') as [string, string]
+  const obj = (p as unknown as Record<string, Record<string, number>>)[group]
+  if (!obj || typeof obj[k] !== 'number') return false
+  const before = obj[k]
+  if (key === 'batting.trajectory') obj[k] = Math.max(1, Math.min(4, before + delta))
+  else {
+    const max = key === 'pitching.velocity' ? Math.min(163, velocityCap(p) + 2) : Math.min(99, abilityCap(p, k) + 5)
+    obj[k] = delta >= 0 ? Math.min(before + delta, Math.max(before, max)) : Math.max(1, before + delta)
+  }
+  return obj[k] !== before
+}
+
+/** 変化球の上限（才能が高いほど高い変化量まで、たくさんの球種を覚えられる） */
+function pitchCap(p: Player): { level: number; count: number } {
+  return { level: Math.max(3, Math.min(7, Math.round(1 + p.hidden.potential / 14))), count: p.hidden.potential >= 75 ? 4 : p.hidden.potential >= 55 ? 3 : 2 }
+}
+
+/** 変化球の練習：変化量が上がる。まれに新しい球種を覚える */
+export function growPitches(rng: Rng, p: Player, chance: number): string | null {
+  if (p.mainPosition !== 'P' || chance <= 0) return null
+  const cap = pitchCap(p)
+  const list = p.pitching.pitches
+  if (list.length < cap.count && rng.chance(chance * (list.length === 0 ? 0.8 : 0.25))) {
+    const type = rng.pick(PITCH_TYPES.filter((t) => !list.some((x) => x.type === t)))
+    list.push({ type, level: 1 })
+    return type
+  }
+  const up = list.filter((x) => x.level < cap.level)
+  if (up.length && rng.chance(chance)) {
+    // 低い球種ほど上がりやすい
+    const pt = rng.weighted(up.map((x) => ({ value: x, weight: cap.level + 1 - x.level })))
+    pt.level += 1
+    return pt.type
+  }
+  return null
+}
+
 const GROWTH_BY_GRADE: Record<GrowthType, number[]> = {
   early: [0, 1.4, 1.0, 0.6],
   normal: [0, 1.0, 1.1, 1.0],
@@ -379,12 +426,18 @@ export function growWeekly(rng: Rng, p: Player, intensity: number, focusKeys?: R
   }
 
   // 球速（km/h）
-  const veloCap = Math.round(122 + p.hidden.potential * 0.36 + (hash(p.id + 'velo') % 7) - 3)
+  const veloCap = velocityCap(p)
   if (p.pitching.velocity < veloCap) {
     const roleFactor = isPitcher ? 1 : 0.3
     const menuFactor = focusKeys ? (focusKeys.velocity !== undefined ? 2.4 * focusKeys.velocity : 0.2) : p.practiceMenu === 'pitching' ? 1.4 : 1
     const gain = 0.14 * typeFactor * intensity * roleFactor * menuFactor * skillFactor * (0.5 + rng.next())
     p.pitching.velocity = Math.min(veloCap, p.pitching.velocity + roundByChance(rng, gain))
+  }
+
+  // 変化球（投手だけ）：投球の練習でよく伸びる
+  if (isPitcher) {
+    const menu = focusKeys ? (focusKeys.kire !== undefined ? 1 : 0.15) : p.practiceMenu === 'pitching' ? 0.8 : 0.3
+    growPitches(rng, p, 0.06 * typeFactor * intensity * menu * skillFactor)
   }
 
   // パワーに合わせて弾道が上がることがある

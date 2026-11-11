@@ -54,8 +54,8 @@ function formLabel(v: number): string {
 /** スカウトの評価から見たドラフトの見込み */
 const draft = computed(() => {
   const v = st.value?.eval.scout ?? 0
-  if (v >= 80) return { label: '上位指名の有力候補', tone: 'gold' }
-  if (v >= 60) return { label: '指名の可能性が高い', tone: 'good' }
+  if (v >= 90) return { label: '指名確実（上位指名の有力候補）', tone: 'gold' }
+  if (v >= 65) return { label: '指名の可能性が高い', tone: 'good' }
   if (v >= 40) return { label: '下位指名の候補', tone: 'mid' }
   if (v >= 20) return { label: 'スカウトの目に留まり始めた', tone: 'low' }
   return { label: 'まだ名前が挙がっていない', tone: 'low' }

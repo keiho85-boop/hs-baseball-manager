@@ -1,7 +1,7 @@
 // 試合の結果を選手データに反映する（成績、疲れ、1週間の球数、肩・肘の不安）
 
 import { Rng, clamp } from '../rng'
-import { newStats, fullName } from '../player'
+import { newStats, fullName, raiseAbility } from '../player'
 import { learnable, mainKeys, skillName } from '../events'
 import type { Player, SaveData } from '../types'
 import { successOf } from '../success/state'
@@ -68,9 +68,7 @@ export function applyMatchResults(save: SaveData, s: MatchState, rng: Rng): Matc
       if (!p || p.schoolId !== ownId || b.pa === 0) continue
       if (!rng.chance(1 - Math.pow(0.995, b.pa))) continue
       for (const key of mainKeys(p)) {
-        const [group, k] = key.split('.') as [string, string]
-        const obj = (p as unknown as Record<string, Record<string, number>>)[group]
-        if (obj && typeof obj[k] === 'number') obj[k] = clamp(obj[k] + (key === 'pitching.velocity' ? 1 : 3), 1, key === 'pitching.velocity' ? 163 : 99)
+        raiseAbility(p, key, key === 'pitching.velocity' ? 1 : 3)
       }
       const skill = learnable(rng, p)
       if (skill) p.skills.push(skill)

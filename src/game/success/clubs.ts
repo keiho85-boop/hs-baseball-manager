@@ -11,8 +11,8 @@ import { defaultPracticeMenu, fullName, generatePlayer } from '../player'
 import { computeOverall, newId } from '../world'
 import type { Player, Position, SaveData } from '../types'
 import type { CharId } from '../story/types'
-import type { ClubId, ClubMember, ClubRoster, FixedId } from './types'
-import { addEval, successOf } from './state'
+import type { ClubId, ClubMember, ClubRoster, EvalKey, FixedId } from './types'
+import { addEval, evalStars, successOf } from './state'
 
 export interface ClubInfo {
   id: ClubId
@@ -37,6 +37,18 @@ export const CLUBS: ClubInfo[] = [
   { id: 'shinbun', name: '新聞部', fixed: 'shinbun', strength: [15, 35], mobs: 1 },
 ]
 
+/** 加入の判定に使う、部の状況 */
+export interface JoinContext {
+  /** 部の評判（0〜100） */
+  rep: number
+  /** 練習試合か公式戦で、一度でも勝ったことがあるか */
+  win: boolean
+  /** 公式戦で勝ったことがあるか */
+  officialWin: boolean
+  /** 評価の段階（★1〜5） */
+  stars: (key: EvalKey) => number
+}
+
 export interface FixedInfo {
   id: FixedId
   club: ClubId
@@ -46,43 +58,53 @@ export interface FixedInfo {
   /** 一覧に出す肩書き */
   title: string
   position: Position
-  /** 加入の判定（talks：話しかけた回数、rep：評判、practiceWin：練習試合で勝ったことがあるか） */
-  chance: (talks: number, rep: number, practiceWin: boolean) => number
+  /**
+   * 加入の判定（talks：これまでに話しかけた回数）。
+   * 話しかけるたびに入ってくれやすくなる。人それぞれの「裏設定」（評判・勝利・周りの評価）でも上がる
+   */
+  chance: (talks: number, x: JoinContext) => number
 }
 
 export const FIXED: Record<FixedId, FixedInfo> = {
   rikujo: {
     id: 'rikujo', club: 'rikujo', surname: '岩城', givenName: '剛', char: 'iwaki', title: '陸上部のエース（砲丸投げ）', position: 'P',
-    chance: (t, rep) => 0.06 + 0.08 * t + rep / 250,
+    // 裏設定：強い相手と勝負したい。評判が高いほど乗ってくる
+    chance: (t, x) => 0.25 + 0.17 * t + x.rep / 200,
   },
   sumo: {
     id: 'sumo', club: 'sumo', surname: '塩見', givenName: '豪太', char: 'shiomi', title: '相撲部のエース', position: '1B',
-    chance: (t) => 0.2 + 0.12 * t,
+    // 裏設定：食べることが好き。商店会長（源造）の差し入れに弱い
+    chance: (t, x) => 0.3 + 0.17 * t + (x.stars('genzo') - 1) * 0.05,
   },
   soccer: {
     id: 'soccer', club: 'soccer', surname: '天羽', givenName: '翔', char: 'amou', title: 'サッカー部のエース', position: 'CF',
-    chance: (t, rep) => 0.02 + 0.07 * t + rep / 200,
+    // 裏設定：勝てるチームにしか興味がない。評判と公式戦の勝利で動く
+    chance: (t, x) => 0.15 + 0.15 * t + x.rep / 150 + (x.officialWin ? 0.12 : 0),
   },
   tennis: {
     id: 'tennis', club: 'tennis', surname: '久遠', givenName: '遼', char: 'kuon', title: 'テニス部のエース', position: 'SS',
-    // 練習試合で1勝するまでは、話を聞いてくれない
-    chance: (t, _rep, win) => (win ? 0.2 + 0.12 * t : 0),
+    // 練習試合で1勝するまでは、話を聞いてくれない。裏設定：ナギの采配に興味がある
+    chance: (t, x) => (x.win ? 0.3 + 0.17 * t + (x.stars('nagi') - 1) * 0.04 : 0),
   },
   takkyu: {
     id: 'takkyu', club: 'takkyu', surname: '小早川', givenName: '俊', char: 'kobayakawa', title: '卓球部のエース', position: '2B',
-    chance: (t) => 0.2 + 0.12 * t,
+    // 裏設定：にぎやかな部が好き。チームメイトの評価（部の雰囲気）で動く
+    chance: (t, x) => 0.3 + 0.17 * t + (x.stars('team') - 1) * 0.05,
   },
   shogi: {
     id: 'shogi', club: 'shogi', surname: '千手', givenName: '静馬', char: 'senju', title: '将棋部のエース', position: 'P',
-    chance: (t) => 0.15 + 0.12 * t,
+    // 裏設定：作戦を考える人に興味がある。ナギの評価で動く
+    chance: (t, x) => 0.25 + 0.15 * t + (x.stars('nagi') - 1) * 0.06,
   },
   seitokai: {
     id: 'seitokai', club: 'seitokai', surname: '東雲', givenName: '学', char: 'shinonome', title: '生徒会長', position: '3B',
-    chance: (t) => 0.25 + 0.1 * t,
+    // 裏設定：先生の信頼がある部なら、と考えている。真壁先生の評価で動く
+    chance: (t, x) => 0.3 + 0.15 * t + (x.stars('makabe') - 1) * 0.06,
   },
   shinbun: {
     id: 'shinbun', club: 'shinbun', surname: '三木', givenName: '文太', char: 'miki', title: '新聞部', position: 'LF',
-    chance: (t) => 0.3 + 0.1 * t,
+    // 裏設定：記事になる部を探している。勝っている部ほど入りたがる
+    chance: (t, x) => 0.35 + 0.15 * t + (x.win ? 0.1 : 0) + x.rep / 300,
   },
 }
 
@@ -233,14 +255,17 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
   const mobs = chosen?.kind === 'fixed' ? [] : chosen?.kind === 'mob' ? [chosen] : mobsAll
   let success = false
   let fixed: FixedId | undefined
-  // 固定キャラがいれば、話しかけられるか（通うほど話しやすくなる）
-  const talkChance = clamp(0.4 + 0.15 * (visits - 1), 0, 0.95)
-  if (fixedHere && rng.chance(talkChance)) {
+  // 固定キャラがいれば、必ず話しかけられる（入ってくれるかは、話した回数と裏設定しだい）
+  if (fixedHere) {
     const info = FIXED[fixedHere.id]
     const talks = (s.talks[fixedHere.id] ?? 0) + 1
     s.talks[fixedHere.id] = talks
     const practiceWin = save.story?.flags.practiceWin !== undefined || hasAnyWin(save)
-    const chance = clamp(info.chance(talks - 1, rep, practiceWin), 0, 0.95)
+    const chance = clamp(
+      info.chance(talks - 1, { rep, win: practiceWin, officialWin: hasOfficialWin(save), stars: (k) => evalStars(s.eval[k]) }),
+      0,
+      0.95,
+    )
     lines.push(`${club.name}へ。${info.title}の${info.surname}に、思い切って声をかけた。`)
     if (rng.chance(chance)) {
       const p = addMember(save, rng, { grade: save.calendar.year === 1 ? 1 : 2, position: info.position, strength: 55, surname: info.surname, givenName: info.givenName })
@@ -265,16 +290,13 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
       lines.push(
         fixedHere.id === 'tennis' && !practiceWin
           ? '「一度も勝ったことのない部に、興味はない」…取りつく島もなかった。'
-          : talks >= 3
+          : talks >= 2
             ? '「…考えておく」少し、気持ちが動いているようだ。'
             : '「悪いけど、今は自分の部で手いっぱいだ」断られてしまった。',
       )
     }
-  } else if (fixedHere && chosen?.kind === 'fixed') {
-    lines.push(`${club.name}へ。${FIXED[fixedHere.id].surname}の姿は見えたが、話しかけるきっかけがなかった。`)
   } else if (mobs.length > 0) {
     const m = rng.pick(mobs)
-    if (fixedHere) lines.push(`${club.name}へ。${FIXED[fixedHere.id].surname}の姿は見えたが、話しかけるきっかけがなかった。`)
     lines.push(`${m.grade}年の${m.surname}（${POSITION_NAME[m.position as Position] ?? '野手'}向き）に声をかけた。`)
     // モブは声をかければ、わりと入ってくれる（能力が高いほど少し入りにくい）
     const base = clubId === 'kitaku' ? 0.85 : 0.68
@@ -303,6 +325,12 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
   if (ev.length) lines.push(`（${ev.join('。')}）`)
   save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `勧誘（${club.name}）：${success ? '成功' : '失敗'}` })
   return { title: success ? '勧誘成功！' : '勧誘', lines, success, fixed }
+}
+
+/** 公式戦で、一度でも勝ったことがあるか */
+function hasOfficialWin(save: SaveData): boolean {
+  const own = save.playerSchoolId
+  return (save.tournaments ?? []).some((t) => t.rounds.some((games) => games.some((g) => !g.bye && g.a && g.b && g.winner === own)))
 }
 
 /** 練習試合か公式戦で、一度でも勝ったことがあるか */

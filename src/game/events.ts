@@ -3,7 +3,7 @@
 
 import { Rng, clamp } from './rng'
 import { POSITION_NAME } from './constants'
-import { defaultPracticeMenu, fullName, shiftForm } from './player'
+import { defaultPracticeMenu, fullName, raiseAbility, shiftForm } from './player'
 import { computeOverall, generateGrade, schoolStrength } from './world'
 import { SKILLS, conflicts } from './skills'
 import type { EffectOp, EventInstance, Player, Position, SaveData, SquareType } from './types'
@@ -711,11 +711,8 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
         p.condition.injury = { name: '足の故障', weeksLeft: op.delta }
         continue
       }
-      const [group, key] = op.key.split('.') as [string, string]
-      const obj = (p as unknown as Record<string, Record<string, number>>)[group]
-      if (!obj || typeof obj[key] !== 'number') continue
-      const max = op.key === 'pitching.velocity' ? 163 : op.key === 'batting.trajectory' ? 4 : 99
-      obj[key] = clamp(obj[key] + op.delta, 1, max)
+      // 才能の上限（＋5）までしか上がらない
+      raiseAbility(p, op.key, op.delta)
     } else if (op.op === 'skill') {
       const p = save.players[op.playerId]
       if (!p) continue
@@ -747,6 +744,15 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
     } else if (op.op === 'modifier') {
       ;(save.modifiers ??= []).push({ ...op.modifier })
     } else if (op.op === 'flag') {
+      // 手当て：その選手のケガと肩・肘の違和感を治す
+      if (op.key.startsWith('heal:')) {
+        const p = save.players[op.key.slice(5)]
+        if (p) {
+          p.condition.injury = null
+          p.condition.armIssue = null
+        }
+        continue
+      }
       ;(save.flags ??= {})[op.key] = op.value
     } else if (op.op === 'eval') {
       addEval(save, op.key as EvalKey, op.delta)

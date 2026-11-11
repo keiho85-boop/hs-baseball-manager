@@ -23,3 +23,28 @@ Vertical 2:3 background for a mobile game home screen. Wide, calm view of the gr
 | bg_home_03 | 3月 | Early spring. Plum blossoms and the first cherry buds, melting frost, soft hazy light, a gentle sense of a new season beginning. |
 
 使い分け：4月 → bg_home_04、5・6月 → bg_home_05、7・8月 → bg_home_07、9〜11月 → bg_home_09、12〜2月 → bg_home_12、3月 → bg_home_03
+
+---
+
+# 夏合宿の行き先（ホーム画面の背景・4枚）
+
+合宿の2週間だけ、ホーム画面の背景がこの絵になります（絵が届くまでは宿の夜の絵で代用します）。
+部費で行き先のグレードを上げると、絵も変わります。どこも海の近くです（浜辺のイベントが起きるため）。
+
+- **添付する見本：** `bg_ground_sunset.webp`（画風をそろえるため）
+- **サイズ：** 縦長 1024×1536
+
+## 共通の前半
+
+```
+Use the attached image as the reference for the art style only (same line art, coloring and painting style). Vertical 2:3 background for a mobile game home screen, summer daytime, a high school baseball team's training camp site near the sea. Keep the lower two thirds simple and softly detailed because game panels will be placed over it. No people, no text, no letters, no numbers, no logos.
+```
+
+## 行き先ごとの後半
+
+| ファイル名 | 行き先 | つなげる文 |
+|---|---|---|
+| bg_camp_0 | 海辺の民宿 | An old two-story wooden seaside inn with futons drying on the balcony, a small vacant lot of dirt used as a practice field next to it, the sea and a bright blue summer sky behind. Humble and nostalgic. |
+| bg_camp_1 | 海の見える合宿所 | A modest training lodge on a hill with its own small baseball field, the ocean visible beyond the outfield fence, cumulonimbus clouds, cicada-season green trees. |
+| bg_camp_2 | リゾートの合宿プラン | A clean resort hotel by the beach with a well-kept baseball field and an indoor practice building, palm trees, sparkling sea, clear summer light. |
+| bg_camp_3 | プロも使うキャンプ地 | A professional baseball spring-camp complex by the sea: a beautiful stadium-like main field with stands, several practice fields and bullpens, flags on poles (no text), deep blue sky. Grand and inspiring. |

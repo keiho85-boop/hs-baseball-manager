@@ -29,6 +29,8 @@ const router = useRouter()
 
 const p = computed(() => game.player(props.id))
 const isOwn = computed(() => p.value?.schoolId === game.save?.playerSchoolId)
+/** 選手育成モード：練習はマスで決まるので、練習メニューの指示はない */
+const playerMode = computed(() => !!game.save?.story?.enabled)
 const editing = ref(false)
 const surname = ref('')
 const givenName = ref('')
@@ -330,7 +332,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
 
     <div v-if="isOwn && !p.retired" v-show="tab === 'skill'" class="card stack">
       <h2 class="grass"><GameIcon name="clipboard" /> 監督の指示</h2>
-      <label>
+      <label v-if="!playerMode">
         <div class="muted">練習メニュー</div>
         <select :value="p.practiceMenu" @change="changeMenu">
           <option v-for="(label, key) in PRACTICE_NAME" :key="key" :value="key">{{ label }}</option>

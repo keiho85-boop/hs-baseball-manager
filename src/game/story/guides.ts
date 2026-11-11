@@ -43,20 +43,19 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
     {
       target: 'recruit-list',
       on: 'tap',
-      text: '今週、それぞれの部活に誰がいるかが分かります。★の人は、ほかの部のエース。いつもいるとは限りませんし、話しかけられるとも限りません。',
+      text: '今週、それぞれの部活に誰がいるかが分かります。★の人は、ほかの部のエース。いつもいるとは限りません。いる週に行けば、必ず話はできます。',
     },
     {
       target: 'recruit-list',
       on: 'tap',
       face: 'smile',
-      text: '同じ部活に通うほど、話しかけやすくなります。9人そろえば、練習試合と大会に出られますよ。今日は閉じて、練習から始めましょう。',
+      text: 'エースは一度では入ってくれません。話すたびに、気持ちが動いていきますよ。9人そろえば、練習試合と大会に出られますよ。今日は閉じて、練習から始めましょう。',
     },
   ],
 
   /** 部費の使い道：商店会長の差し入れのあと */
   funds: [
-    { route: 'home', target: 'tab-school', on: 'target', text: '部費が入りました。使い道を説明しますね。「学校」を押してください。' },
-    { route: 'school', target: 'funds', on: 'tap', text: '今の部費はここです。毎月の収入や、差し入れ、大会の結果で増えていきます。' },
+    { route: 'home', target: 'club-btn', on: 'target', text: '部費が入りました。使い道を説明しますね。「部の様子」を押してください。' },
     {
       target: 'facilities',
       on: 'tap',
@@ -66,18 +65,18 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
       target: 'facilities',
       on: 'tap',
       face: 'smile',
-      text: 'どれを強化するかは、チームの弱いところと、よく止まるマスで決めましょう。スカウトで足りない回数を補うのにも使えます。',
+      text: '一番下は、夏合宿の行き先です。いい合宿先ほど、合宿中の練習がよく伸びます。部費は毎月の収入と、大会の寄付で増えますよ。',
     },
   ],
 
-  /** オーダーと練習試合：初めての練習試合の場面のあと */
+  /** オーダーと練習試合：9人そろったあと */
   order: [
     { route: 'home', target: 'tab-team', on: 'target', text: 'まずは、試合に出るメンバーを決めましょう。「チーム」を押してください。' },
     {
       route: 'team',
       target: 'order-board',
       on: 'tap',
-      text: 'これが打順と守備位置です。名前をドラッグして別の選手に重ねると、入れ替わります。',
+      text: 'これが打順と守備位置です。2人の名前を続けてタップすると、入れ替わります。守備位置の札どうしなら、守備位置だけが入れ替わります。',
     },
     {
       target: 'order-board',
@@ -99,15 +98,15 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
     },
     {
       route: 'match',
-      target: 'match-command',
+      target: 'match-controls',
       on: 'tap',
-      text: '試合中は、ここから作戦を出せます。「おまかせ」なら、選手の判断に任せます。',
+      text: '試合は自動で進みます。チャンスや、育成中の選手の打席・登板では、私がサインを出すので、その中から選んでください。',
     },
     {
       target: 'match-controls',
       on: 'tap',
       face: 'smile',
-      text: '「1打席」で1打席ずつ、「この回」でその回の終わりまで進みます。「自動」にすると、最後まで見守れます。では、プレイボールです！',
+      text: '「継投」で投手を代えられます。「この回まで」「結果へ」で先へ進めることもできます。では、プレイボールです！',
     },
   ],
 

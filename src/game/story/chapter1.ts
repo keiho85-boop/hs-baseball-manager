@@ -4,9 +4,9 @@
 
 import { Rng, clamp } from '../rng'
 import { SEASON_WEEKS, POSITION_NAME, weekToDate } from '../constants'
-import { findTournament, ownAlive } from '../tournament'
+import { findTournament, ownAlive, progress } from '../tournament'
 import { decideFocusDraft } from '../scout'
-import { fullName, shiftForm } from '../player'
+import { fullName, raiseAbility, shiftForm } from '../player'
 import { learnable, skillName, ABILITY_LABEL, mainKeys } from '../events'
 import { absWeek } from '../modifiers'
 import type { Player, Position, SaveData } from '../types'
@@ -482,11 +482,11 @@ export const CHAPTER1: Scene[] = [
     steps: () => [
       bg('bg_clubroom_day'),
       n('春の県大会の組み合わせ表。七海東の名前の横に、小さく「棄権」と書かれていた'),
-      makabe('troubled', 'ごめん…。部員がそろう前に、エントリーの締め切りが来ちゃって'),
-      daichiSay('frustrated', 'くっそ…。試合、やりたかったなあ'),
-      nagi('normal', '仕方ないよ。いまの私たちじゃ、9人並ぶこともできないんだから'),
-      think('出られなかった大会のことは、もう考えない。次は夏だ。それまでに、9人。…いや、勝てる9人だ', 'serious'),
-      nagi('smile', '夏までに、ちゃんとそろえよう。それで、初戦から勝とう'),
+      makabe('troubled', 'ごめん…。春の大会のエントリーは、3月のうちに締め切られていたんだ。僕たちが動き出す前にね'),
+      daichiSay('frustrated', 'くっそ…。せっかく9人そろったのに、試合、やりたかったなあ'),
+      nagi('normal', '仕方ないよ。夏の大会からは、ちゃんと出られるんだから'),
+      think('出られなかった大会のことは、もう考えない。次は夏だ。それまでに、勝てる9人にする', 'serious'),
+      nagi('smile', '夏は、初戦から勝とう'),
       daichiSay('smile', '…おう！'),
     ],
     onEnd: (c) => evals(c, [['daichi', 1], ['team', 1]]),
@@ -518,7 +518,9 @@ export const CHAPTER1: Scene[] = [
       own.funds += 20
       startGuide(c, 'order')
       startGuide(c, 'funds')
-      return ['練習試合と大会に出られるようになった！', 'OB会から差し入れが届いた（部費 +20万円）。', '源造が、練習のマスに顔を出すようになった。', ...evals(c, [['genzo', 5], ['team', 3]])]
+      // 1年目の春の大会は、エントリーが入学前に締め切られている（夏から出られる）
+      const head = Y(c) === 1 && W(c) <= 7 ? '練習試合と、夏の大会から出られるようになった！' : '練習試合と大会に出られるようになった！'
+      return [head, 'OB会から差し入れが届いた（部費 +20万円）。', '源造が、練習のマスに顔を出すようになった。', ...evals(c, [['genzo', 5], ['team', 3]])]
     },
   },
   {
@@ -656,6 +658,45 @@ export const CHAPTER1: Scene[] = [
         ],
       },
     ],
+  },
+  {
+    id: 'c1_ryu_renshu',
+    title: '王者からの申し込み',
+    chapter: 1,
+    when: (c) => Y(c) === 2 && W(c) >= 6 && rosterCount(c.save) >= 9,
+    steps: () => [
+      bg('bg_clubroom_day'),
+      makabe('surprise', 'た、大変だ！　龍ヶ峰から、練習試合の申し込みが来た！'),
+      daichiSay('surprise', 'はあ！？　県で一番強いところだろ。なんでうちに'),
+      nagi('serious', '…向こうの監督が、去年の試合を見ていたんでしょう'),
+      think('久我。…教え子が、師匠の腕前を確かめに来たか', 'serious'),
+      nagi('smile', '受けましょう。王者の野球を、肌で知るいい機会です'),
+    ],
+    onEnd: (c) => {
+      c.st.flags.rivalOffer = Y(c)
+      return ['龍ヶ峰学園と練習試合ができるようになった（「練習試合」から申し込めます）。']
+    },
+  },
+  {
+    id: 'c1_ryu_renshu_ato',
+    title: '王者との練習試合のあと',
+    chapter: 1,
+    when: (c) => c.st.flags.rivalPractice !== undefined,
+    steps: (c) =>
+      c.st.flags.rivalPractice === 'win'
+        ? [
+            bg('bg_ground_sunset'),
+            kuga('surprise', '…練習試合とはいえ、うちが負けるとは。夏は、本気で行きます'),
+            reika('serious', '今日のは数に入れないから。…決勝で会いましょう'),
+            nagi('smile', 'はい。決勝で'),
+          ]
+        : [
+            bg('bg_ground_sunset'),
+            kuga('smile', 'いいチームになりそうですね。夏の決勝で、また'),
+            reika('normal', '決勝まで上がってきなさい。そこで、もう一度相手をしてあげる'),
+            think('これが、いまの差だ。…だが、埋められない差ではない', 'serious'),
+          ],
+    onEnd: (c) => evals(c, [['team', 2], ['nagi', 1]]),
   },
   {
     id: 'c1_gasshuku_junbi',
@@ -932,11 +973,7 @@ export const CHAPTER1: Scene[] = [
               const f = focus(x)
               if (!f) return []
               const keys = mainKeys(f).slice(0, 2)
-              for (const k of keys) {
-                const [g, key] = k.split('.') as [string, string]
-                const obj = (f as unknown as Record<string, Record<string, number>>)[g]!
-                obj[key] = clamp(obj[key]! + 2, 1, key === 'velocity' ? 163 : 99)
-              }
+              for (const k of keys) raiseAbility(f, k, 2)
               return [`${f.surname}の${keys.map((k) => ABILITY_LABEL[k]).join('と')}が上がった。`, ...evals(x, [['team', -1]])]
             },
           },
@@ -1002,18 +1039,14 @@ export const CHAPTER1: Scene[] = [
     when: (c) => Y(c) === 3 && (c.save.sugoroku?.campWeeks ?? 0) > 0,
     steps: () => [
       bg('bg_ground_day'),
-      n('最後の夏合宿。日が暮れても、誰もグラウンドから出ようとしない'),
+      n('最後の夏の大会を前にした合宿。合宿所のグラウンドから、日が暮れても誰も出ようとしない'),
       hasumi('smile', 'はい、休憩。…あなたたち、3年間でずいぶん大きくなったわね'),
       makabe('smile', '僕も、少しは監督らしくなったかな'),
       hasumi('tease', '寝ぐせは相変わらずよ、真壁先生'),
     ],
     onEnd: (c) => {
       for (const p of regulars(c.save)) {
-        for (const k of mainKeys(p).slice(0, 2)) {
-          const [g, key] = k.split('.') as [string, string]
-          const obj = (p as unknown as Record<string, Record<string, number>>)[g]!
-          obj[key] = clamp(obj[key]! + 1, 1, key === 'velocity' ? 163 : 99)
-        }
+        for (const k of mainKeys(p).slice(0, 2)) raiseAbility(p, k, 1)
       }
       return ['部員全員の能力が上がった！', ...evals(c, [['hasumi', 3]])]
     },
@@ -1067,6 +1100,14 @@ export const CHAPTER1: Scene[] = [
     ],
     // 進路の話のあとは、10月のドラフト会議まで一気に進む
     onEnd: (c) => {
+      // 10月へ進む前に、3年目の夏の大会を最後まで進めて成績を記録する（最後の画面の成績に残すため）
+      const now = c.save.calendar.week
+      c.save.calendar.week = 60
+      for (const kind of ['summerPref', 'summerNational'] as const) {
+        const t = findTournament(c.save, 3, kind)
+        if (t && !t.finished) progress(c.save, c.rng, t, true)
+      }
+      c.save.calendar.week = now
       c.save.calendar.week = weekOf(10, 4)
       return []
     },
@@ -1112,7 +1153,7 @@ export const CHAPTER1: Scene[] = [
       if (f?.drafted) {
         savePlayer(f, 1)
         unlockScenario(2)
-        return [`${fullName(f)}がプロ入り！選手を保存した。`, '第2章「ナギ大学編」が解禁された！']
+        return [`${fullName(f)}がプロ入り！選手を保存した。`, '第2章「ナギ大学編」は、今後のアップデートで追加予定です。']
       }
       return ['指名はなかった…。（育成失敗）']
     },

@@ -6,6 +6,7 @@ import { ABILITY_LABEL } from '../events'
 import { getSkill, conflicts } from '../skills'
 import type { MatchState, PlayEvent } from '../match/types'
 import type { Player, SaveData } from '../types'
+import { raiseAbility } from '../player'
 import { successOf } from './state'
 
 const HIT = ['single', 'double', 'triple', 'homerun']
@@ -21,13 +22,8 @@ export function focusScore(m: MatchState, id: string): number {
 }
 
 function bump(p: Player, key: string, n: number): boolean {
-  const [group, k] = key.split('.') as [string, string]
-  const obj = (p as unknown as Record<string, Record<string, number>>)[group]
-  if (!obj || typeof obj[k] !== 'number') return false
-  const max = key === 'pitching.velocity' ? 163 : 99
-  const before = obj[k]
-  obj[k] = clamp(before + n, 1, max)
-  return obj[k] !== before
+  // 才能の上限（＋5）までしか上がらない
+  return raiseAbility(p, key, n)
 }
 
 function goodCount(p: Player): number {
@@ -67,7 +63,8 @@ export function focusMatchGrowth(save: SaveData, m: MatchState, rng: Rng, offici
 
   // ---- 能力の伸び：活躍の点数で量が変わる（公式戦は多め）
   const score = focusScore(m, id)
-  const points = clamp(Math.round((official ? 1.4 : 1) * (1.5 + score)), 0, 7)
+  // 伸びは控えめ：公式戦で最大3、練習試合で最大2（強くなりすぎないように）
+  const points = clamp(Math.round((official ? 1 : 0.6) * (1 + score * 0.6)), 0, official ? 3 : 2)
   const weights: { key: string; w: number }[] = []
   if (b && b.pa > 0) {
     weights.push({ key: 'batting.contact', w: 1 + b.h })

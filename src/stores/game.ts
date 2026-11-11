@@ -39,7 +39,7 @@ import { setupStoryWorld } from '@/game/story/setup'
 import { setFictionalPlaces } from '@/game/constants'
 import { buildSteps, completeScene, markStory, nextScene, noteMatch, observeStory } from '@/game/story/engine'
 import type { Scene, Step } from '@/game/story/types'
-import { evalAfterMatch, mustForfeit, rosterCount, successOf } from '@/game/success/state'
+import { CAMP_PLACES, evalAfterMatch, mustForfeit, rosterCount, successOf } from '@/game/success/state'
 import { focusMatchGrowth } from '@/game/success/matchGrowth'
 import { recruit as recruitLogic, type RecruitResult } from '@/game/success/clubs'
 import type { ClubId } from '@/game/success/types'
@@ -495,6 +495,22 @@ export const useGameStore = defineStore('game', () => {
     return true
   }
 
+  /** 選手育成モード：夏合宿の行き先を、部費でひとつ上のグレードにする */
+  async function upgradeCamp(): Promise<boolean> {
+    const s = save.value
+    const sc = s ? successOf(s) : null
+    const own = s ? s.schools[s.playerSchoolId] : null
+    if (!s || !sc || !own || busy.value) return false
+    const next = (sc.campLevel ?? 0) + 1
+    const place = CAMP_PLACES[next]
+    if (!place || own.funds < place.cost) return false
+    own.funds -= place.cost
+    sc.campLevel = next
+    s.log.push({ year: s.calendar.year, week: s.calendar.week, text: `部費${place.cost}万円で、夏合宿の行き先を「${place.name}」にした。` })
+    await commit()
+    return true
+  }
+
   /** スカウト：視察と勧誘 */
   async function scoutAction(kind: 'visit' | 'recruit', id: string): Promise<VisitResult | string | null> {
     const s = save.value
@@ -618,6 +634,7 @@ export const useGameStore = defineStore('game', () => {
     endMatch,
     saveLineup,
     upgradeFacility,
+    upgradeCamp,
     scoutAction,
     recruitAt,
     useCard,

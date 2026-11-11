@@ -31,8 +31,8 @@ export const EVAL_NOTE: Record<EvalKey, string> = {
   scout: 'プロからの注目',
 }
 
-/** 告白が成功する評価の目安（5段階の4以上） */
-export const CONFESS_LINE = 60
+/** 告白が成功する評価の目安（ナギと大地の両方が、5段階の3の中ほど以上。初期評価は低いので、意識して上げる必要がある） */
+export const CONFESS_LINE = 45
 
 /** 自動で進む週（年末と春休み）。1年を約40ターンにする */
 export const AUTO_WEEKS = [38, 39, 51, 52]
@@ -40,7 +40,8 @@ export const AUTO_WEEKS = [38, 39, 51, 52]
 export function newSuccessState(): SuccessState {
   return {
     focusId: null,
-    eval: { nagi: 50, makabe: 40, hasumi: 30, daichi: 55, team: 40, genzo: 30, scout: 10 },
+    // はじめはみんな、まだこの部を知らない（評価は低いところから）
+    eval: { nagi: 15, makabe: 10, hasumi: 0, daichi: 20, team: 5, genzo: 0, scout: 0 },
     clubs: [],
     visits: {},
     talks: {},
@@ -51,6 +52,36 @@ export function newSuccessState(): SuccessState {
     dating: null,
     ended: null,
   }
+}
+
+// ---------------------------------------------------------------- 夏合宿の行き先（部費でグレードを上げる）
+
+export interface CampPlace {
+  name: string
+  /** 合宿中の練習の効果の倍率 */
+  mult: number
+  /** このグレードに上げるのにかかる部費（万円） */
+  cost: number
+  note: string
+}
+
+/** 合宿の行き先。どこも海の近く（浜辺のイベントが起きる） */
+export const CAMP_PLACES: CampPlace[] = [
+  { name: '海辺の民宿', mult: 1.35, cost: 0, note: '安さが取り柄。グラウンドは近所の空き地' },
+  { name: '海の見える合宿所', mult: 1.5, cost: 40, note: '専用のグラウンドと、広いお風呂がある' },
+  { name: 'リゾートの合宿プラン', mult: 1.65, cost: 80, note: '室内練習場つき。食事も豪華' },
+  { name: 'プロも使うキャンプ地', mult: 1.8, cost: 120, note: 'プロ球団が春季キャンプで使う施設' },
+]
+
+export function campLevel(save: SaveData): number {
+  return Math.max(0, Math.min(CAMP_PLACES.length - 1, successOf(save)?.campLevel ?? 0))
+}
+export function campPlaceName(save: SaveData): string {
+  return CAMP_PLACES[campLevel(save)]!.name
+}
+/** 合宿中の練習の効果の倍率（チーム育成モードは1.35倍のまま） */
+export function campMultiplier(save: SaveData): number {
+  return successOf(save) ? CAMP_PLACES[campLevel(save)]!.mult : 1.35
 }
 
 /** サクセスで遊んでいるときの状態（そうでなければ null） */
@@ -112,8 +143,19 @@ export function canConfess(save: SaveData): boolean {
 /** フォーカス選手の練習の伸びの倍率（捕手の大地がいるので、投手は少し育てやすい） */
 export function focusGrowthMult(save: SaveData, p: Player): number {
   const s = successOf(save)
-  if (!s || s.focusId !== p.id) return 1
+  if (!s) return 1
+  if (s.focusId !== p.id) return teamGrowthMult(save)
   return p.mainPosition === 'P' ? 1.45 : 1.35
+}
+
+/**
+ * 選手育成モード：育成選手以外の部員の伸びの倍率。
+ * チームメイトの評価（部の雰囲気）が高いほど、みんなの練習の効率が上がる（★1で1.15倍〜★5で1.43倍）
+ */
+export function teamGrowthMult(save: SaveData): number {
+  const s = successOf(save)
+  if (!s) return 1
+  return 1.15 + 0.07 * (evalStars(s.eval.team) - 1)
 }
 
 /** 試合が終わったとき：勝敗とフォーカス選手の活躍で評価を動かす。戻り値は知らせ */
@@ -155,7 +197,10 @@ export function evalAfterMatch(save: SaveData, m: MatchState, official: boolean,
 export function focusDraftChance(save: SaveData, p: Player): number {
   const s = successOf(save)
   if (!s) return 0
-  return clamp((s.eval.scout - 35) / 45 + (playerRating(p) - 55) / 80, 0, 0.97)
+  // スカウトの評価が90以上なら、必ず指名される
+  if (s.eval.scout >= 90) return 1
+  // それより下は、スカウトの評価と能力の両方で決まる（どちらかが高ければ望みはある）
+  return clamp((s.eval.scout - 30) / 80 + (playerRating(p) - 60) / 60, 0, 0.9)
 }
 
 /** フォーカス選手の名前（台本の置き換え用） */

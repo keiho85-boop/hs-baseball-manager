@@ -2,7 +2,7 @@
 
 import { Rng, clamp } from './rng'
 import { PRACTICE_BONUS, activeModifiers } from './modifiers'
-import { focusGrowthMult, successOf } from './success/state'
+import { campMultiplier, focusGrowthMult, successOf } from './success/state'
 import { rollAttach, successBoard } from './success/board'
 import { rollClubs } from './success/clubs'
 import { POSITION_NAME, weekToDate } from './constants'
@@ -70,21 +70,22 @@ export const CARD_EFFECT_DESC: Record<CardEffect, string> = {
 }
 
 /** 手札の数字は偏らないように：手札にまだない数字が出やすい */
-function drawCard(rng: Rng, hand: Card[] = []): Card {
+function drawCard(rng: Rng, hand: Card[] = [], playerMode = false): Card {
+  // 選手育成モードには「全体」のカードはない（練習メニューを選ばないため）
   const effect = rng.weighted<CardEffect>([
     { value: 'none', weight: 70 },
     { value: 'hot', weight: 12 },
     { value: 'light', weight: 10 },
-    { value: 'all', weight: 8 },
+    { value: 'all', weight: playerMode ? 0 : 8 },
   ])
   const have = hand.map((c) => c.value)
   const value = rng.weighted([1, 2, 3, 4, 5, 6].map((v) => ({ value: v, weight: have.includes(v) ? (have.filter((x) => x === v).length >= 2 ? 0 : 0.6) : 6 })))
   return { value, effect }
 }
 
-function dealHand(rng: Rng): Card[] {
+function dealHand(rng: Rng, playerMode = false): Card[] {
   const hand: Card[] = []
-  while (hand.length < HAND_SIZE) hand.push(drawCard(rng, hand))
+  while (hand.length < HAND_SIZE) hand.push(drawCard(rng, hand, playerMode))
   return hand
 }
 
@@ -118,7 +119,7 @@ export function ensureSugoroku(save: SaveData): SugorokuState {
     save.sugoroku = {
       board: boardFor(save, rng, month),
       position: 0,
-      hand: dealHand(rng),
+      hand: dealHand(rng, !!successOf(save)),
       boardMonth: month,
       pending: null,
       campWeeks: 0,
@@ -127,6 +128,8 @@ export function ensureSugoroku(save: SaveData): SugorokuState {
   }
   // サクセス：始めた週（や以前の版のデータ）は、部活にいる人と練習マスの人物がまだ決まっていない
   const sc = successOf(save)
+  // 以前の版で配られた「全体」のカードは、ふつうの練習カードにする
+  if (sc) for (const c of save.sugoroku.hand) if (c.effect === 'all') c.effect = 'none'
   if (sc && !sc.ended && (!save.sugoroku.attach || sc.clubs.length === 0)) {
     const rng = new Rng(save.rngState)
     if (sc.clubs.length === 0) rollClubs(save, rng)
@@ -156,7 +159,7 @@ export function playCard(save: SaveData, rng: Rng, cardIndex: number): { square:
   for (let i = 1; i <= card.value; i++) path.push((s.position + i) % BOARD_SIZE)
   s.position = path[path.length - 1]!
   s.hand.splice(cardIndex, 1)
-  s.hand.push(drawCard(rng, s.hand))
+  s.hand.push(drawCard(rng, s.hand, !!successOf(save)))
   const square = s.board[s.position]!
   // 選手育成モード：特訓は必ず育成選手（選ぶ画面は出さない）
   const focus = successOf(save)?.focusId ?? null
@@ -259,7 +262,7 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
   const camp = (save.sugoroku?.campWeeks ?? 0) > 0
   const own = save.schools[save.playerSchoolId]
   // OB戦の悔しさ・大地への相談など：練習の効果が上がる期間（重なると足し合わせる）
-  const campMult = (camp ? 1.35 : 1) * (1 + PRACTICE_BONUS * activeModifiers(save, 'practice').length)
+  const campMult = (camp ? campMultiplier(save) : 1) * (1 + PRACTICE_BONUS * activeModifiers(save, 'practice').length)
   const success = !!successOf(save)
   for (const p of members) {
     if (p.retired) continue
@@ -270,7 +273,7 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
       continue
     }
     if (plan.kind === 'match') {
-      growWeekly(rng, p, facilityIntensity * 0.6)
+      growWeekly(rng, p, facilityIntensity * 0.6 * (success ? focusGrowthMult(save, p) : 1))
       continue
     }
     if (plan.kind === 'tournament') {
@@ -280,7 +283,7 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     }
     if (plan.kind === 'recruit') {
       // 勧誘に行った週：残った部員で軽く練習
-      growWeekly(rng, p, facilityIntensity * 0.45)
+      growWeekly(rng, p, facilityIntensity * 0.45 * (success ? focusGrowthMult(save, p) : 1))
       practiceLoad(rng, save, p, 5, 0.4, messages)
       continue
     }

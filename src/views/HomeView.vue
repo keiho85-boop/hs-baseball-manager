@@ -29,7 +29,7 @@ import FacilityPanel from '@/components/FacilityPanel.vue'
 import OrderBoard from '@/components/OrderBoard.vue'
 import InfoSheet from '@/components/InfoSheet.vue'
 import type { EvalKey } from '@/game/success/types'
-import { AUTO_WEEKS, EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, evalStars, focusPlayer, mustForfeit, repRank, rosterCount, successOf } from '@/game/success/state'
+import { AUTO_WEEKS, campLevel, campPlaceName, EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, evalStars, focusPlayer, mustForfeit, repRank, rosterCount, successOf } from '@/game/success/state'
 import type { ClubId } from '@/game/success/types'
 
 const game = useGameStore()
@@ -44,8 +44,13 @@ const opponents = computed(() => {
   if (!s) return []
   return Object.values(s.schools)
     .filter((x) => x.prefCode === s.prefCode && x.detailed && x.id !== s.playerSchoolId)
-    .sort((a, b) => b.overall - a.overall)
+    .sort((a, b) => Number(rivalOffered(b.id)) - Number(rivalOffered(a.id)) || b.overall - a.overall)
 })
+/** 2年目に龍ヶ峰から申し込まれた練習試合（まだしていなければ、評判に関係なく受けられる） */
+function rivalOffered(id: string): boolean {
+  const st = game.save?.story
+  return !!st && st.rivalId === id && st.flags.rivalOffer !== undefined && st.flags.rivalPractice === undefined
+}
 
 // ---- 大会 ----
 const tournament = computed(() => {
@@ -187,7 +192,7 @@ async function startMatch(id: string): Promise<void> {
 
 function canPractice(o: School): boolean {
   const own = game.ownSchool()
-  return !!own && canRequestPractice(own, o)
+  return !!own && (rivalOffered(o.id) || canRequestPractice(own, o))
 }
 
 const members = computed(() => game.ownPlayers().filter((p) => !p.retired))
@@ -218,6 +223,8 @@ const seasonBg = computed(() => {
   const m = weekToDate(game.save?.calendar.week ?? 1).month
   const name = m === 4 ? '04' : m === 5 || m === 6 ? '05' : m === 7 || m === 8 ? '07' : m >= 9 && m <= 11 ? '09' : m === 3 ? '03' : '12'
   const fallback = m >= 9 && m <= 11 ? 'bg_ground_sunset' : 'bg_ground_day'
+  // 合宿中は、合宿先の背景（絵が届くまでは宿の絵）
+  if ((sg.value?.campWeeks ?? 0) > 0 && game.save) return `url(${BASE}bg/bg_camp_${campLevel(game.save)}.webp), url(${BASE}bg/bg_hotel_night.webp)`
   return `url(${BASE}bg/bg_home_${name}.webp), url(${BASE}bg/${fallback}.webp)`
 })
 
@@ -278,12 +285,18 @@ const nagiTip = computed(() => {
   const st = s.story
   const t = currentTournament(s)
   if (t && !t.finished && ownAlive(s, t)) return `${t.name}です。勝ち方を、一つずつ覚えていきましょう`
-  if (sg.value && sg.value.campWeeks > 0) return '合宿中です。よく伸びますが、疲れもたまります。休みのマスも忘れずに'
+  if (sg.value && sg.value.campWeeks > 0) return `${successOf(s) ? `${campPlaceName(s)}で` : ''}合宿中です。よく伸びますが、疲れもたまります。休みのマスも忘れずに`
   if (teamPower.value.stamina < 50) return 'みんな疲れています。休みのマスも狙いましょう'
   if (st.chapter >= 2) return '第2章は準備中です。それまでは、このまま部を育てていきましょう'
   const sc = successOf(s)
   if (sc) {
     if (roster.value < 9) return `部員はいま${roster.value}人です。「勧誘」で9人そろえれば、練習試合と大会に出られます`
+    // 3年生の引退（8月の終わり）の前に、残る人数を知らせる
+    const w = s.calendar.week
+    if (w >= SEASON_WEEKS.thirdYearRetire - 4 && w < SEASON_WEEKS.thirdYearRetire && s.calendar.year < 3) {
+      const staying = members.value.filter((p) => p.grade < 3).length
+      if (staying < 9) return `8月の終わりに3年生が引退します。残るのは${staying}人。9人に足りなくなるので、勧誘しておきましょう`
+    }
     const tips = [
       'マスに付いた人のイベントも狙いましょう。スカウトのマスは、プロ入りへの近道です',
       `${focus.value?.surname ?? 'あの子'}くんをプロに送るのが目標です。周りの評価も大事ですよ`,
@@ -531,6 +544,7 @@ watch(
               :preview="moving ? null : preview"
               :month="sg.boardMonth"
               :camp="sg.campWeeks > 0"
+              :camp-name="success && game.save ? campPlaceName(game.save) : undefined"
               :milestone="success ? undefined : `${milestone.label}まで あと${milestone.weeks}週`"
               :card-note="selected !== null && sg.hand[selected] && sg.hand[selected]!.effect !== 'none' ? CARD_EFFECT_DESC[sg.hand[selected]!.effect] : null"
               :attach="sg.attach ?? null"
@@ -581,7 +595,7 @@ watch(
         >
           <img :src="`${BASE}ui/ui_practice_match.webp`" alt="" /><span>{{ roster < 9 ? '9人から' : '練習試合' }}</span>
         </button>
-        <button class="ib" @click="info = 'team'">
+        <button class="ib" data-tut="club-btn" @click="info = 'team'">
           <img :src="`${BASE}ui/ui_club.webp`" alt="" /><span>部の様子</span><i v-if="summary.injured > 0" class="dot" />
         </button>
         <button class="ib" @click="info = 'log'">
@@ -721,7 +735,7 @@ watch(
         <p class="muted">練習試合をした週は、すごろくの練習の代わりに試合を行います。強い相手ほど学ぶことも多くなります。強豪校と組むには、大会で結果を出して評判を上げる必要があります。</p>
         <div class="opp-list" data-tut="opp-list">
           <button v-for="o in opponents" :key="o.id" class="opp" :disabled="!canPractice(o)" @click="startMatch(o.id)">
-            <span class="opp-name">{{ o.name }}<small>{{ o.kind === 'private' ? '私立' : '公立' }}{{ canPractice(o) ? '' : '・評判が足りず断られる' }}</small></span>
+            <span class="opp-name">{{ o.name }}<small>{{ rivalOffered(o.id) ? '申し込みを受けている！' : `${o.kind === 'private' ? '私立' : '公立'}${canPractice(o) ? '' : '・評判が足りず断られる'}` }}</small></span>
             <RankBadge :value="o.overall" />
           </button>
         </div>

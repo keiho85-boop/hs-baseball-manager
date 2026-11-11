@@ -194,7 +194,11 @@ export function noteMatch(save: SaveData, info: { practice: boolean; won: boolea
   }
   // テニス部のエースは、試合で1勝するまで話を聞いてくれない（練習試合でも公式戦でもよい）
   if (info.won === true && st.flags.practiceWin === undefined) st.flags.practiceWin = save.calendar.year
-  if (st.rivalId && info.opponentId === st.rivalId) st.flags[`metRival_${save.calendar.year}`] = true
+  if (st.rivalId && info.opponentId === st.rivalId) {
+    st.flags[`metRival_${save.calendar.year}`] = true
+    // 2年目の龍ヶ峰との練習試合（申し込まれた試合）の結果
+    if (info.practice && st.flags.rivalOffer !== undefined && st.flags.rivalPractice === undefined) st.flags.rivalPractice = info.won === true ? 'win' : 'lose'
+  }
 }
 
 export { addAchievement, addCostume } from './rewards'

@@ -7,6 +7,7 @@ import type { Rng } from '../rng'
 import { ABILITY_LABEL, eid, learnable, mainKeys, skillName } from '../events'
 import type { EffectOp, EventInstance, Player, SaveData, SquareType } from '../types'
 import { focusPlayer, successOf } from './state'
+import { levelEvent } from './personEvents'
 
 export type Person = 'scout' | 'nagi' | 'genzo' | 'hasumi' | 'daichi' | 'makabe'
 
@@ -73,6 +74,9 @@ function grow(p: Player, keys: string[], delta: number): EffectOp[] {
 export function attachEvent(save: SaveData, rng: Rng, person: Person): EventInstance | null {
   const f = focusPlayer(save)
   if (!f) return null
+  // 評価が上がるほど、新しいイベントが解放される（解放済みの中からランダム。★1はこの下のもの）
+  const higher = levelEvent(save, rng, person, f)
+  if (higher) return higher
   const s = successOf(save)!
   const name = f.surname
   if (person === 'scout') {
@@ -124,7 +128,7 @@ export function attachEvent(save: SaveData, rng: Rng, person: Person): EventInst
     const pitcher = f.mainPosition === 'P'
     const keys = pitcher ? ['pitching.control', 'pitching.kire'] : ['batting.contact', 'batting.eye']
     const skill = rng.chance(0.06) ? learnable(rng, f) : null
-    const ops = [...grow(f, keys, pitcher ? 2 : 1), ev('daichi', 2)]
+    const ops = [...grow(f, keys, pitcher ? 2 : 1), ev('daichi', 3)]
     if (skill) ops.push({ op: 'skill', playerId: f.id, add: skill })
     return {
       id: eid('daichi'),

@@ -408,6 +408,8 @@ function placeOf(t: Tournament, schoolId: string): { text: string; wins: number;
   }
   if (!played) return null
   const n = t.rounds.length
+  // 人数不足などで試合をせずに負けたときは「棄権」と残す
+  if (lostAt >= 0 && t.rounds[lostAt]!.find((x) => x.a === schoolId || x.b === schoolId)?.note?.includes('棄権')) return { text: '棄権', wins, stage: lostAt }
   if (lostAt === -1) return { text: '優勝', wins, stage: n }
   if (lostAt === n - 1) return { text: '準優勝', wins, stage: lostAt }
   if (lostAt === n - 2) return { text: 'ベスト4', wins, stage: lostAt }

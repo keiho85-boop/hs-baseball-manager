@@ -165,7 +165,7 @@ function stars(v: number): string {
               <AbilityBar label="送球" :value="f.fielding.throwing" />
             </div>
           </div>
-          <p class="save-note">{{ pro ? 'この選手はプロ入りした育成選手として保存されました。第2章「ナギ大学編」が解禁されました。' : 'プロに届かなかったため、この選手は保存されません。' }}<br />育成はこれで終了です（セーブデータは残りません）。</p>
+          <p class="save-note">{{ pro ? 'この選手はプロ入りした育成選手として保存されました。（第2章「ナギ大学編」は今後追加予定です）' : 'プロに届かなかったため、この選手は保存されません。' }}<br />育成はこれで終了です（セーブデータは残りません）。</p>
           <button class="sun full" @click.stop="emit('title')">タイトルに戻る</button>
         </div>
       </Transition>

@@ -28,10 +28,10 @@ const titleArt = computed(() => `${BASE}title/title_ch${Math.min(chapter.value, 
 const savedCount = computed(() => listSavedPlayers().length)
 
 /** チーム育成モードは、すべてのシナリオをクリアすると解禁（確認用の版では最初から遊べる） */
-const ALL_SCENARIOS = [2]
-const teamUnlocked = computed(
-  () => import.meta.env.MODE !== 'production' || ALL_SCENARIOS.every((n) => unlockedScenarios().includes(n)),
-)
+// 章を1つクリアするごとに、次の章が解禁リストに入る（第1章クリアで2、第2章クリアで3）。
+// シナリオは全2章なので、3が入ったら「すべてクリア」。第2章ができるまでは、本番版では解禁されない
+const ALL_CLEARED = 3
+const teamUnlocked = computed(() => import.meta.env.MODE !== 'production' || unlockedScenarios().includes(ALL_CLEARED))
 
 const slotNumbers = computed(() => (mode.value === 'player' ? PLAYER_MODE_SLOTS : TEAM_MODE_SLOTS))
 const rows = computed(() =>

@@ -13,6 +13,8 @@ const props = defineProps<{
   preview: number | null
   month: number
   camp: boolean
+  /** 合宿の行き先（選手育成モード） */
+  campName?: string
   /** 選んだカードの効果の説明 */
   cardNote?: string | null
   milestone?: string
@@ -55,7 +57,7 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
     <div class="center">
       <div class="month">{{ month }}<small>月の練習</small></div>
       <div v-if="milestone" class="milestone">{{ milestone }}</div>
-      <div v-if="camp" class="camp">夏合宿中！</div>
+      <div v-if="camp" class="camp">{{ campName ? `${campName}で合宿中！` : '夏合宿中！' }}</div>
       <div v-if="previewInfo" class="info target-info" :style="{ '--c': previewInfo.color }">
         <b>{{ previewInfo.label }}マス</b>
         <span>{{ previewInfo.description }}</span>
