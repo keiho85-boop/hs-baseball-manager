@@ -23,21 +23,31 @@ export interface SquareInfo {
 }
 
 export const SQUARES: Record<SquareType, SquareInfo> = {
-  batting: { label: '打撃', short: '打', color: '#ff7a2e', description: 'ミート・選球眼などが伸びる', menus: ['batting'] },
+  batting: { label: '打撃', short: '打', color: '#ff7a2e', description: 'ミート・パワー・選球眼が伸びる', menus: ['batting'] },
   power: { label: '長打', short: '長', color: '#e5484d', description: 'パワー・弾道が伸びる', menus: ['power'] },
-  pitching: { label: '投球', short: '投', color: '#2f6fe0', description: '球速・制球・変化球などが伸びる', menus: ['pitching'] },
-  fitness: { label: '体力', short: '体', color: '#8a5cd6', description: 'スタミナ・回復力・ケガしにくさが伸びる', menus: ['fitness'] },
-  fielding: { label: '守備', short: '守', color: '#14a7a0', description: '肩・守備範囲・捕球・送球が伸びる', menus: ['fielding'] },
-  running: { label: '走塁', short: '走', color: '#36a843', description: '走力・盗塁・走塁判断が伸びる', menus: ['running'] },
+  pitching: { label: '投球', short: '投', color: '#2f6fe0', description: '球速・制球・キレが伸びる', menus: ['pitching'] },
+  fitness: { label: '体力', short: '体', color: '#8a5cd6', description: 'スタミナ・回復・ケガしにくさが伸びる', menus: ['fitness'] },
+  fielding: { label: '守備', short: '守', color: '#14a7a0', description: '守備・捕球・肩が伸びる', menus: ['fielding'] },
+  running: { label: '走塁', short: '走', color: '#36a843', description: '走力・盗塁・走塁が伸びる', menus: ['running'] },
   practical: { label: '実戦', short: '実', color: '#d99400', description: '試合形式。勝負強さが伸び、特殊能力を覚えやすい' },
   rest: { label: '休養', short: '休', color: '#3aa8f0', description: '体力が大きく回復し、調子が整う' },
-  special: { label: '特訓', short: '特', color: '#c2185b', description: '選手を1人選んで、大きく伸ばす' },
+  special: { label: '特訓', short: '特', color: '#c2185b', description: '選手を1人選んで、大きく伸ばす（選手育成モードでは育成選手）' },
   event: { label: 'イベント', short: '!', color: '#ff5fa2', description: '何かが起きる' },
   manager: { label: 'マネージャー', short: 'マ', color: '#ff8fb1', description: 'やる気と調子が上がる' },
   funds: { label: '部費', short: '¥', color: '#e9a400', description: '部費が増える' },
   scout: { label: 'スカウト', short: 'ス', color: '#5f6f86', description: '中学生を視察できる' },
   rain: { label: '雨', short: '雨', color: '#7e8ca0', description: '練習の効果は半分。ケガもしにくい' },
   school: { label: '校内行事', short: '校', color: '#9aa7b6', description: '練習は休み。学校の行事がある' },
+}
+
+/** 選手育成モード：練習マスごとに伸びる能力（表示どおりに伸びる） */
+export const SQUARE_STATS: Partial<Record<SquareType, readonly string[]>> = {
+  batting: ['contact', 'power', 'eye'],
+  power: ['power'],
+  pitching: ['velocity', 'control', 'kire'],
+  running: ['speed', 'steal', 'baserunning'],
+  fielding: ['range', 'catching', 'arm'],
+  fitness: ['stamina', 'recovery', 'durability'],
 }
 
 const PRACTICE_TYPES: SquareType[] = ['batting', 'power', 'pitching', 'fitness', 'fielding', 'running']
@@ -56,14 +66,23 @@ export const CARD_EFFECT_DESC: Record<CardEffect, string> = {
   all: '練習メニューに関係なく、全員が最大の効果を受ける',
 }
 
-function drawCard(rng: Rng): Card {
+/** 手札の数字は偏らないように：手札にまだない数字が出やすい */
+function drawCard(rng: Rng, hand: Card[] = []): Card {
   const effect = rng.weighted<CardEffect>([
     { value: 'none', weight: 70 },
     { value: 'hot', weight: 12 },
     { value: 'light', weight: 10 },
     { value: 'all', weight: 8 },
   ])
-  return { value: rng.int(1, 6), effect }
+  const have = hand.map((c) => c.value)
+  const value = rng.weighted([1, 2, 3, 4, 5, 6].map((v) => ({ value: v, weight: have.includes(v) ? (have.filter((x) => x === v).length >= 2 ? 0 : 0.6) : 6 })))
+  return { value, effect }
+}
+
+function dealHand(rng: Rng): Card[] {
+  const hand: Card[] = []
+  while (hand.length < HAND_SIZE) hand.push(drawCard(rng, hand))
+  return hand
 }
 
 /** その月の盤面を作る。季節で一部のマスが入れ替わる */
@@ -96,7 +115,7 @@ export function ensureSugoroku(save: SaveData): SugorokuState {
     save.sugoroku = {
       board: boardFor(save, rng, month),
       position: 0,
-      hand: Array.from({ length: HAND_SIZE }, () => drawCard(rng)),
+      hand: dealHand(rng),
       boardMonth: month,
       pending: null,
       campWeeks: 0,
@@ -134,9 +153,11 @@ export function playCard(save: SaveData, rng: Rng, cardIndex: number): { square:
   for (let i = 1; i <= card.value; i++) path.push((s.position + i) % BOARD_SIZE)
   s.position = path[path.length - 1]!
   s.hand.splice(cardIndex, 1)
-  s.hand.push(drawCard(rng))
+  s.hand.push(drawCard(rng, s.hand))
   const square = s.board[s.position]!
-  s.pending = { square, card, event: null, needsPlayer: square === 'special' }
+  // 選手育成モード：特訓は必ず育成選手（選ぶ画面は出さない）
+  const focus = successOf(save)?.focusId ?? null
+  s.pending = { square, card, event: null, needsPlayer: square === 'special' && !focus }
   return { square, path }
 }
 
@@ -267,7 +288,8 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     let cost = 0
     let injuryMult = 1
     if (info.menus) {
-      const match = plan.card.effect === 'all' || info.menus.includes(p.practiceMenu)
+      // 選手育成モードは練習メニューを選ばないので、全員がそのマスの練習をする
+      const match = success || plan.card.effect === 'all' || info.menus.includes(p.practiceMenu)
       // そのマスの練習に対応する設備が整っているほど、さらに伸びる（1段階につき4%）
       const fac = own ? own.facilities[FACILITY_OF[sq] ?? 'fitness'] : 0
       intensity = (match ? 1.8 : 0.95) * card.gain * (1 + fac * 0.04)
@@ -305,7 +327,8 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     // やる気と調子が高いほど伸びる
     const spirit = 0.85 + p.condition.motivation / 333 + (p.condition.form - 3) * 0.05
     // サクセス：育てる選手（フォーカス選手）は大きく伸びる
-    growWeekly(rng, p, intensity * campMult * facilityIntensity * spirit * (success ? focusGrowthMult(save, p) : 1))
+    const keys = success && plan.card.effect !== 'all' ? SQUARE_STATS[sq] : undefined
+    growWeekly(rng, p, intensity * campMult * facilityIntensity * spirit * (success ? focusGrowthMult(save, p) : 1), keys)
     // 医務室が整っているほど、ケガをしにくい
     const medical = own ? 1.15 - own.facilities.medical * 0.07 : 1
     practiceLoad(rng, save, p, cost * (cost > 0 ? campMult : 1), injuryMult * (camp ? 1.2 : 1) * medical, messages)

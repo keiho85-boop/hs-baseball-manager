@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// オーダー編成：スタメン（打順と先発投手）・控え・ベンチ外を1画面に並べ、
-// 2人をタップ（またはドラッグ）すると入れ替わる。野手も投手もここで決める
+// オーダー編成：スタメン（打順と先発投手）・控え（チーム育成モードはベンチ外も）を並べ、
+// 2人を続けてタップすると入れ替わる（ドラッグはしない：画面を指で楽にスクロールできるように）。野手も投手もここで決める
 import { computed, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
@@ -81,6 +81,9 @@ const bench = computed<Cell[]>(() => {
     return { key: `B${i}`, id, pos: p ? mainShort(p) : '', posKind: p ? posKind(p.mainPosition) : '' }
   })
 })
+/** 選手育成モード：ベンチ外は作らず、スタメン以外は全員「控え」 */
+const playerMode = computed(() => !!game.save?.story?.enabled)
+const reserves = computed<Cell[]>(() => (playerMode.value ? [...bench.value, ...outside.value] : bench.value))
 const outside = computed<Cell[]>(() => {
   const d = draft.value
   if (!d) return []
@@ -195,17 +198,29 @@ function swap(a: string, b: string): void {
   commit()
 }
 
-/** タップは選ぶだけ（上部に能力を出し、守備位置の変更に使う）。入れ替えはドラッグで行う */
+/**
+ * タップ：1人目で選ぶ（上に能力が出る）。続けて2人目をタップすると入れ替わる。
+ * 守備位置の札どうしなら守備位置だけ、名前どうしなら選手ごと入れ替える。同じところをもう一度タップで選び直し
+ */
 function tap(cell: Cell, part: 'pos' | 'player' = 'player'): void {
   if (cell.disabled) {
     viewing.value = cell.id
     return
   }
-  if (selected.value === cell.key && selPart.value === part) selected.value = null
-  else {
-    selected.value = cell.key
-    selPart.value = part
+  const cur = selected.value
+  if (cur === cell.key && selPart.value === part) {
+    selected.value = null
+    return
   }
+  const reserve = (k: string): boolean => k[0] === 'B' || k[0] === 'O'
+  if (cur && selPart.value === part && !(reserve(cur) && reserve(cell.key))) {
+    if (part === 'pos') swapPositions(cur, cell.key)
+    else swap(cur, cell.key)
+    selected.value = null
+    return
+  }
+  selected.value = cell.key
+  selPart.value = part
 }
 
 /** 守備位置の変更：選んだスタメンの守備位置を、別の位置の選手と入れ替える */
@@ -239,19 +254,7 @@ const posChoices = computed<(Position | 'DH')[]>(() => {
   return list
 })
 
-// ---------------------------------------------------------------- ドラッグで入れ替え
-const drag = ref<{ key: string; id: string; x: number; y: number; sx: number; sy: number; on: boolean; pid: number; mode: 'player' | 'pos'; label: string } | null>(null)
-const dropKey = ref<string | null>(null)
-let suppressClick = false
-
-function onDown(e: PointerEvent, cell: Cell): void {
-  if (cell.disabled) return
-  drag.value = { key: cell.key, id: cell.id, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, on: false, pid: e.pointerId, mode: 'player', label: '' }
-}
-/** 守備位置の札をつまむと、守備位置だけを別のスタメンと入れ替えられる（打順はそのまま） */
-function onPosDown(e: PointerEvent, cell: Cell): void {
-  drag.value = { key: cell.key, id: cell.id, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, on: false, pid: e.pointerId, mode: 'pos', label: cell.pos }
-}
+// ---------------------------------------------------------------- 守備位置だけの入れ替え
 function swapPositions(a: string, b: string): void {
   const d = draft.value
   if (!d || a[0] !== 'S' || b[0] !== 'S' || a === b) return
@@ -265,39 +268,7 @@ function swapPositions(a: string, b: string): void {
   flashCells([a, b], 'pos')
   commit()
 }
-function onMove(e: PointerEvent): void {
-  const d = drag.value
-  if (!d || e.pointerId !== d.pid) return
-  d.x = e.clientX
-  d.y = e.clientY
-  if (!d.on && Math.hypot(d.x - d.sx, d.y - d.sy) > 10) {
-    d.on = true
-    selected.value = d.key
-    selPart.value = d.mode === 'pos' ? 'pos' : 'player'
-    navigator.vibrate?.(10)
-  }
-  if (d.on) {
-    const el = document.elementFromPoint(d.x, d.y)?.closest('[data-key]') as HTMLElement | null
-    dropKey.value = el?.dataset.key ?? null
-  }
-}
-function onUp(): void {
-  const d = drag.value
-  drag.value = null
-  if (d?.on) {
-    suppressClick = true
-    setTimeout(() => (suppressClick = false), 50)
-    if (dropKey.value && dropKey.value !== d.key) {
-      if (d.mode === 'pos') swapPositions(d.key, dropKey.value)
-      else swap(d.key, dropKey.value)
-    }
-    selected.value = dropKey.value ?? d.key
-    selPart.value = d.mode === 'pos' ? 'pos' : 'player'
-  }
-  dropKey.value = null
-}
 function onClick(cell: Cell, part: 'pos' | 'player' = 'player'): void {
-  if (suppressClick) return
   tap(cell, part)
 }
 
@@ -321,6 +292,11 @@ const problems = computed(() => {
 async function commit(): Promise<void> {
   const d = draft.value
   if (!d || problems.value.length > 0) return
+  // 選手育成モード：スタメン以外は全員ベンチ入り（ベンチ外はなし）
+  if (playerMode.value) {
+    const starting = new Set([...d.batters.map((b) => b.playerId), d.startingPitcherId])
+    d.bench = [...d.bench.filter((id) => !starting.has(id)), ...members.value.filter((p) => !starting.has(p.id) && !d.bench.includes(p.id)).map((p) => p.id)]
+  }
   await game.saveLineup(JSON.parse(JSON.stringify(d)) as LineupConfig)
 }
 
@@ -361,7 +337,7 @@ const focusPos = computed(() => {
   const slot = d.batters.find((b) => b.playerId === p.id)
   if (slot) return slot.position === 'DH' ? '指名打者' : POSITION_NAME_RAW[slot.position]
   if (d.startingPitcherId === p.id) return '先発投手'
-  return d.bench.includes(p.id) ? `控え（${POSITION_NAME_RAW[p.mainPosition]}）` : `ベンチ外（${POSITION_NAME_RAW[p.mainPosition]}）`
+  return d.bench.includes(p.id) || playerMode.value ? `控え（${POSITION_NAME_RAW[p.mainPosition]}）` : `ベンチ外（${POSITION_NAME_RAW[p.mainPosition]}）`
 })
 const focusStats = computed(() => {
   const p = focus.value
@@ -436,7 +412,7 @@ const focusSkills = computed(() =>
     <p>部員が9人そろうと、オーダーを組めます。</p>
     <p class="muted">いまの部員：{{ members.length }}人</p>
   </div>
-  <div v-else-if="draft" class="ob" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
+  <div v-else-if="draft" class="ob">
     <!-- 上：選んだ選手 -->
     <div v-if="focus" class="focus">
       <div class="f-top">
@@ -481,8 +457,7 @@ const focusSkills = computed(() =>
           >
             <div
               class="pz"
-              :class="{ sel: selected === c.key && selPart === 'pos', drop: dropKey === c.key && drag?.mode === 'pos', flash: isFlash(c.key, 'pos'), movable: c.key[0] === 'S' && !c.pitcher }"
-              @pointerdown="c.key[0] === 'S' && !c.pitcher ? onPosDown($event, c) : onDown($event, c)"
+              :class="{ sel: selected === c.key && selPart === 'pos', flash: isFlash(c.key, 'pos'), movable: c.key[0] === 'S' && !c.pitcher }"
               @click="onClick(c, c.key[0] === 'S' && !c.pitcher ? 'pos' : 'player')"
             >
               <span v-if="c.no !== undefined" class="no">{{ c.no > 0 ? c.no : '' }}</span>
@@ -490,8 +465,7 @@ const focusSkills = computed(() =>
             </div>
             <div
               class="nz"
-              :class="{ sel: selected === c.key && selPart === 'player', drop: dropKey === c.key && drag?.mode === 'player', flash: isFlash(c.key, 'player') }"
-              @pointerdown="onDown($event, c)"
+              :class="{ sel: selected === c.key && selPart === 'player', flash: isFlash(c.key, 'player') }"
               @click="onClick(c)"
             >
               <FormIcon :form="players[c.id]!.condition.form" :size="15" />
@@ -515,10 +489,10 @@ const focusSkills = computed(() =>
         </div>
       </div>
       <div class="col">
-        <div class="col-h">控え<small>{{ bench.length }}/{{ BENCH_SIZE }}</small></div>
+        <div class="col-h">控え<small>{{ playerMode ? `${reserves.length}人` : `${bench.length}/${BENCH_SIZE}` }}</small></div>
         <div class="col-body">
           <div
-            v-for="c in bench"
+            v-for="c in reserves"
             :key="c.key"
             :data-key="c.key"
             class="cell"
@@ -526,8 +500,7 @@ const focusSkills = computed(() =>
           >
             <div
               class="pz"
-              :class="{ sel: selected === c.key && selPart === 'pos', drop: dropKey === c.key && drag?.mode === 'pos', flash: isFlash(c.key, 'pos'), movable: c.key[0] === 'S' && !c.pitcher }"
-              @pointerdown="c.key[0] === 'S' && !c.pitcher ? onPosDown($event, c) : onDown($event, c)"
+              :class="{ sel: selected === c.key && selPart === 'pos', flash: isFlash(c.key, 'pos'), movable: c.key[0] === 'S' && !c.pitcher }"
               @click="onClick(c, c.key[0] === 'S' && !c.pitcher ? 'pos' : 'player')"
             >
               <span v-if="c.no !== undefined" class="no">{{ c.no > 0 ? c.no : '' }}</span>
@@ -535,8 +508,7 @@ const focusSkills = computed(() =>
             </div>
             <div
               class="nz"
-              :class="{ sel: selected === c.key && selPart === 'player', drop: dropKey === c.key && drag?.mode === 'player', flash: isFlash(c.key, 'player') }"
-              @pointerdown="onDown($event, c)"
+              :class="{ sel: selected === c.key && selPart === 'player', flash: isFlash(c.key, 'player') }"
               @click="onClick(c)"
             >
               <FormIcon :form="players[c.id]!.condition.form" :size="15" />
@@ -559,7 +531,7 @@ const focusSkills = computed(() =>
           </div>
         </div>
       </div>
-      <div class="col">
+      <div v-if="!playerMode" class="col">
         <div class="col-h">ベンチ外</div>
         <div class="col-body scroll">
           <div
@@ -571,8 +543,7 @@ const focusSkills = computed(() =>
           >
             <div
               class="pz"
-              :class="{ sel: selected === c.key && selPart === 'pos', drop: dropKey === c.key && drag?.mode === 'pos', flash: isFlash(c.key, 'pos'), movable: c.key[0] === 'S' && !c.pitcher }"
-              @pointerdown="c.key[0] === 'S' && !c.pitcher ? onPosDown($event, c) : onDown($event, c)"
+              :class="{ sel: selected === c.key && selPart === 'pos', flash: isFlash(c.key, 'pos'), movable: c.key[0] === 'S' && !c.pitcher }"
               @click="onClick(c, c.key[0] === 'S' && !c.pitcher ? 'pos' : 'player')"
             >
               <span v-if="c.no !== undefined" class="no">{{ c.no > 0 ? c.no : '' }}</span>
@@ -580,8 +551,7 @@ const focusSkills = computed(() =>
             </div>
             <div
               class="nz"
-              :class="{ sel: selected === c.key && selPart === 'player', drop: dropKey === c.key && drag?.mode === 'player', flash: isFlash(c.key, 'player') }"
-              @pointerdown="onDown($event, c)"
+              :class="{ sel: selected === c.key && selPart === 'player', flash: isFlash(c.key, 'player') }"
               @click="onClick(c)"
             >
               <FormIcon :form="players[c.id]!.condition.form" :size="15" />
@@ -609,7 +579,7 @@ const focusSkills = computed(() =>
 
     <p v-if="problems.length" class="problems">{{ problems.join('・') }}</p>
     <p v-else class="hint">
-      名前で選手、札で守備位置を入れ替え（名前の下は守備適性）<span v-if="auto" class="auto">おまかせ中</span>
+      2人の名前を続けてタップで入れ替え。札どうしなら守備位置だけ入れ替え<span v-if="auto" class="auto">おまかせ中</span>
     </p>
 
     <!-- 下：操作 -->
@@ -619,9 +589,6 @@ const focusSkills = computed(() =>
       <button class="op" :class="auto ? 'on' : 'orange'" data-tut="order-auto" @click="setAuto">おまかせ</button>
     </div>
 
-    <div v-if="drag?.on" class="ghost" :class="{ posg: drag.mode === 'pos' }" :style="{ left: `${drag.x}px`, top: `${drag.y}px` }">
-      {{ drag.mode === 'pos' ? `${drag.label}（守備位置）` : players[drag.id]?.surname }}
-    </div>
 
     <div v-if="posPicker && selectedPlayer" class="pp-backdrop" @click.self="posPicker = false">
       <div class="pp card">
@@ -858,7 +825,7 @@ const focusSkills = computed(() =>
   height: 50px;
   cursor: pointer;
   user-select: none;
-  touch-action: none;
+  touch-action: manipulation;
 }
 .col-body.scroll .cell {
   flex: 0 0 auto;
@@ -897,7 +864,7 @@ const focusSkills = computed(() =>
   align-items: center;
   gap: 2px;
   border-radius: 7px;
-  touch-action: none;
+  touch-action: manipulation;
 }
 .pz {
   flex-shrink: 0;

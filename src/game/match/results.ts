@@ -4,6 +4,7 @@ import { Rng, clamp } from '../rng'
 import { newStats, fullName } from '../player'
 import { learnable, mainKeys, skillName } from '../events'
 import type { Player, SaveData } from '../types'
+import { successOf } from '../success/state'
 import type { MatchState } from './types'
 
 const INJURY_FACTOR = { easy: 0.5, normal: 1, hard: 1.7 } as const
@@ -55,7 +56,9 @@ export function applyMatchResults(save: SaveData, s: MatchState, rng: Rng): Matc
     }
     p.weeklyPitches += pb.pitches
     p.condition.stamina = clamp(Math.round(p.condition.stamina - pb.pitches * 0.45 - pb.fatigue * 15), 0, 100)
-    const msg = armCheck(p, pb.pitches, pb.fatigue, factor, rng)
+    // 選手育成モード：肩・肘の不安は育成選手だけ
+    const focusOnly = successOf(save)
+    const msg = focusOnly && focusOnly.focusId !== p.id ? null : armCheck(p, pb.pitches, pb.fatigue, factor, rng)
     if (msg && p.schoolId === ownId) messages.push(msg)
   }
   // レアイベント【覚醒の一打】：公式戦の打席で、まれに打球音が変わる（1打席0.5%）

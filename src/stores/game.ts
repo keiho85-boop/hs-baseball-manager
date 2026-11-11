@@ -435,7 +435,7 @@ export const useGameStore = defineStore('game', () => {
         s.log.push({ year: s.calendar.year, week: s.calendar.week, text: `${pending.event.title}：${choice.result}` })
       }
       const before = takeSnapshot(ownPlayers())
-      const week = afterWeek(advanceWeek(s, { kind: 'square', square: pending.square, card: pending.card, specialPlayerId: opts.specialPlayerId }))
+      const week = afterWeek(advanceWeek(s, { kind: 'square', square: pending.square, card: pending.card, specialPlayerId: opts.specialPlayerId ?? (pending.square === 'special' ? (successOf(s)?.focusId ?? undefined) : undefined) }))
       lastResult.value = week
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
       growthTitle.value = '練習の成果！'

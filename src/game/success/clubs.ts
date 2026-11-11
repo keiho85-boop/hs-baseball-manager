@@ -333,7 +333,29 @@ export function autoJoin(save: SaveData, rng: Rng, messages: string[]): void {
   messages.push(text)
 }
 
-/** 第1章の⑤：大地が帰宅部の友人を連れてくる（必ず入部する） */
-export function addFriendOfDaichi(save: SaveData, rng: Rng): Player {
-  return addMember(save, rng, { grade: 1, position: rng.pick(['RF', 'LF', '3B'] as Position[]), strength: 32, surname: rng.pick(SURNAMES), givenName: rng.pick(GIVEN_NAMES) })
+/**
+ * 第1章の⑤：大地が帰宅部の友人を5人連れてくる（必ず入部する）
+ * 守備位置はばらけさせる。投手が空いていれば必ず1人は投手。
+ * 育成選手と大地の守備位置とは被らない（外野は3枠あるので、外野1人分だけ埋まる扱い）
+ */
+export function addFriendsOfDaichi(save: SaveData, rng: Rng, count = 5): Player[] {
+  const s = successOf(save)
+  const taken = new Set<Position>()
+  const mark = (id: string | null | undefined): void => {
+    const pl = id ? save.players[id] : undefined
+    if (!pl) return
+    const pos = pl.mainPosition
+    // 外野はどこか1枠が埋まる
+    if (pos === 'LF' || pos === 'CF' || pos === 'RF') taken.add(['CF', 'LF', 'RF'].find((x) => !taken.has(x as Position)) as Position)
+    else taken.add(pos)
+  }
+  mark(s?.focusId)
+  mark(save.story?.daichiId)
+  const free = (['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'] as Position[]).filter((x) => !taken.has(x))
+  const picks: Position[] = []
+  if (free.includes('P')) picks.push('P')
+  const rest = rng.shuffle(free.filter((x) => x !== 'P'))
+  while (picks.length < count && rest.length) picks.push(rest.shift()!)
+  while (picks.length < count) picks.push(rng.pick(['LF', 'CF', 'RF'] as Position[]))
+  return picks.map((position) => addMember(save, rng, { grade: 1, position, strength: 32, surname: rng.pick(SURNAMES), givenName: rng.pick(GIVEN_NAMES) }))
 }

@@ -378,12 +378,19 @@ function secretPracticeEvent(rng: Rng, list: Player[]): EventInstance {
   }
 }
 
-function painEvent(rng: Rng, list: Player[]): EventInstance {
-  const cand = list.filter((x) => !x.storyCast)
+function painEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance | null {
+  // 選手育成モード：体の違和感は育成選手だけ
+  const s = successOf(save)
+  if (s) {
+    const f = list.find((x) => x.id === s.focusId)
+    if (!f) return null
+    list = [f]
+  }
+  const cand = list.filter((x) => !x.storyCast || x.storyCast === 'focus')
   const pool = cand.length ? cand : list
   const tired = [...pool].sort((a, b) => a.condition.stamina - b.condition.stamina)
   const p = tired[0] ?? rng.pick(pool)
-  const getsHurt = !p.storyCast && rng.chance(0.35)
+  const getsHurt = (!p.storyCast || p.storyCast === 'focus') && rng.chance(0.35)
   return {
     id: eid('pain'),
     title: '体の違和感',
@@ -668,7 +675,7 @@ function buildEventBase(save: SaveData, rng: Rng, square: SquareType, list: Play
     () => rivalEvent(rng, list),
     () => convertEvent(rng, list),
     () => secretPracticeEvent(rng, list),
-    () => painEvent(rng, list),
+    () => painEvent(save, rng, list),
     () => teamMeetingEvent(rng, list),
     () => quarrelEvent(save, rng, list),
   ]

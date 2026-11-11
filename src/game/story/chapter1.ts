@@ -15,7 +15,7 @@ import { setFocusPosition } from './setup'
 import type { CharId, Face, NarrStep, BgStep, Scene, SayStep, Step, StoryContext, TitleStep } from './types'
 import { addAchievement, addCostume } from './rewards'
 import { addEval, canConfess, evalStars, focusPlayer, rosterCount } from '../success/state'
-import { addFriendOfDaichi } from '../success/clubs'
+import { addFriendsOfDaichi } from '../success/clubs'
 import { savePlayer, unlockScenario } from '../success/archive'
 import type { EvalKey, FixedId } from '../success/types'
 
@@ -434,7 +434,7 @@ export const CHAPTER1: Scene[] = [
       think('9人まで、あと少しだ。勧誘は1週間がかりの仕事だ。行き先の部活に、誰がいるか見てから決める。…あとは、通い詰めることだ', 'serious'),
     ],
     onEnd: (c) => {
-      const joined = Array.from({ length: 5 }, () => addFriendOfDaichi(c.save, c.rng))
+      const joined = addFriendsOfDaichi(c.save, c.rng)
       startGuide(c, 'recruit')
       return [`${joined.map(fullName).join('、')}が入部した！（部員 ${rosterCount(c.save)}人）`, ...evals(c, [['daichi', 2]])]
     },

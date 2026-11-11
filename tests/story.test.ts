@@ -1,5 +1,6 @@
 // ストーリー（第1章）のテスト：3年間を進めて、場面が順に流れ、章が終わるか確かめる
 import { describe, expect, it } from 'vitest'
+import type { Position } from '../src/game/types'
 import { createNewGame } from '../src/game/world'
 import { advanceWeek } from '../src/game/season'
 import { ensureSugoroku } from '../src/game/sugoroku'
@@ -16,11 +17,11 @@ import { GUIDES } from '../src/game/story/guides'
 import { chapterGoal, teamName } from '../src/game/story/engine'
 import { buildEvent } from '../src/game/events'
 import { setFocusPosition } from '../src/game/story/setup'
-import { addFriendOfDaichi, recruit, FIXED } from '../src/game/success/clubs'
+import { addFriendsOfDaichi, recruit, FIXED } from '../src/game/success/clubs'
 import { rosterCount, successOf, focusPlayer, evalAfterMatch } from '../src/game/success/state'
 import { rollAttach } from '../src/game/success/board'
 
-function newGame(seed: number): SaveData {
+function newGame(seed: number, position?: Position): SaveData {
   const save = createNewGame({
     slot: 1,
     managerName: '朝比奈 ナギ',
@@ -30,7 +31,7 @@ function newGame(seed: number): SaveData {
     settings: { injury: 'normal', luck: 'normal', cutin: true, gameSpeed: 2, lightMode: false },
     seed,
   })
-  setupStoryWorld(save)
+  setupStoryWorld(save, { position })
   ensureSugoroku(save)
   return save
 }
@@ -56,7 +57,7 @@ function playAll(save: SaveData): string[] {
 /** 部員を9人にする（勧誘の代わりに、大地の友人を足す） */
 function fill9(save: SaveData): void {
   const rng = new Rng([5, 6, 7, 8])
-  while (rosterCount(save) < 9) addFriendOfDaichi(save, rng)
+  while (rosterCount(save) < 9) addFriendsOfDaichi(save, rng, 1)
 }
 
 describe('ストーリー 第1章（サクセス）', () => {
@@ -239,4 +240,22 @@ describe('部員が9人未満のオーダー', () => {
     expect(line.batters.length).toBeLessThan(9)
     expect(line.batters.every((b) => !!save.players[b.playerId])).toBe(true)
   })
+})
+
+describe('大地の帰宅部5人', () => {
+  for (const pos of ['P', 'C', 'SS', 'CF'] as const) {
+    it(`育成選手が${pos}のとき、守備位置がばらけて被らない`, () => {
+      const save = newGame(7, pos)
+      const ps = addFriendsOfDaichi(save, new Rng([7, 8, 9, 10])).map((p) => p.mainPosition)
+      expect(new Set(ps).size).toBe(5)
+      const focus = focusPlayer(save)!
+      expect(focus.mainPosition).toBe(pos)
+      if (pos !== 'CF') expect(ps).not.toContain(pos)
+      const daichi = save.players[save.story!.daichiId!]!
+      expect(ps).not.toContain(daichi.mainPosition)
+      expect(daichi.mainPosition).toBe(pos === 'C' ? 'P' : 'C')
+      if (pos === 'P' || pos === 'C') expect(ps).not.toContain('P')
+      else expect(ps).toContain('P')
+    })
+  }
 })

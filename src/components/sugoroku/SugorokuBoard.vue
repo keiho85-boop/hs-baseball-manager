@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// すごろくの盤面（6×6の外周20マス）
+// すごろくの盤面（横7×縦5の外周20マス。横いっぱいに広げ、真ん中に説明を出す）
 import { computed } from 'vue'
 import { SQUARES } from '@/game/sugoroku'
 import type { SquareType } from '@/game/types'
@@ -27,9 +27,9 @@ function badge(i: number): { short: string; label: string; color: string } | nul
 
 /** マス番号 → 盤面の行・列（時計回り） */
 function cell(i: number): { row: number; col: number } {
-  if (i <= 5) return { row: 1, col: i + 1 }
-  if (i <= 9) return { row: i - 4, col: 6 }
-  if (i <= 15) return { row: 6, col: 16 - i }
+  if (i <= 6) return { row: 1, col: i + 1 }
+  if (i <= 9) return { row: i - 5, col: 7 }
+  if (i <= 16) return { row: 5, col: 17 - i }
   return { row: 21 - i, col: 1 }
 }
 
@@ -73,10 +73,10 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
 <style scoped>
 .board {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  grid-template-rows: repeat(6, 1fr);
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(5, 1fr);
   gap: 4px;
-  aspect-ratio: 1;
+  aspect-ratio: 7 / 5;
   background:
     repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 10px, rgba(255, 255, 255, 0) 10px 20px),
     linear-gradient(180deg, #4dbd57, #2f9a3c);
@@ -107,7 +107,7 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
   min-width: 0;
 }
 .short {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 900;
   line-height: 1;
 }
@@ -163,21 +163,24 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
   color: #c2185b;
 }
 .center {
-  grid-row: 2 / 6;
-  grid-column: 2 / 6;
+  grid-row: 2 / 5;
+  grid-column: 2 / 7;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background: rgba(255, 255, 255, 0.92);
   border-radius: 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 8px;
+  gap: 3px;
+  padding: 4px 6px;
   text-align: center;
   box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.05);
 }
 .month {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 900;
   color: var(--grass-deep);
   line-height: 1;
@@ -207,11 +210,12 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
 .info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
+  gap: 1px;
+  font-size: 11px;
+  line-height: 1.3;
 }
 .info b {
-  font-size: 16px;
+  font-size: 15px;
   color: var(--c);
   font-weight: 900;
 }
@@ -226,7 +230,7 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
 .target-info {
   background: #fff;
   border-radius: 10px;
-  padding: 6px 8px;
+  padding: 3px 8px;
   box-shadow: inset 0 0 0 2px var(--c);
 }
 @keyframes blink {

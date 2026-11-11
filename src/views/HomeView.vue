@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import GameIcon from '@/components/GameIcon.vue'
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useGuideStore } from '@/stores/guide'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
@@ -204,6 +204,33 @@ const evening = computed(() => {
   const m = weekToDate(game.save?.calendar.week ?? 1).month
   return m >= 9 && m <= 11
 })
+
+/** 選手育成モード：月ごとの季節の背景（季節の絵がまだ無いときは、下に重ねたグラウンドの絵が見える） */
+const seasonBg = computed(() => {
+  void game.rev
+  const m = weekToDate(game.save?.calendar.week ?? 1).month
+  const name = m === 4 ? '04' : m === 5 || m === 6 ? '05' : m === 7 || m === 8 ? '07' : m >= 9 && m <= 11 ? '09' : m === 3 ? '03' : '12'
+  const fallback = m >= 9 && m <= 11 ? 'bg_ground_sunset' : 'bg_ground_day'
+  return `url(${BASE}bg/bg_home_${name}.webp), url(${BASE}bg/${fallback}.webp)`
+})
+
+/** 選手育成モード：ホームを1画面に収める（ヘッダーの下からタブバーの上までの高さ） */
+const homeEl = ref<HTMLElement | null>(null)
+const homeH = ref(0)
+function measureHome(): void {
+  const el = homeEl.value
+  if (!el) return
+  const top = el.getBoundingClientRect().top + window.scrollY
+  const tab = document.querySelector('.tabbar')
+  const bottom = tab ? tab.getBoundingClientRect().top + window.scrollY : window.innerHeight
+  homeH.value = Math.max(420, Math.floor(bottom - top - 6))
+}
+onMounted(() => {
+  measureHome()
+  window.addEventListener('resize', measureHome)
+  setTimeout(measureHome, 400)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', measureHome))
 
 const summary = computed(() => {
   const list = members.value
@@ -413,9 +440,15 @@ watch(
 </script>
 
 <template>
-  <div class="home" :class="{ 'with-tip': !!nagiTip, succ: !!success }">
+  <div
+    ref="homeEl"
+    class="home"
+    :class="{ 'with-tip': !!nagiTip, succ: !!success, fit: !!success && !ended && homeH > 0 }"
+    :style="success && !ended && homeH > 0 ? { height: `${homeH}px` } : undefined"
+  >
+    <div v-if="success" class="season-bg" :style="{ backgroundImage: seasonBg }" />
     <div class="stage">
-      <FieldScene :height="84" :evening="evening" />
+      <FieldScene v-if="!success" :height="84" :evening="evening" />
       <!-- 選手育成モード：育てている選手の様子 -->
       <div v-if="success && focus" class="strip focus-strip">
         <button class="fs-face" aria-label="育成選手を見る" @click="router.push({ name: 'focus' })">
@@ -493,7 +526,7 @@ watch(
               :preview="moving ? null : preview"
               :month="sg.boardMonth"
               :camp="sg.campWeeks > 0"
-              :milestone="`${milestone.label}まで あと${milestone.weeks}週`"
+              :milestone="success ? undefined : `${milestone.label}まで あと${milestone.weeks}週`"
               :card-note="selected !== null && sg.hand[selected] && sg.hand[selected]!.effect !== 'none' ? CARD_EFFECT_DESC[sg.hand[selected]!.effect] : null"
               :attach="sg.attach ?? null"
             />
@@ -518,8 +551,9 @@ watch(
 
       <!-- 練習試合・チームの様子・出来事（詳しくはポップアップで） -->
       <div v-if="success && !ended" class="actions icons">
+        <!-- 部員が9人いないうちは試合に出られない（棄権）ので、組み合わせではなく勧誘を出す -->
         <button
-          v-if="tournament && aliveInTournament"
+          v-if="tournament && aliveInTournament && roster >= 9"
           class="ib"
           @click="bracketOpen = true"
         >
@@ -1330,5 +1364,119 @@ watch(
 }
 .log li:last-child {
   border-bottom: none;
+}
+
+/* ---- 選手育成モード：季節の背景と、1画面に収める配置 ---- */
+.season-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover, cover;
+  background-position: center top, center top;
+}
+.season-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.25) 45%, rgba(240, 247, 255, 0.55) 100%);
+}
+.home.succ > :not(.season-bg) {
+  position: relative;
+  z-index: 1;
+}
+.home.succ .stage {
+  margin-top: 0;
+  overflow: visible;
+}
+.home.succ .strip {
+  position: static;
+  margin: 6px 0 0;
+}
+.home.fit {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.home.fit .page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+.home.fit .nagi-tip {
+  flex-shrink: 0;
+  margin: 6px 0;
+}
+.home.fit .board-card,
+.home.fit .t-panel,
+.home.fit .go {
+  flex: 1;
+  min-height: 0;
+  margin-top: 0;
+}
+.home.fit .board-card {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.82);
+}
+.home.fit .go {
+  flex: 0 0 auto;
+}
+.home.fit .t-panel {
+  overflow-y: auto;
+}
+.home.fit .board-fit {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  container-type: size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.home.fit .board-fit > :deep(.board) {
+  width: min(100cqw, 140cqh);
+}
+.home.fit .hand-wrap {
+  flex-shrink: 0;
+  margin-top: 12px;
+}
+.home.fit .hand-wrap :deep(.card-btn) {
+  aspect-ratio: auto;
+  height: clamp(52px, 9dvh, 84px);
+}
+.home.fit .hand-wrap :deep(.num) {
+  font-size: clamp(24px, 4dvh, 34px);
+}
+.home.fit .go-btn,
+.home.fit .auto-note {
+  flex-shrink: 0;
+}
+.home.fit .go-btn {
+  margin-top: 8px;
+  padding: clamp(8px, 1.4dvh, 12px);
+}
+.home.fit .actions.icons {
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+.home.fit .ib img {
+  width: clamp(28px, 4.6dvh, 40px);
+  height: clamp(28px, 4.6dvh, 40px);
+}
+/* 縦に短い画面では、ナギのひとことを小さくする */
+@media (max-height: 760px) {
+  .home.fit .nagi-face {
+    width: 40px;
+    height: 40px;
+  }
+  .home.fit .nagi-say {
+    font-size: 11.5px;
+    line-height: 1.35;
+    padding: 4px 9px;
+  }
 }
 </style>
