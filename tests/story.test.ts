@@ -1,6 +1,7 @@
 // ストーリー（第1章）のテスト：3年間を進めて、場面が順に流れ、章が終わるか確かめる
 import { describe, expect, it } from 'vitest'
 import type { Position } from '../src/game/types'
+import { ensureTournament } from '../src/game/tournament'
 import { createNewGame } from '../src/game/world'
 import { advanceWeek } from '../src/game/season'
 import { ensureSugoroku } from '../src/game/sugoroku'
@@ -269,5 +270,23 @@ describe('1年目の春の県大会', () => {
     expect(mustForfeit(save, 'summerPref')).toBeNull()
     save.calendar.year = 2
     expect(mustForfeit(save, 'springPref')).toBeNull()
+  })
+})
+
+describe('龍ヶ峰との組み合わせ', () => {
+  it('県大会では、龍ヶ峰と自校は反対の山（当たるのは決勝だけ）', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const save = newGame(seed)
+      save.calendar.week = 5
+      const t = ensureTournament(save, new Rng([seed, 9, 8, 7]))!
+      expect(t).toBeTruthy()
+      const slots = t.rounds[0]!.flatMap((g) => [g.a, g.b])
+      const half = slots.length / 2
+      const io = slots.indexOf(save.playerSchoolId)
+      const ir = slots.indexOf(save.story!.rivalId!)
+      expect(io).toBeGreaterThanOrEqual(0)
+      expect(ir).toBeGreaterThanOrEqual(0)
+      expect(Math.floor(io / half)).not.toBe(Math.floor(ir / half))
+    }
   })
 })

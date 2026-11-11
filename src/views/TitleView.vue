@@ -195,9 +195,11 @@ async function remove(slot: number, no: number): Promise<void> {
         </div>
       </div>
 
-      <div v-if="mode === 'player' && savedCount > 0" class="saved">
-        <img :src="`${BASE}ui/ui_eval.webp`" alt="" /> プロ入りした育成選手　<b>{{ savedCount }}</b>人
-      </div>
+      <button v-if="mode === 'player'" class="saved" @click="router.push({ name: 'pros' })">
+        <img :src="`${BASE}ui/ui_eval.webp`" alt="" />
+        <span>プロ入りした育成選手<small>一覧・ドリームチーム</small></span>
+        <b>{{ savedCount }}<small>人</small></b>
+      </button>
 
       <p v-if="managing" class="note">「書き出し」でセーブデータをファイルに保存できます。機種変更やアプリの削除に備えて、ときどき書き出しておくと安心です。</p>
       <p v-if="game.busy" class="note">読み込み中…</p>
@@ -471,17 +473,37 @@ async function remove(slot: number, no: number): Promise<void> {
 .saved {
   display: flex;
   align-items: center;
-  gap: 6px;
-  align-self: center;
-  background: rgba(255, 255, 255, 0.88);
-  border-radius: 999px;
-  padding: 4px 14px 4px 6px;
-  font-size: 13px;
-  font-weight: 700;
+  gap: 10px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ink);
+  border-radius: 16px;
+  padding: 8px 14px 8px 8px;
+  font-size: 14px;
+  font-weight: 900;
+  text-align: left;
+  box-shadow: inset 0 0 0 2px #ffd38a, 0 4px 0 rgba(0, 0, 0, 0.12);
 }
 .saved img {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
+}
+.saved span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.saved span small {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+.saved > b {
+  font-size: 22px;
+  color: #c96a00;
+}
+.saved > b small {
+  font-size: 12px;
 }
 .note {
   margin: 0;

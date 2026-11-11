@@ -40,14 +40,17 @@ export const SQUARES: Record<SquareType, SquareInfo> = {
   school: { label: '校内行事', short: '校', color: '#9aa7b6', description: '練習は休み。学校の行事がある' },
 }
 
-/** 選手育成モード：練習マスごとに伸びる能力（表示どおりに伸びる） */
-export const SQUARE_STATS: Partial<Record<SquareType, readonly string[]>> = {
-  batting: ['contact', 'power', 'eye'],
-  power: ['power'],
-  pitching: ['velocity', 'control', 'kire'],
-  running: ['speed', 'steal', 'baserunning'],
-  fielding: ['range', 'catching', 'arm'],
-  fitness: ['stamina', 'recovery', 'durability'],
+/**
+ * 選手育成モード：練習マスごとに伸びる能力と、その重み（表示どおりに伸びる）。
+ * 長打マスはパワーに集中（打撃マスよりパワーが大きく伸び、弾道も上がりやすい）
+ */
+export const SQUARE_STATS: Partial<Record<SquareType, Readonly<Record<string, number>>>> = {
+  batting: { contact: 1, eye: 0.8, power: 0.35 },
+  power: { power: 1.4 },
+  pitching: { velocity: 1, control: 1, kire: 1 },
+  running: { speed: 1, steal: 1, baserunning: 0.8 },
+  fielding: { range: 1, catching: 1, arm: 1 },
+  fitness: { stamina: 1, recovery: 1, durability: 0.8 },
 }
 
 const PRACTICE_TYPES: SquareType[] = ['batting', 'power', 'pitching', 'fitness', 'fielding', 'running']
@@ -329,6 +332,8 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     // サクセス：育てる選手（フォーカス選手）は大きく伸びる
     const keys = success && plan.card.effect !== 'all' ? SQUARE_STATS[sq] : undefined
     growWeekly(rng, p, intensity * campMult * facilityIntensity * spirit * (success ? focusGrowthMult(save, p) : 1), keys)
+    // 長打マス：弾道が上がりやすい
+    if (success && sq === 'power' && p.batting.trajectory < 4 && rng.chance(0.06 * card.gain)) p.batting.trajectory += 1
     // 医務室が整っているほど、ケガをしにくい
     const medical = own ? 1.15 - own.facilities.medical * 0.07 : 1
     practiceLoad(rng, save, p, cost * (cost > 0 ? campMult : 1), injuryMult * (camp ? 1.2 : 1) * medical, messages)

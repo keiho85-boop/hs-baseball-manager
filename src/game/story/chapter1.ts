@@ -3,7 +3,7 @@
 // 物語はナギ（中身は鬼頭鉄郎）の視点で進む。固定ストーリー30本と、固定キャラの加入イベント6本。
 
 import { Rng, clamp } from '../rng'
-import { SEASON_WEEKS, POSITION_NAME } from '../constants'
+import { SEASON_WEEKS, POSITION_NAME, weekToDate } from '../constants'
 import { findTournament, ownAlive } from '../tournament'
 import { decideFocusDraft } from '../scout'
 import { fullName } from '../player'
@@ -140,6 +140,15 @@ function summerOver(c: StoryContext): boolean {
   return ownOut(c.save, 3, 'summerPref')
 }
 
+/** その月の第n週が、年度の何週目か */
+function weekOf(month: number, weekOfMonth: number): number {
+  for (let w = 1; w <= 52; w++) {
+    const d = weekToDate(w)
+    if (d.month === month && d.weekOfMonth === weekOfMonth) return w
+  }
+  return 1
+}
+
 // ---------------------------------------------------------------- 大地の告白（チャンスは3回）
 
 /** 告白の場面の台詞。place は 1（1年目の年末）・2（2年目の夏祭り）・3（卒業式） */
@@ -165,7 +174,7 @@ function confessSteps(c: StoryContext, place: 1 | 2 | 3): Step[] {
     think('…なに？', 'surprise'),
     think('待て。中身は五十七の男だぞ。いや、この娘の体は十代だ。…いや、そういう問題ではない', 'surprise'),
     nagi('surprise', 'あ、あの…私は、その…'),
-    fv('おい、ナギ。逃げるなよ。…こいつ、中学のときからずっとお前の話ばっかりなんだからな'),
+    fv('おい、ナギ。逃げるなよ。…こいつ、入部した日からずっとお前の話ばっかりなんだからな'),
     daichiSay('troubled', 'お、お前、余計なこと言うなって！'),
     think('…断る理由を、三つ考えた。どれも、この二人の顔を見たら言えなかった', 'frustrated'),
     ...(place === 3 ? [bg('bg_school_gate_sakura', 'ev_c1_confess')] : []),
@@ -1054,12 +1063,17 @@ export const CHAPTER1: Scene[] = [
       makabe('smile', 'じゃあ、それまで監督の名前は僕が預かっておくよ。卒業したら、外部コーチとして来ればいい'),
       think('…この人が監督で、本当によかった', 'smile'),
     ],
+    // 進路の話のあとは、10月のドラフト会議まで一気に進む
+    onEnd: (c) => {
+      c.save.calendar.week = weekOf(10, 4)
+      return []
+    },
   },
   {
     id: 'c1_draft',
     title: 'ドラフト会議',
     chapter: 1,
-    // 3年目の夏が終わったら、練習はせずにそのままドラフトへ
+    // 進路の話のあと（10月）、練習はせずにそのままドラフトへ
     when: (c) => seen(c, 'c1_shinro'),
     steps: (c) => {
       const f = focus(c)
@@ -1067,6 +1081,7 @@ export const CHAPTER1: Scene[] = [
       const d = f?.drafted
       return [
         bg('bg_clubroom_tv'),
+        n('10月。プロ野球ドラフト会議の日'),
         n('部室のテレビの前に、部員全員が集まっている'),
         voice('アナウンサー', '続いて、各球団の指名です――'),
         ...(d
@@ -1089,6 +1104,8 @@ export const CHAPTER1: Scene[] = [
       ]
     },
     onEnd: (c) => {
+      // ドラフトのあとは、卒業式（3月）まで一気に進む
+      c.save.calendar.week = SEASON_WEEKS.graduation
       const f = focus(c)
       if (f?.drafted) {
         savePlayer(f, 1)

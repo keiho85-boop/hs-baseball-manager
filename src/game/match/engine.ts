@@ -522,8 +522,9 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
   const bn = batterNow(s, ctx, batOrder)
   addPitch(s, field.pitcherId, pitcher, full)
 
-  // 送りバント
+  // 送りバント・スクイズ
   if (batOrder === 'bunt') return bunt(s, ctx, batter)
+  if (batOrder === 'squeeze') return s.bases[2] ? squeeze(s, ctx, batter) : bunt(s, ctx, batter)
 
   // 1. 配球
   const breaking = pitcher.pitching.pitches.length > 0 && rng.chance(0.42 + (isUser(s, field) && s.pending.plan === 'breaking' ? 0.25 : 0))
@@ -942,6 +943,36 @@ function bunt(s: MatchState, ctx: MatchContext, batter: Player): PitchResult {
   if (lead === 1) s.bases = [currentBatterId(s), s.bases[0], s.bases[2]]
   else s.bases = [currentBatterId(s), s.bases[1], s.bases[2]]
   return endPA(s, ctx, 'buntfail', 0, { x: 0, y: 12, type: 'ground' }, 'バント失敗、先の走者がアウト', [], true)
+}
+
+/** スクイズ：三塁走者がスタートを切り、打者はバントで転がす */
+function squeeze(s: MatchState, ctx: MatchContext, batter: Player): PitchResult {
+  const rng = ctx.rng
+  s.pending.batting = 'auto'
+  let pSuccess = 0.66 + (has(batter, 'bunt') ? 0.15 : 0) + (batter.batting.contact - 50) / 300 - (has(batter, 'sign_lost') ? 0.15 : 0) + userTactic(s)
+  pSuccess = clamp(pSuccess, 0.3, 0.92)
+  const [r1, r2, r3] = s.bases
+  const r = rng.next()
+  if (r < pSuccess) {
+    s.outs += 1
+    const scored = r3 && s.outs < 3 ? [r3] : []
+    s.bases = [null, r1, r2]
+    return endPA(s, ctx, 'sacbunt', scored.length, { x: rng.chance(0.5) ? -6 : 6, y: 12, type: 'ground' }, 'スクイズ成功！', scored, false, true)
+  }
+  if (r < pSuccess + 0.1 && s.count.strikes < 2) {
+    // ファウル：走者は三塁へ戻る。サインはもう一度
+    s.count.strikes += 1
+    s.lastPitch = 'スクイズはファウル'
+    s.pending.batting = 'squeeze'
+    return { paEnded: false, event: null }
+  }
+  // 失敗：空振り（または小フライ）で三塁走者が挟まれてアウト
+  s.outs += 1
+  s.bases = [r1, r2, null]
+  if (s.outs >= 3) return endPA(s, ctx, 'buntfail', 0, null, 'スクイズ失敗、三塁走者がアウト', [], true)
+  s.count.strikes = Math.min(2, s.count.strikes + 1)
+  s.lastPitch = 'スクイズ失敗！三塁走者がアウト'
+  return { paEnded: false, event: null }
 }
 
 function attemptSteal(s: MatchState, ctx: MatchContext): PlayEvent | null {

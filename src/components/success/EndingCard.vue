@@ -166,7 +166,7 @@ function stars(v: number): string {
             </div>
           </div>
           <p class="save-note">{{ pro ? 'この選手はプロ入りした育成選手として保存されました。第2章「ナギ大学編」が解禁されました。' : 'プロに届かなかったため、この選手は保存されません。' }}<br />育成はこれで終了です（セーブデータは残りません）。</p>
-          <button class="sun full" @click.stop="emit('title')">{{ pro ? '保存して育成を終える' : '育成を終える' }}</button>
+          <button class="sun full" @click.stop="emit('title')">タイトルに戻る</button>
         </div>
       </Transition>
 

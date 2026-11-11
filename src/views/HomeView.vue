@@ -25,7 +25,6 @@ import { portraitUrl } from '@/game/story/art'
 import { chapterGoal } from '@/game/story/engine'
 import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 import RecruitSheet from '@/components/success/RecruitSheet.vue'
-import EndingCard from '@/components/success/EndingCard.vue'
 import FacilityPanel from '@/components/FacilityPanel.vue'
 import OrderBoard from '@/components/OrderBoard.vue'
 import InfoSheet from '@/components/InfoSheet.vue'
@@ -104,12 +103,14 @@ const ended = computed(() => {
 const recruitOpen = ref(false)
 const orderOpen = ref(false)
 /** 育成終了：選手の保存はドラフトの場面で済んでいるので、セーブデータは消してタイトルへ */
-async function finishScenario(): Promise<void> {
-  const slot = game.save?.slot
-  if (slot) await game.removeSlot(slot)
-  game.closeGame()
-  await router.replace({ name: 'title' })
-}
+/** 育成が終わったら、結末の画面（タブなしの1画面）へ */
+watch(
+  () => ended.value && !game.story && !game.busy,
+  (go) => {
+    if (go) void router.replace({ name: 'ending' })
+  },
+  { immediate: true },
+)
 /** ホーム上部に出す育成選手の主な能力（部員表の「能力1」と同じ項目） */
 const focusStats = computed(() => {
   const p = focus.value
@@ -503,8 +504,6 @@ watch(
           <b>ナギ<span v-if="goal" class="goal" :class="{ done: goal.done }">今年の目安：{{ goal.target }}{{ goal.done ? ' ✓' : '' }}</span></b>{{ nagiTip }}
         </div>
       </div>
-      <EndingCard v-if="ended" @title="finishScenario" />
-      <div v-if="ended" class="end-spacer" />
       <button v-if="!ended && game.match" class="sun go" @click="router.push({ name: 'match' })">
         <span class="go-main">試合の続きへ</span>
         <span class="go-sub"><GameIcon name="play" :size="12" /> {{ game.match.options.label }}</span>

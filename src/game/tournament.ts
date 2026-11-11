@@ -126,6 +126,32 @@ function seedOrder(size: number): number[] {
   return order
 }
 
+/**
+ * ストーリー：ライバル校（龍ヶ峰）とは県大会の決勝でしか当たらないように、自校を反対の山へ移す。
+ * 同じ山にいたら、反対の山の（不戦勝でない）学校と入れ替える
+ */
+function separateRival(rng: Rng, save: SaveData, slots: (string | null)[]): void {
+  const rival = save.story?.rivalId
+  const own = save.playerSchoolId
+  if (!rival || slots.length < 4) return
+  const io = slots.indexOf(own)
+  const ir = slots.indexOf(rival)
+  if (io < 0 || ir < 0) return
+  const half = slots.length / 2
+  if (Math.floor(io / half) !== Math.floor(ir / half)) return
+  const start = io < half ? half : 0
+  // 入れ替える相手：反対の山で、相手がいる（不戦勝の枠でない）学校。シード校はなるべく避ける
+  const cand: number[] = []
+  for (let j = start; j < start + half; j++) {
+    const partner = slots[j % 2 === 0 ? j + 1 : j - 1]
+    if (slots[j] && partner) cand.push(j)
+  }
+  const pool = cand.length ? cand : Array.from({ length: half }, (_, k) => start + k).filter((j) => slots[j])
+  if (pool.length === 0) return
+  const j = rng.pick(pool)
+  ;[slots[io], slots[j]] = [slots[j]!, slots[io]!]
+}
+
 /** 参加校から1回戦の組み合わせを作る。強い学校ほど上位シード（4校＋不戦勝の数だけ）になる */
 function buildBracket(rng: Rng, save: SaveData, entrants: string[]): TournamentGame[][] {
   let size = 1
@@ -135,6 +161,7 @@ function buildBracket(rng: Rng, save: SaveData, entrants: string[]): TournamentG
   const seeded = Math.min(sorted.length, Math.max(4, byes))
   const ranked = [...sorted.slice(0, seeded), ...rng.shuffle(sorted.slice(seeded))]
   const slots = seedOrder(size).map((seed) => ranked[seed - 1] ?? null)
+  separateRival(rng, save, slots)
   const first: TournamentGame[] = []
   for (let i = 0; i < size; i += 2) {
     const a = slots[i] ?? null

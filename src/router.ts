@@ -13,6 +13,10 @@ export const router = createRouter({
     { path: '/', name: 'title', component: () => import('./views/TitleView.vue') },
     { path: '/new/:slot', name: 'new', component: () => import('./views/NewGameView.vue'), props: true },
     { path: '/match', name: 'match', component: () => import('./views/MatchView.vue'), meta: { requiresGame: true } },
+    // 選手育成モードの結末（タブなしの1画面。見終えたら「タイトルに戻る」）
+    { path: '/ending', name: 'ending', component: () => import('./views/EndingView.vue'), meta: { requiresGame: true } },
+    // プロ入りした育成選手の一覧と、ドリームチームのオーダー（タイトル画面から）
+    { path: '/pros', name: 'pros', component: () => import('./views/ProsView.vue') },
     {
       path: '/game',
       component: () => import('./views/GameLayout.vue'),

@@ -17,13 +17,12 @@ const TEAM_TABS = [
   { name: 'school', label: '学校', color: '#1f8a42' },
   { name: 'records', label: '記録', color: '#c98a00' },
 ] as const
-/** 選手育成モード：学校の代わりに育成選手の画面（設備と部費はホームの「部の様子」へ） */
+/** 選手育成モード：学校の代わりに育成選手の画面（設備と部費はホームの「部の様子」へ）。記録のタブはなし（出来事はホームから） */
 const PLAYER_TABS = [
   { name: 'home', label: 'ホーム', color: '#e5484d' },
   { name: 'focus', label: '育成選手', color: '#1a6fc2' },
   { name: 'players', label: '部員', color: '#2a6fd6' },
   { name: 'team', label: 'チーム', color: '#d9731f' },
-  { name: 'records', label: '記録', color: '#c98a00' },
 ] as const
 const tabs = computed(() => {
   void game.rev

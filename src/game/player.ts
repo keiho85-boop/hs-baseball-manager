@@ -357,7 +357,7 @@ function roundByChance(rng: Rng, v: number): number {
  * すごろくの練習マスによる成長は、段階3でこれに上乗せする。
  * intensity: 練習の濃さ（設備や学校の方針で変わる。1.0が標準）
  */
-export function growWeekly(rng: Rng, p: Player, intensity: number, focusKeys?: readonly string[]): void {
+export function growWeekly(rng: Rng, p: Player, intensity: number, focusKeys?: Readonly<Record<string, number>>): void {
   if (p.retired || p.condition.injury) return
   const typeFactor = GROWTH_BY_GRADE[p.hidden.growthType][p.grade] ?? 1
   const isPitcher = p.mainPosition === 'P'
@@ -371,8 +371,8 @@ export function growWeekly(rng: Rng, p: Player, intensity: number, focusKeys?: r
     // 投手は投手能力、野手は野手能力が伸びやすい
     const roleFactor =
       g.group === 'pitching' ? (isPitcher ? 1.0 : 0.25) : isPitcher && g.group !== 'common' ? 0.5 : 1.0
-    // focusKeys（選手育成モードの練習マス）：そのマスの能力がはっきり伸び、ほかはわずか
-    const menuFactor = focusKeys ? (focusKeys.includes(g.key) ? 2.6 : 0.3) : g.menu.includes(p.practiceMenu) ? 1.5 : 1.0
+    // focusKeys（選手育成モードの練習マス：能力→重み）：そのマスの能力がはっきり伸び、ほかはわずか
+    const menuFactor = focusKeys ? (focusKeys[g.key] !== undefined ? 2.6 * focusKeys[g.key]! : 0.3) : g.menu.includes(p.practiceMenu) ? 1.5 : 1.0
     const room = clamp((cap - value) / 30, 0.15, 1.3)
     const gain = 0.26 * typeFactor * intensity * roleFactor * menuFactor * room * skillFactor * (0.5 + rng.next())
     obj[g.key] = Math.min(cap, value + roundByChance(rng, gain))
@@ -382,7 +382,7 @@ export function growWeekly(rng: Rng, p: Player, intensity: number, focusKeys?: r
   const veloCap = Math.round(122 + p.hidden.potential * 0.36 + (hash(p.id + 'velo') % 7) - 3)
   if (p.pitching.velocity < veloCap) {
     const roleFactor = isPitcher ? 1 : 0.3
-    const menuFactor = focusKeys ? (focusKeys.includes('velocity') ? 2.4 : 0.2) : p.practiceMenu === 'pitching' ? 1.4 : 1
+    const menuFactor = focusKeys ? (focusKeys.velocity !== undefined ? 2.4 * focusKeys.velocity : 0.2) : p.practiceMenu === 'pitching' ? 1.4 : 1
     const gain = 0.14 * typeFactor * intensity * roleFactor * menuFactor * skillFactor * (0.5 + rng.next())
     p.pitching.velocity = Math.min(veloCap, p.pitching.velocity + roundByChance(rng, gain))
   }
