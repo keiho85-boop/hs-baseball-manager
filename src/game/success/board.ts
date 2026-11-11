@@ -20,7 +20,7 @@ export const PERSON_BADGE: Record<Person, { short: string; label: string; color:
   makabe: { short: '真', label: '真壁', color: '#4a7a3d' },
 }
 
-const PRACTICE: SquareType[] = ['batting', 'power', 'pitching', 'fitness', 'fielding', 'running', 'practical']
+const PRACTICE: SquareType[] = ['batting', 'power', 'pitching', 'velo', 'control', 'breaking', 'fitness', 'fielding', 'running', 'practical']
 
 /** サクセスの盤面：マネージャー・部費・スカウトのマスは、練習マスに付く人物に置き換える */
 export function successBoard(board: SquareType[]): SquareType[] {

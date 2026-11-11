@@ -14,7 +14,7 @@ import SugorokuBoard from '@/components/sugoroku/SugorokuBoard.vue'
 import CardHand from '@/components/sugoroku/CardHand.vue'
 import EventDialog from '@/components/sugoroku/EventDialog.vue'
 import PlayerSheet from '@/components/PlayerSheet.vue'
-import { BOARD_SIZE, CARD_EFFECT_DESC, SQUARES } from '@/game/sugoroku'
+import { BOARD_SIZE, CARD_EFFECT_DESC, SQUARES, comboIfLanding } from '@/game/sugoroku'
 import type { School, SquareType } from '@/game/types'
 import TournamentPanel from '@/components/tournament/TournamentPanel.vue'
 import BracketSheet from '@/components/tournament/BracketSheet.vue'
@@ -544,6 +544,8 @@ watch(
               :preview="moving ? null : preview"
               :month="sg.boardMonth"
               :camp="sg.campWeeks > 0"
+              :combo-next="success && game.save && preview !== null && !moving ? comboIfLanding(game.save, sg.board[preview]!) : 0"
+              :combo-now="success ? (sg.combo?.count ?? 0) : 0"
               :camp-name="success && game.save ? campPlaceName(game.save) : undefined"
               :milestone="success ? undefined : `${milestone.label}まで あと${milestone.weeks}週`"
               :card-note="selected !== null && sg.hand[selected] && sg.hand[selected]!.effect !== 'none' ? CARD_EFFECT_DESC[sg.hand[selected]!.effect] : null"

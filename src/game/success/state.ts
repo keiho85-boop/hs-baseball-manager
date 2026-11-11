@@ -207,7 +207,7 @@ export function focusDraftChance(save: SaveData, p: Player): number {
   // スカウトの評価が90以上なら、必ず指名される
   if (s.eval.scout >= 90) return 1
   // それより下は、スカウトの評価と能力の両方で決まる（どちらかが高ければ望みはある。能力C〜Bでも十分狙える）
-  return clamp((s.eval.scout - 20) / 70 + (playerRating(p) - 55) / 50, 0, 0.92)
+  return clamp((s.eval.scout - 35) / 80 + (playerRating(p) - 64) / 40, 0, 0.92)
 }
 
 /** フォーカス選手の名前（台本の置き換え用） */

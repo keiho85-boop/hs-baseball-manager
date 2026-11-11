@@ -15,6 +15,10 @@ const props = defineProps<{
   camp: boolean
   /** 合宿の行き先（選手育成モード） */
   campName?: string
+  /** 選んだカードで止まると、練習のつながりが何回目になるか（2以上なら表示） */
+  comboNext?: number
+  /** いまの練習のつながり（回数） */
+  comboNow?: number
   /** 選んだカードの効果の説明 */
   cardNote?: string | null
   milestone?: string
@@ -62,10 +66,12 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
         <b>{{ previewInfo.label }}マス</b>
         <span>{{ previewInfo.description }}</span>
         <span v-if="preview !== null && badge(preview)" class="person-note">＋{{ badge(preview)!.label }}のイベント</span>
+        <span v-if="(comboNext ?? 0) >= 2" class="combo-note">練習がつながる！ ×{{ comboNext === 2 ? '1.2' : '1.4' }}</span>
       </div>
       <div v-else class="info" :style="{ '--c': hereInfo.color }">
         <span class="muted">いまの位置</span>
         <b>{{ hereInfo.label }}マス</b>
+        <span v-if="(comboNow ?? 0) >= 2" class="combo-note">{{ hereInfo.label }}の練習 {{ comboNow }}連続</span>
       </div>
       <div v-if="cardNote" class="card-note">{{ cardNote }}</div>
     </div>
@@ -159,6 +165,14 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
   text-align: center;
   box-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
   z-index: 1;
+}
+.combo-note {
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(90deg, #ff7a2e, #e5484d);
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 11px;
 }
 .person-note {
   font-weight: 800;

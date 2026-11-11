@@ -12,6 +12,8 @@ const props = defineProps<{
   display?: string
   /** ランクの文字を出さない（体力などの状態表示用） */
   hideRank?: boolean
+  /** 次に1上がるまでの経験の貯まり具合（0〜1。育成選手だけ） */
+  xp?: number
 }>()
 
 const g = computed(() => Math.max(2, Math.min(100, props.gauge ?? props.value)))
@@ -27,10 +29,26 @@ const rank = computed(() => rankOf(props.gauge ?? props.value))
       <div class="fill" :class="`f-${rank}`" :style="{ width: `${g}%` }" />
       <div class="ticks" />
     </div>
+    <div v-if="xp !== undefined" class="xp" :title="`次に上がるまで ${Math.round((1 - xp) * 100)}%`">
+      <i :style="{ width: `${Math.round(xp * 100)}%` }" />
+    </div>
   </div>
 </template>
 
 <style scoped>
+.xp {
+  grid-column: 1 / -1;
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 2px;
+  background: #eef2f7;
+  overflow: hidden;
+}
+.xp i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ffd36b, #ff9f1c);
+}
 .ability {
   display: grid;
   grid-template-columns: 1fr auto auto;

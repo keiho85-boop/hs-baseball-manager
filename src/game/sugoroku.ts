@@ -2,8 +2,8 @@
 
 import { Rng, clamp } from './rng'
 import { PRACTICE_BONUS, activeModifiers } from './modifiers'
-import { campMultiplier, focusGrowthMult, successOf } from './success/state'
-import { rollAttach, successBoard } from './success/board'
+import { campMultiplier, focusGrowthMult, focusPlayer, successOf } from './success/state'
+import { rollAttach } from './success/board'
 import { rollClubs } from './success/clubs'
 import { POSITION_NAME, weekToDate } from './constants'
 import { fullName, growWeekly } from './player'
@@ -26,7 +26,10 @@ export const SQUARES: Record<SquareType, SquareInfo> = {
   batting: { label: '打撃', short: '打', color: '#ff7a2e', description: 'ミート・パワー・選球眼が伸びる', menus: ['batting'] },
   power: { label: '長打', short: '長', color: '#e5484d', description: 'パワー・弾道が伸びる', menus: ['power'] },
   pitching: { label: '投球', short: '投', color: '#2f6fe0', description: '球速・制球・キレが伸びる', menus: ['pitching'] },
-  fitness: { label: '体力', short: '体', color: '#8a5cd6', description: 'スタミナ・回復・ケガしにくさが伸びる', menus: ['fitness'] },
+  velo: { label: '球威', short: '威', color: '#1f5fcf', description: '球速・スタミナが伸びる', menus: ['pitching'] },
+  control: { label: '制球', short: '制', color: '#3b7fe8', description: '制球・キレが伸びる', menus: ['pitching'] },
+  breaking: { label: '変化球', short: '変', color: '#6a4fd8', description: '変化量が上がり、新しい球種を覚えることもある', menus: ['pitching'] },
+  fitness: { label: '体力', short: '体', color: '#b05cd6', description: 'スタミナ・回復・ケガしにくさが伸びる', menus: ['fitness'] },
   fielding: { label: '守備', short: '守', color: '#14a7a0', description: '守備・捕球・肩が伸びる', menus: ['fielding'] },
   running: { label: '走塁', short: '走', color: '#36a843', description: '走力・盗塁・走塁が伸びる', menus: ['running'] },
   practical: { label: '実戦', short: '実', color: '#d99400', description: '試合形式。勝負強さが伸び、特殊能力を覚えやすい' },
@@ -42,16 +45,37 @@ export const SQUARES: Record<SquareType, SquareInfo> = {
 
 /**
  * 選手育成モード：練習マスごとに伸びる能力と、その重み（表示どおりに伸びる）。
- * 長打マスはパワーに集中（打撃マスよりパワーが大きく伸び、弾道も上がりやすい）
+ * 盤面は育成選手に合わせて投手用・野手用があり、チームメイトは自分の役割に読み替えて練習する。
+ * 例：投手の盤面の「球威」の週は、野手は長打と肩の練習をする
  */
-export const SQUARE_STATS: Partial<Record<SquareType, Readonly<Record<string, number>>>> = {
+const FIELDER_STATS: Partial<Record<SquareType, Readonly<Record<string, number>>>> = {
   batting: { contact: 1, eye: 0.8, power: 0.35 },
   power: { power: 1.4 },
-  pitching: { velocity: 1, control: 1, kire: 1 },
   running: { speed: 1, steal: 1, baserunning: 0.8 },
   fielding: { range: 1, catching: 1, arm: 1 },
-  fitness: { stamina: 1, recovery: 1, durability: 0.8 },
+  fitness: { stamina: 0.5, recovery: 1, durability: 0.8 },
+  pitching: { contact: 0.6, eye: 0.6 },
+  velo: { power: 0.9, arm: 0.6 },
+  control: { contact: 1, eye: 0.8 },
+  breaking: { contact: 0.7, eye: 0.7 },
 }
+const PITCHER_STATS: Partial<Record<SquareType, Readonly<Record<string, number>>>> = {
+  velo: { velocity: 1, stamina: 0.6 },
+  control: { control: 1, kire: 0.8 },
+  breaking: { pitches: 1.6, kire: 0.5 },
+  pitching: { velocity: 1, control: 1, kire: 1 },
+  fitness: { stamina: 1, recovery: 1, durability: 0.8 },
+  fielding: { quick: 1, range: 0.5 },
+  batting: { control: 0.8, kire: 0.5 },
+  power: { velocity: 0.8, stamina: 0.6 },
+  running: { stamina: 0.8, recovery: 0.6 },
+}
+/** その選手が、このマスの週に伸ばす能力（重み） */
+export function practiceKeys(sq: SquareType, p: Pick<Player, 'mainPosition'>): Readonly<Record<string, number>> | undefined {
+  return (p.mainPosition === 'P' ? PITCHER_STATS : FIELDER_STATS)[sq]
+}
+/** 表示用：育成選手から見た、このマスで伸びる能力 */
+export const SQUARE_STATS = FIELDER_STATS
 
 const PRACTICE_TYPES: SquareType[] = ['batting', 'power', 'pitching', 'fitness', 'fielding', 'running']
 
@@ -106,10 +130,30 @@ export function buildBoard(rng: Rng, month: number): SquareType[] {
   return rng.shuffle(squares)
 }
 
-/** その遊び方の盤面（サクセスでは、マネージャー・部費・スカウトは練習マスに付く人物になる） */
+/**
+ * 選手育成モードの盤面（育成選手が投手か野手かで、練習マスが変わる）。
+ * 投手：球威4・制球4・変化球2・体力3・守備1　野手：打撃4・長打2・走塁3・守備4・体力1
+ * どちらも実戦・特訓・休養2・イベント2。季節で一部の練習マスが雨・行事・体力に替わる
+ */
+export function buildFocusBoard(rng: Rng, month: number, pitcher: boolean): SquareType[] {
+  const practice: SquareType[] = pitcher
+    ? ['velo', 'velo', 'velo', 'velo', 'control', 'control', 'control', 'control', 'breaking', 'breaking', 'fitness', 'fitness', 'fitness', 'fielding']
+    : ['batting', 'batting', 'batting', 'batting', 'power', 'power', 'running', 'running', 'running', 'fielding', 'fielding', 'fielding', 'fielding', 'fitness']
+  const n = practice.length
+  const squares: SquareType[] = [...practice, 'practical', 'special', 'rest', 'rest', 'event', 'event']
+  if (month === 6) {
+    squares[rng.int(0, n - 1)] = 'rain'
+    squares[rng.int(0, n - 1)] = 'rain'
+  }
+  if (month === 7 || month === 12 || month === 3 || month === 10) squares[rng.int(0, n - 1)] = 'school'
+  if (month === 12 || month === 1 || month === 2) squares[rng.int(0, n - 1)] = 'fitness'
+  return rng.shuffle(squares)
+}
+
+/** その遊び方の盤面（選手育成モードは育成選手に合わせた盤面） */
 function boardFor(save: SaveData, rng: Rng, month: number): SquareType[] {
-  const b = buildBoard(rng, month)
-  return successOf(save) ? successBoard(b) : b
+  if (successOf(save)) return buildFocusBoard(rng, month, focusPlayer(save)?.mainPosition === 'P')
+  return buildBoard(rng, month)
 }
 
 export function ensureSugoroku(save: SaveData): SugorokuState {
@@ -264,6 +308,8 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
   // OB戦の悔しさ・大地への相談など：練習の効果が上がる期間（重なると足し合わせる）
   const campMult = (camp ? campMultiplier(save) : 1) * (1 + PRACTICE_BONUS * activeModifiers(save, 'practice').length)
   const success = !!successOf(save)
+  // 選手育成モード：同じ練習マスに続けて止まると、練習がつながって効果が上がる（2回目1.2倍、3回目から1.4倍）
+  const comboMult = success ? updateCombo(save, plan, messages) : 1
   for (const p of members) {
     if (p.retired) continue
     if (!plan) {
@@ -299,7 +345,8 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
       // そのマスの練習に対応する設備が整っているほど、さらに伸びる（1段階につき4%）
       const fac = own ? own.facilities[FACILITY_OF[sq] ?? 'fitness'] : 0
       intensity = (match ? 1.8 : 0.95) * card.gain * (1 + fac * 0.04)
-      cost = 17 * card.cost
+      // 選手育成モードは練習がきつい（休むタイミングが大事になる）
+      cost = (success ? 27 : 17) * card.cost
     } else if (sq === 'practical') {
       intensity = 1.0 * card.gain
       cost = 15 * card.cost
@@ -333,14 +380,47 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     // 調子が良いほど伸びる（絶不調0.8倍〜普通1.0倍〜絶好調1.2倍）
     const spirit = 0.8 + (p.condition.form - 1) * 0.1
     // サクセス：育てる選手（フォーカス選手）は大きく伸びる
-    const keys = success && plan.card.effect !== 'all' ? SQUARE_STATS[sq] : undefined
-    growWeekly(rng, p, intensity * campMult * facilityIntensity * spirit * (success ? focusGrowthMult(save, p) : 1), keys)
+    // 選手育成モード：盤面のマスを、自分の役割（投手・野手）に合わせて読み替えて練習する
+    const keys = success && plan.card.effect !== 'all' ? practiceKeys(sq, p) : undefined
+    // 疲れていると、練習の効率が落ちる（体力50未満で0.8倍、30未満で0.6倍）
+    const tired = success ? (p.condition.stamina < 30 ? 0.3 : p.condition.stamina < 45 ? 0.55 : p.condition.stamina < 60 ? 0.85 : 1) : 1
+    const combo = info.menus ? comboMult : 1
+    growWeekly(rng, p, intensity * campMult * facilityIntensity * spirit * tired * combo * (success ? focusGrowthMult(save, p) : 1), keys)
     // 長打マス：弾道が上がりやすい
-    if (success && sq === 'power' && p.batting.trajectory < 4 && rng.chance(0.06 * card.gain)) p.batting.trajectory += 1
+    if (success && sq === 'power' && p.mainPosition !== 'P' && p.batting.trajectory < 4 && rng.chance(0.06 * card.gain)) p.batting.trajectory += 1
     // 医務室が整っているほど、ケガをしにくい
     const medical = own ? 1.15 - own.facilities.medical * 0.07 : 1
     practiceLoad(rng, save, p, cost * (cost > 0 ? campMult : 1), injuryMult * (camp ? 1.2 : 1) * medical, messages)
   }
+}
+
+/** 練習のつながり：同じ練習マスが続いた回数を数え、倍率を返す（練習マス以外に止まると途切れる） */
+export const COMBO_MULT = [1, 1, 1.5, 2]
+function updateCombo(save: SaveData, plan: WeekPlan | null, messages: string[]): number {
+  const sg = save.sugoroku
+  if (!sg) return 1
+  // 試合・勧誘・大会の週も、つながりは途切れる
+  if (!plan || plan.kind !== 'square') {
+    sg.combo = undefined
+    return 1
+  }
+  const sq = plan.square
+  if (!SQUARES[sq].menus) {
+    sg.combo = undefined
+    return 1
+  }
+  const count = sg.combo?.square === sq ? Math.min(3, sg.combo.count + 1) : 1
+  sg.combo = { square: sq, count }
+  const mult = COMBO_MULT[count] ?? 1
+  if (count >= 2) messages.push(`${SQUARES[sq].label}の練習がつながった！（練習の効果×${mult.toFixed(1)}）`)
+  return mult
+}
+
+/** 次に止まると、練習のつながりが何回目になるか（表示用。つながらなければ0） */
+export function comboIfLanding(save: SaveData, sq: SquareType): number {
+  const c = save.sugoroku?.combo
+  if (!SQUARES[sq].menus || !c || c.square !== sq) return 0
+  return Math.min(3, c.count + 1)
 }
 
 /** マスの種類ごとの、効き目に関わる設備 */
@@ -348,6 +428,9 @@ const FACILITY_OF: Partial<Record<SquareType, keyof Facilities>> = {
   batting: 'batting',
   power: 'batting',
   pitching: 'pitching',
+  velo: 'pitching',
+  control: 'pitching',
+  breaking: 'pitching',
   fielding: 'fielding',
   running: 'running',
   fitness: 'fitness',

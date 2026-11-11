@@ -6,7 +6,7 @@ import { useGameStore } from '@/stores/game'
 import AbilityBar from '@/components/AbilityBar.vue'
 import RankBadge from '@/components/RankBadge.vue'
 import { PITCH_NAME, POSITION_NAME, velocityScore } from '@/game/constants'
-import { fielderRating, pitcherRating, playerRating } from '@/game/player'
+import { fielderRating, pitcherRating, playerRating, xpProgress } from '@/game/player'
 import { getSkill } from '@/game/skills'
 import { EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, evalStars, focusPlayer, successOf } from '@/game/success/state'
 import type { EvalKey } from '@/game/success/types'
@@ -110,13 +110,14 @@ const draft = computed(() => {
         <div class="velo">
           <span class="muted">球速</span>
           <b>{{ p.pitching.velocity }}<small>km/h</small></b>
+          <span class="xp-mini" title="次に1km/h上がるまで"><i :style="{ width: `${Math.round(xpProgress(p, 'velocity', p.pitching.velocity) * 100)}%` }" /></span>
           <RankBadge :value="velocityScore(p.pitching.velocity)" :show-value="false" />
         </div>
         <div class="abilities">
-          <AbilityBar label="コントロール" :value="p.pitching.control" />
-          <AbilityBar label="スタミナ" :value="p.pitching.stamina" />
-          <AbilityBar label="キレ" :value="p.pitching.kire" />
-          <AbilityBar label="クイック" :value="p.pitching.quick" />
+          <AbilityBar label="コントロール" :value="p.pitching.control" :xp="xpProgress(p, 'control', p.pitching.control)" />
+          <AbilityBar label="スタミナ" :value="p.pitching.stamina" :xp="xpProgress(p, 'stamina', p.pitching.stamina)" />
+          <AbilityBar label="キレ" :value="p.pitching.kire" :xp="xpProgress(p, 'kire', p.pitching.kire)" />
+          <AbilityBar label="クイック" :value="p.pitching.quick" :xp="xpProgress(p, 'quick', p.pitching.quick)" />
           <AbilityBar label="ピンチ" :value="p.pitching.pinch" />
           <AbilityBar label="対左打者" :value="p.pitching.vsLeft" />
         </div>
@@ -129,12 +130,12 @@ const draft = computed(() => {
       <div class="card">
         <h2 class="orange">野手能力 <span class="r"><RankBadge :value="fielderRating(p)" size="sm" /></span></h2>
         <div class="abilities">
-          <AbilityBar label="ミート" :value="p.batting.contact" />
-          <AbilityBar label="パワー" :value="p.batting.power" />
-          <AbilityBar label="走力" :value="p.running.speed" />
-          <AbilityBar label="肩力" :value="p.fielding.arm" />
-          <AbilityBar label="守備範囲" :value="p.fielding.range" />
-          <AbilityBar label="捕球" :value="p.fielding.catching" />
+          <AbilityBar label="ミート" :value="p.batting.contact" :xp="xpProgress(p, 'contact', p.batting.contact)" />
+          <AbilityBar label="パワー" :value="p.batting.power" :xp="xpProgress(p, 'power', p.batting.power)" />
+          <AbilityBar label="走力" :value="p.running.speed" :xp="xpProgress(p, 'speed', p.running.speed)" />
+          <AbilityBar label="肩力" :value="p.fielding.arm" :xp="xpProgress(p, 'arm', p.fielding.arm)" />
+          <AbilityBar label="守備範囲" :value="p.fielding.range" :xp="xpProgress(p, 'range', p.fielding.range)" />
+          <AbilityBar label="捕球" :value="p.fielding.catching" :xp="xpProgress(p, 'catching', p.fielding.catching)" />
         </div>
       </div>
 
@@ -162,6 +163,20 @@ const draft = computed(() => {
 </template>
 
 <style scoped>
+.xp-mini {
+  display: inline-block;
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: #eef2f7;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.xp-mini i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ffd36b, #ff9f1c);
+}
 .hero {
   position: relative;
   height: 230px;

@@ -178,7 +178,9 @@ function weeklyCondition(rng: Rng, p: Player, ownMessages: string[] | null, medi
   const c = p.condition
   // 体力の回復
   // 整数にそろえる（以前の版で小数になっていたデータもここで直る）
-  c.stamina = clamp(Math.round(c.stamina + 8 + p.common.recovery / 10), 0, 100)
+  // 選手育成モードの育成選手は、自然な回復が少ない（休むタイミングを考える必要がある）
+  const recover = p.storyCast === 'focus' ? 5 + p.common.recovery / 15 : 8 + p.common.recovery / 10
+  c.stamina = clamp(Math.round(c.stamina + recover), 0, 100)
   c.motivation = clamp(Math.round(c.motivation), 0, 100)
   // 調子の変化（安定度が高いほど動きにくい）
   const moveChance = 0.35 - p.common.stability / 400

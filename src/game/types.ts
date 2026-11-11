@@ -183,6 +183,8 @@ export interface Player {
   fatherAlumniId: string | null
   /** 肩・肘の不安が悪化して、投手としては引退した */
   pitchingRetired?: boolean
+  /** 選手育成モードの育成選手：能力ごとの経験点（貯まると能力が1上がる） */
+  xp?: Record<string, number>
 }
 
 export interface Facilities {
@@ -315,6 +317,10 @@ export type SquareType =
   | 'batting'
   | 'power'
   | 'pitching'
+  /** 選手育成モードの投手の盤面：球威（球速・スタミナ）・制球（制球・キレ）・変化球 */
+  | 'velo'
+  | 'control'
+  | 'breaking'
   | 'fitness'
   | 'fielding'
   | 'running'
@@ -415,6 +421,8 @@ export interface SugorokuState {
   campWeeks: number
   /** サクセス：練習マスに付いている人物（マスの番号 → 人物）。止まるとその人物のイベントが起きる。毎週入れ替わる */
   attach?: Record<number, string>
+  /** 選手育成モード：同じ練習マスに続けて止まった回数（つながりで練習の効果が上がる） */
+  combo?: { square: SquareType; count: number }
 }
 
 /** 自校のその週の過ごし方（週を進めるときに渡す） */
