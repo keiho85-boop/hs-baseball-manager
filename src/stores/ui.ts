@@ -36,6 +36,10 @@ export const useUiStore = defineStore('ui', () => {
   /** 選手詳細で最後に開いていたタブ（次の選手に移っても同じタブを開く） */
   const playerTab = ref<string | null>(null)
   let applyUpdate: (() => Promise<void>) | null = null
+  /** 版の確認に使う（Web版でオフライン対応が動いているときだけ） */
+  let registration: ServiceWorkerRegistration | null = null
+  /** 最後に版を確認した週（同じ週で何度も確かめない） */
+  let checkedKey = ''
 
   function confirm(
     message: string,
@@ -99,5 +103,30 @@ export const useUiStore = defineStore('ui', () => {
     await applyUpdate?.()
   }
 
-  return { dialog, toast, notice, notify, closeNotice, updateAvailable, playerNav, playerTab, confirm, alert, closeDialog, showToast, setUpdater, runUpdate }
+  function setRegistration(r: ServiceWorkerRegistration | undefined): void {
+    registration = r ?? null
+  }
+
+  /**
+   * 新しい版が出ていないか確かめる（週を進めてセーブしたあとに呼ぶ）。
+   * 新しい版があれば true。同じ週に2回目以降は確かめない
+   */
+  async function checkForUpdate(key: string): Promise<boolean> {
+    if (updateAvailable.value) return true
+    if (!registration || checkedKey === key || !navigator.onLine) return false
+    checkedKey = key
+    try {
+      await registration.update()
+    } catch {
+      return false
+    }
+    // 新しい版が見つかったら、読み込みが終わるまで少し待つ（最大10秒）
+    for (let i = 0; i < 40 && !updateAvailable.value; i++) {
+      if (!registration.installing && !registration.waiting) break
+      await new Promise((r) => setTimeout(r, 250))
+    }
+    return updateAvailable.value
+  }
+
+  return { dialog, toast, notice, notify, closeNotice, updateAvailable, playerNav, playerTab, confirm, alert, closeDialog, showToast, setUpdater, runUpdate, setRegistration, checkForUpdate }
 })

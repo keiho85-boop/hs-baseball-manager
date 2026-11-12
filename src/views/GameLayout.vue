@@ -7,12 +7,55 @@ import GrowthPopup from '@/components/GrowthPopup.vue'
 import StoryPlayer from '@/components/story/StoryPlayer.vue'
 import QueuedEventHost from '@/components/QueuedEventHost.vue'
 import { useGameStore } from '@/stores/game'
+import { useUiStore } from '@/stores/ui'
 import { SEASON_WEEKS, WEEKS_PER_YEAR, weekToDate } from '@/game/constants'
 import RankBadge from '@/components/RankBadge.vue'
 import { currentTournament, nextTournament } from '@/game/tournament'
 
 const game = useGameStore()
 const router = useRouter()
+const ui = useUiStore()
+
+/**
+ * 週を進めてセーブしたら、新しい版が出ていないか確かめる。
+ * 新しい版があれば、お知らせや物語が終わるのを待って「最新版に更新します」と伝え、タイトルに戻って更新する。
+ * 試合の画面ではこの画面が開いていないので、試合中は確かめない
+ */
+let updating = false
+function quiet(): boolean {
+  return !game.busy && !game.match && !game.story && !game.showGrowth && !ui.dialog && !game.save?.sugoroku?.pending
+}
+function waitQuiet(): Promise<void> {
+  if (quiet()) return Promise.resolve()
+  return new Promise((resolve) => {
+    const stop = watch(
+      () => [game.rev, game.busy, game.match, game.story, game.showGrowth, ui.dialog] as const,
+      () => {
+        if (!quiet()) return
+        stop()
+        resolve()
+      },
+    )
+  })
+}
+watch(
+  () => {
+    // セーブデータは変更を追わない作りなので、rev（更新の合図）を読む
+    void game.rev
+    return game.save ? `${game.save.slot}-${game.save.calendar.year}-${game.save.calendar.week}` : ''
+  },
+  async (key, before) => {
+    // ゲームを開いた直後（週を進めていない）は確かめない
+    if (!key || !before || key === before || updating) return
+    if (!(await ui.checkForUpdate(key))) return
+    updating = true
+    await waitQuiet()
+    await ui.alert('新しい版が出ています。最新版に更新します。\n（ここまでの進行はセーブされています。タイトル画面に戻ります）', '最新版に更新します')
+    game.closeGame()
+    await router.replace({ name: 'title' })
+    await ui.runUpdate()
+  },
+)
 
 const date = computed(() => {
   void game.rev

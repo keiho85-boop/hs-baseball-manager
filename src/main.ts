@@ -22,7 +22,7 @@ void setupAds()
 // アプリ版は最初から全画面なので、ブラウザの全画面表示は使わない
 if (!__APP_BUILD__) setupFullscreen()
 
-// オフライン対応（Web版だけ）。新しい版が届いても、タイトル画面で「更新」を押したときだけ切り替える
+// オフライン対応（Web版だけ）。新しい版は、タイトル画面の「更新」か、週を進めてセーブしたあとの確認で切り替える
 // Androidアプリ版はアプリの中にすべて入っているので不要
 if (!__APP_BUILD__) {
   const ui = useUiStore(pinia)
@@ -30,6 +30,10 @@ if (!__APP_BUILD__) {
     const updateSW = registerSW({
       onNeedRefresh() {
         ui.setUpdater(() => updateSW(true))
+      },
+      // 週を進めたときに、新しい版が出ていないか確かめるために使う
+      onRegisteredSW(_url, r) {
+        ui.setRegistration(r)
       },
     })
   })
