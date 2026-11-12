@@ -17,6 +17,9 @@ import { shortResult, isGoodResult, bigResult } from '@/game/match/labels'
 import { getSkill } from '@/game/skills'
 import { rankOf } from '@/game/constants'
 import CutIn from '@/components/match/CutIn.vue'
+import TacticCutIn from '@/components/match/TacticCutIn.vue'
+import { useGuideStore } from '@/stores/guide'
+import type { FaceParts } from '@/game/types'
 import FaceIcon from '@/components/FaceIcon.vue'
 import RankBadge from '@/components/RankBadge.vue'
 import GameIcon from '@/components/GameIcon.vue'
@@ -27,6 +30,7 @@ import { faceIconName } from '@/game/success/icons'
 const game = useGameStore()
 const ui = useUiStore()
 const router = useRouter()
+const guide = useGuideStore()
 
 const m = computed(() => {
   void game.matchRev
@@ -75,6 +79,7 @@ const BAT_ORDERS: { value: BattingOrder; label: string }[] = [
   { value: 'bunt', label: 'バント' },
   { value: 'hitrun', label: 'エンドラン' },
   { value: 'steal', label: '盗塁' },
+  { value: 'squeeze', label: 'スクイズ' },
 ]
 const PITCH_ORDERS: { value: PitchingOrder; label: string }[] = [
   { value: 'auto', label: 'おまかせ' },
@@ -100,6 +105,7 @@ function orderDisabled(o: BattingOrder): boolean {
   if (!s) return true
   if (o === 'steal') return !((s.bases[0] && !s.bases[1]) || (s.bases[1] && !s.bases[2]))
   if (o === 'hitrun') return !s.bases[0]
+  if (o === 'squeeze') return !s.bases[2] || s.outs >= 2
   return false
 }
 
@@ -258,7 +264,8 @@ const busyStep = ref(false)
 
 function scheduleAuto(): void {
   clearTimeout(timer)
-  if (!auto.value || !m.value || m.value.finished || cutin.value || nagiAsk.value) return
+  // 作戦の結果を見せている間と、操作の説明（ガイド）が出ている間は進めない
+  if (!auto.value || !m.value || m.value.finished || cutin.value || nagiAsk.value || tacticCut.value || guide.showing) return
   const base = [0, 1800, 1200, 700][game.save?.settings.gameSpeed ?? 2] ?? 1200
   // 選手育成モード：育成選手が関わらない打席はさっと進める（点が入ったときは結果を見せる）
   const lastRun = (m.value.events[m.value.events.length - 1]?.runs ?? 0) > 0
@@ -271,6 +278,11 @@ function scheduleAuto(): void {
 }
 
 watch(auto, (on) => (on ? scheduleAuto() : clearTimeout(timer)))
+// 説明（ガイド）が閉じたら、試合の進行を再開する
+watch(
+  () => guide.showing,
+  (on) => (on ? clearTimeout(timer) : scheduleAuto()),
+)
 
 // ---- 攻守交代の演出（「3回裏　〇〇の攻撃」） ----
 const change = ref<{ text: string; own: boolean; key: number } | null>(null)
@@ -428,13 +440,16 @@ function chanceOptions(s: MatchState): NagiOption[] {
   return opts
 }
 
-/** いまがナギの指示を出す場面なら、自動進行を止めて指示を出す */
-function askIfFocus(): boolean {
+/**
+ * いまがナギの指示を出す場面なら、自動進行を止めて指示を出す。
+ * force：打席の途中でも出す（盗塁で動けなかったときなど、同じ打席で続けて作戦を選ぶ）
+ */
+function askIfFocus(force = false): boolean {
   const s = m.value
   const fid = focusId.value
-  if (!s || s.finished || !newPA.value) return false
+  if (!s || s.finished || (!newPA.value && !force)) return false
   const key = `${s.inning}${s.top}${battingTeam(s).battingIndex}${s.outs}`
-  if (key === askedKey) return false
+  if (key === askedKey && !force) return false
   const outs = ['ノーアウト', 'ワンアウト', 'ツーアウト'][s.outs]
   const runners = s.bases.every((b) => b) ? '満塁' : s.bases[2] ? '三塁に走者' : s.bases[1] ? '二塁に走者' : s.bases[0] ? '一塁に走者' : '走者なし'
   const sub = `${s.inning}回${s.top ? '表' : '裏'}　${outs}${runners}`
@@ -486,28 +501,95 @@ function askIfFocus(): boolean {
 
 /** ナギの指示を選ぶ：その打席だけ作戦を出して、すぐに1打席進め、自動に戻る */
 async function chooseNagi(o: NagiOption): Promise<void> {
-  if (!nagiAsk.value) return
+  if (!nagiAsk.value || !m.value) return
   const ask = nagiAsk.value
   nagiAsk.value = null
   nagiSaid.value = o.say
+  const s0 = m.value
+  const batterId = currentBatterId(s0)
+  const half = `${s0.inning}-${s0.top}`
+  const before = s0.events.length
+  const order = o.orders.batting
   await game.setMatchOrders(o.orders)
-  if (o.orders.batting === 'steal') {
-    // 盗塁は1球だけ進める（成功・失敗・動けず）
-    if (m.value) m.value.stealStuck = undefined
+  let stuck: string | null = null
+  if (order === 'steal') {
+    // 盗塁は1球だけ進める（成功・失敗・動けず。動けずのときも、その1球は投げる）
+    s0.stealStuck = undefined
     await step('pitch')
-    const st = m.value
-    if (st?.stealStuck) {
-      flash.value = { title: '動けず', tone: 'out', sub: st.stealStuck, runs: 0, key: ++flashKey }
-      clearTimeout(flashTimer)
-      flashTimer = setTimeout(() => (flash.value = null), 1500)
-      st.stealStuck = undefined
-    }
+    stuck = m.value?.stealStuck ?? null
+    if (m.value) m.value.stealStuck = undefined
+  } else if (order === 'bunt' || order === 'squeeze') {
+    // バント・スクイズは、決まるか失敗するまで1球ずつ（ファウルはもう一度）
+    let guard = 0
+    do await step('pitch')
+    while (guard++ < 6 && m.value && !m.value.finished && m.value.pending.batting === order && currentBatterId(m.value) === batterId)
   } else await step('pa')
   // 投球の配球は、その打者だけ
   if (ask.kind === 'pitch' && o.orders.plan) await game.setMatchOrders({ plan: 'auto' })
   setTimeout(() => (nagiSaid.value = null), 1800)
+  // 作戦の結果は、すべてカットインで見せる（閉じるまで試合は止まる）
+  const s = m.value
+  if (s) {
+    clearTimeout(flashTimer)
+    flash.value = null
+    tacticCut.value = tacticResult(o, ask.kind, s.events.slice(before), stuck, s.lastPitch, batterId)
+    await new Promise<void>((resolve) => (tacticDone = resolve))
+  }
+  // 同じ打者の打席が続いているとき（盗塁の後・動けず・スクイズの失敗など）は、続けて作戦を選べる
+  const now = m.value
+  if (now && !now.finished && ask.kind === 'bat' && `${now.inning}-${now.top}` === half && currentBatterId(now) === batterId && askIfFocus(true)) return
   auto.value = true
   scheduleAuto()
+}
+
+// ---- 作戦の結果のカットイン ----
+const tacticCut = ref<{ label: string; title: string; sub: string; good: boolean; face: FaceParts | null; name: string } | null>(null)
+let tacticDone: (() => void) | null = null
+function closeTacticCut(): void {
+  tacticCut.value = null
+  const done = tacticDone
+  tacticDone = null
+  done?.()
+}
+onBeforeUnmount(() => closeTacticCut())
+
+/** 作戦の結果を、カットインに出す形にまとめる */
+function tacticResult(o: NagiOption, kind: 'bat' | 'pitch', evs: PlayEvent[], stuck: string | null, lastPitch: string, batterId: string): NonNullable<typeof tacticCut.value> {
+  const order = o.orders.batting
+  const detail = (e: PlayEvent): string => e.text.split('：').slice(1).join('：') || e.text
+  const who = (id: string): { face: FaceParts | null; name: string } => {
+    const p = players.value[id]
+    return { face: p?.face ?? null, name: p?.surname ?? '' }
+  }
+  const stealEv = evs.find((e) => e.kind === 'steal' || e.kind === 'caughtstealing')
+  // 打席の結果（盗塁は除く）
+  const main = [...evs].reverse().find((e) => e.kind !== 'steal' && e.kind !== 'caughtstealing') ?? null
+  const pitchNote = main ? `（${bigResult(main).title}）` : lastPitch ? `（${lastPitch}）` : ''
+  if (order === 'steal') {
+    if (stuck) return { label: o.label, title: '動けず…', sub: `${stuck}${pitchNote}`, good: false, ...who(s0Runner(evs) ?? batterId) }
+    if (stealEv) return { label: o.label, title: stealEv.kind === 'steal' ? '盗塁成功！' : '盗塁失敗…', sub: stealEv.text, good: stealEv.kind === 'steal', ...who(stealEv.batterId) }
+  }
+  if (order === 'squeeze') {
+    if (main?.kind === 'sacbunt' && main.runs > 0) return { label: o.label, title: 'スクイズ成功！', sub: detail(main), good: true, ...who(batterId) }
+    if (!main || main.kind === 'buntfail') return { label: o.label, title: 'スクイズ失敗…', sub: main ? detail(main) : lastPitch, good: false, ...who(batterId) }
+  }
+  if (order === 'bunt') {
+    if (main?.kind === 'sacbunt') return { label: o.label, title: '送りバント成功！', sub: detail(main), good: true, ...who(batterId) }
+    if (main?.kind === 'single') return { label: o.label, title: 'セーフティバント成功！', sub: detail(main), good: true, ...who(batterId) }
+    if (!main || main.kind === 'buntfail' || main.kind === 'strikeout') return { label: o.label, title: '送りバント失敗…', sub: main ? detail(main) : lastPitch, good: false, ...who(batterId) }
+  }
+  if (!main) return { label: o.label, title: '打席は続く', sub: lastPitch, good: true, ...who(batterId) }
+  const r = bigResult(main)
+  const batGood = r.tone === 'hit' || r.tone === 'hr' || r.tone === 'walk' || r.tone === 'error' || main.runs > 0
+  // 投手の作戦は、打ち取れば成功
+  const good = kind === 'bat' ? batGood : !batGood
+  return { label: o.label, title: r.title, sub: `${players.value[main.batterId]?.surname ?? ''}　${detail(main)}`, good, ...who(kind === 'bat' ? batterId : main.pitcherId) }
+}
+/** 盗塁を試みた走者（動けなかったときは、塁上の走者） */
+function s0Runner(_evs: PlayEvent[]): string | null {
+  const s = m.value
+  if (!s) return null
+  return s.bases[0] && !s.bases[1] ? s.bases[0] : s.bases[1] && !s.bases[2] ? s.bases[1] : null
 }
 
 /** 継投：試合を止めて、ブルペンから投手を選ぶ */
@@ -900,6 +982,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
       </div>
     </Transition>
     <CutIn v-if="cutin" :kind="cutin.kind" :face="cutin.player.face" :name="cutin.player.surname" :sub="cutin.sub" @close="closeCutin" />
+    <TacticCutIn v-if="tacticCut" v-bind="tacticCut" @close="closeTacticCut" />
   </div>
 </template>
 <style scoped>

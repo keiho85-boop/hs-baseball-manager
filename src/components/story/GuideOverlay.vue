@@ -39,7 +39,9 @@ const blocked = computed(() => {
   return false
 })
 
-const visible = computed(() => !!step.value && !blocked.value && (!!rect.value || !step.value.target || missing.value))
+const visible = computed(() => !!step.value && !blocked.value && (!!rect.value || !step.value.target || missing.value || !!step.value.free))
+watch(visible, (v) => (guide.showing = v), { immediate: true })
+onBeforeUnmount(() => (guide.showing = false))
 
 /** 案内する画面へ移る（タブの画面だけ。試合の画面は、移るまで待つ） */
 watch(
@@ -102,9 +104,12 @@ function track(): void {
 /** 明るい場所を押したら次へ（押した操作そのものは、そのまま画面に届く） */
 function onClickCapture(e: MouseEvent): void {
   const s = step.value
-  if (!s || s.on !== 'target' || !visible.value || !s.target) return
-  const el = document.querySelector(`[data-tut="${s.target}"]`)
-  if (el && e.target instanceof Node && el.contains(e.target)) window.setTimeout(() => void guide.next(), 60)
+  if (!s || s.on !== 'target' || !visible.value || !s.target || s.waitFor) return
+  // 押すと次へ進む場所（指定がなければ、光らせた場所）
+  const key = s.advanceOn ?? s.target
+  const hit = e.target instanceof Element ? e.target.closest(`[data-tut="${key}"]`) : null
+  // ボタンが押せない状態（カードを選ぶ前など）のときは進まない
+  if (hit && !(hit instanceof HTMLButtonElement && hit.disabled)) window.setTimeout(() => void guide.next(), 60)
 }
 
 onMounted(() => {
@@ -118,7 +123,7 @@ onBeforeUnmount(() => {
 })
 
 /** 台詞だけで進む手順か（タップで次へ） */
-const tapToNext = computed(() => !!step.value && (step.value.on === 'tap' || !rect.value))
+const tapToNext = computed(() => !!step.value && !step.value.waitFor && !step.value.free && (step.value.on === 'tap' || !rect.value))
 
 const panels = computed(() => {
   const r = rect.value
@@ -133,6 +138,8 @@ const panels = computed(() => {
 
 /** 吹き出しは、光らせた場所の上か下（空いているほう） */
 const bubbleStyle = computed(() => {
+  // 自由に操作してもらう手順は、吹き出しを画面の上に出す（下のボタンを隠さないように）
+  if (step.value?.free) return { top: 'calc(8px + env(safe-area-inset-top, 0px))' }
   const r = rect.value
   if (!r) return { top: '50%', transform: 'translateY(-50%)' }
   const below = window.innerHeight - (r.y + r.h)
@@ -150,7 +157,8 @@ function onTap(): void {
 
 <template>
   <div v-if="visible && step" class="guide">
-    <template v-if="panels">
+    <template v-if="step.free" />
+    <template v-else-if="panels">
       <div class="shade" :style="panels.top" />
       <div class="shade" :style="panels.bottom" />
       <div class="shade" :style="panels.left" />
@@ -169,6 +177,7 @@ function onTap(): void {
         <div class="foot">
           <span class="count">{{ (guide.active?.index ?? 0) + 1 }} / {{ guide.total }}</span>
           <span v-if="tapToNext" class="next">タップで次へ ▼</span>
+          <span v-else-if="step.waitFor" class="next press">終わったら、自動で次へ進みます</span>
           <span v-else class="next press">光っているところを押してください</span>
           <button class="skip" @click.stop="guide.finish()">説明を飛ばす</button>
         </div>

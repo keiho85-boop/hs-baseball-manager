@@ -5,7 +5,7 @@
 import { defineStore } from 'pinia'
 import { markRaw, ref, shallowRef } from 'vue'
 import { createNewGame, type NewGameInput } from '@/game/world'
-import { advanceWeek, type WeekResult } from '@/game/season'
+import { advanceWeek, rehearsalWeek, type WeekResult } from '@/game/season'
 import { clearMatch, deleteSlot, listSlots, readMatch, readSave, requestPersistentStorage, writeMatch, writeSave } from '@/game/storage'
 import { Rng } from '@/game/rng'
 import { finishMatch as finishMatchLogic, startMatch, type FinishResult } from '@/game/match/session'
@@ -224,7 +224,7 @@ export const useGameStore = defineStore('game', () => {
     await writeMatch({ slot: save.value.slot, match: match.value, rngState: matchRng.getState() })
   }
 
-  async function startPracticeMatch(opponentId: string): Promise<void> {
+  async function startPracticeMatch(opponentId: string, opts: { tutorial?: boolean } = {}): Promise<void> {
     const s = save.value
     if (!s || busy.value || s.sugoroku?.pending) return
     const t = currentTournament(s)
@@ -233,6 +233,8 @@ export const useGameStore = defineStore('game', () => {
     try {
       matchRng = new Rng(s.rngState)
       const m = startMatch(s, opponentId, matchRng)
+      // 練習試合の説明の試合は、終わっても週を進めない
+      if (opts.tutorial) m.options.tutorial = true
       match.value = m
       matchRev.value += 1
       await persistMatch()
@@ -393,6 +395,13 @@ export const useGameStore = defineStore('game', () => {
       s.rngState = matchRng.getState()
       match.value = null
       matchRng = null
+      // 練習試合の説明の試合：週は進めない
+      if (m.options.tutorial) {
+        touch()
+        await writeSave(s)
+        await clearMatch(s.slot)
+        return { finish, week: null }
+      }
       const before = takeSnapshot(ownPlayers())
       const week = afterWeek(advanceWeek(s, { kind: 'match' }))
       lastResult.value = week
@@ -430,7 +439,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /** 止まったマスの処理をして、1週間進める */
-  async function finishSquare(opts: { choice?: number; specialPlayerId?: string; specialKey?: string } = {}): Promise<{ week: WeekResult; eventResult: string | null } | null> {
+  async function finishSquare(opts: { choice?: number; specialPlayerId?: string; specialKey?: string; rehearsal?: boolean } = {}): Promise<{ week: WeekResult; eventResult: string | null } | null> {
     const s = save.value
     const pending = s?.sugoroku?.pending
     if (!s || !pending || busy.value) return null
@@ -444,7 +453,9 @@ export const useGameStore = defineStore('game', () => {
         s.log.push({ year: s.calendar.year, week: s.calendar.week, text: `${pending.event.title}：${choice.result}` })
       }
       const before = takeSnapshot(ownPlayers())
-      const week = afterWeek(advanceWeek(s, { kind: 'square', square: pending.square, card: pending.card, specialPlayerId: opts.specialPlayerId ?? (pending.square === 'special' ? (successOf(s)?.focusId ?? undefined) : undefined), specialKey: opts.specialKey }))
+      const plan = { kind: 'square' as const, square: pending.square, card: pending.card, specialPlayerId: opts.specialPlayerId ?? (pending.square === 'special' ? (successOf(s)?.focusId ?? undefined) : undefined), specialKey: opts.specialKey }
+      // 練習の説明のときは、週を進めない
+      const week = opts.rehearsal ? rehearsalWeek(s, plan) : afterWeek(advanceWeek(s, plan))
       lastResult.value = week
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
       growthTitle.value = '練習の成果！'

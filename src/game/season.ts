@@ -78,6 +78,21 @@ function practiceIntensity(school: School): number {
   return 0.85 + avg * 0.06
 }
 
+/**
+ * 説明（チュートリアル）のための練習：その週の練習の効果だけを反映し、週は進めない。
+ * 大会・行事・月の切り替わりなどは起きず、カレンダーもそのまま
+ */
+export function rehearsalWeek(save: SaveData, plan: WeekPlan): WeekResult {
+  const rng = new Rng(save.rngState)
+  const messages: string[] = []
+  const own = save.schools[save.playerSchoolId]!
+  applyOwnWeek(save, rng, plan, activeMembers(save, own), practiceIntensity(own), messages)
+  if (save.sugoroku) save.sugoroku.pending = null
+  save.rngState = rng.getState()
+  save.updatedAt = new Date().toISOString()
+  return { messages, newYear: false, backupPrompt: false }
+}
+
 /** 1週間進める。plan は自校のその週の過ごし方（すごろくのマス、練習試合など） */
 export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekResult {
   const rng = new Rng(save.rngState)

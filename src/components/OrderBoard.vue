@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // オーダー編成：スタメン（打順と先発投手）・控え（チーム育成モードはベンチ外も）を並べ、
 // 2人を続けてタップすると入れ替わる（ドラッグはしない：画面を指で楽にスクロールできるように）。野手も投手もここで決める
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
+import { useGuideStore } from '@/stores/guide'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import { APT_GROUPS, APTITUDE_LABEL, aptGroupOf, POSITIONS, POSITION_LABEL_RAW, POSITION_NAME_RAW, rankOf, velocityScore } from '@/game/constants'
@@ -15,6 +17,7 @@ import FormIcon from './FormIcon.vue'
 
 const game = useGameStore()
 const ui = useUiStore()
+const guide = useGuideStore()
 
 const players = computed(() => game.save?.players ?? {})
 const members = computed(() => game.ownPlayers().filter((p) => !p.retired))
@@ -43,10 +46,44 @@ const auto = computed(() => {
   return !s?.lineup || !lineupValid(s.lineup, s.players)
 })
 
+/** 入れ替えたが、まだ保存していない */
+const dirty = ref(false)
 function reset(): void {
   if (game.save) draft.value = structuredClone(ownLineup(game.save))
 }
-watch(() => game.rev, reset, { immediate: true })
+// 保存していない入れ替えがあるあいだは、ほかの変更で組み直さない
+watch(() => game.rev, () => !dirty.value && reset(), { immediate: true })
+
+// ---------------------------------------------------------------- 保存と、保存せずに離れるときの確認
+function markDirty(): void {
+  dirty.value = true
+}
+/** 保存する（入れ替えの結果を、試合で使うオーダーとして決める） */
+async function save(): Promise<void> {
+  if (problems.value.length > 0) {
+    ui.notify({ message: problems.value.join('\n'), tone: 'warn' })
+    return
+  }
+  await commit()
+  dirty.value = false
+  selected.value = null
+  ui.notify({ title: 'オーダー', message: 'オーダーを保存しました', tone: 'good' })
+  guide.notify('order-saved')
+}
+/** 保存せずに離れてよいか（保存していなければ確かめる）。離れてよければ true */
+async function confirmLeave(): Promise<boolean> {
+  if (!dirty.value) return true
+  const ok = await ui.confirm('オーダーを保存していません。\n保存せずに移動しますか？', { title: 'オーダーが未保存です', okLabel: '保存せずに移動', cancelLabel: '戻る' })
+  if (!ok) return false
+  dirty.value = false
+  reset()
+  return true
+}
+onBeforeRouteLeave(() => confirmLeave())
+onBeforeUnmount(() => {
+  dirty.value = false
+})
+defineExpose({ confirmLeave })
 
 // ---------------------------------------------------------------- 表示用の並び
 type Cell = { key: string; id: string; pos: string; posKind: string; no?: number; disabled?: boolean; note?: string; pitcher?: boolean }
@@ -177,7 +214,7 @@ function swap(a: string, b: string): void {
     const y = Number(b.slice(1))
     ;[d.batters[x], d.batters[y]] = [d.batters[y]!, d.batters[x]!]
     flashCells([a, b], 'player')
-    commit()
+    markDirty()
     return
   }
   const pa = players.value[ia]
@@ -195,7 +232,7 @@ function swap(a: string, b: string): void {
   if (a[0] !== 'O') setAt(a, ib)
   if (b[0] !== 'O') setAt(b, ia)
   flashCells([a, b].filter((k) => k[0] !== 'O'), 'player')
-  commit()
+  markDirty()
 }
 
 /**
@@ -241,7 +278,7 @@ function setPosition(pos: Position | 'DH'): void {
   if (other) other.position = cur.position
   cur.position = pos
   posPicker.value = false
-  commit()
+  markDirty()
 }
 const selectedPlayer = computed(() => (selected.value ? (players.value[idAt(selected.value) ?? ''] ?? null) : null))
 
@@ -272,7 +309,7 @@ function swapPositions(a: string, b: string): void {
   }
   ;[x.position, y.position] = [y.position, x.position]
   flashCells([a, b], 'pos')
-  commit()
+  markDirty()
 }
 function onClick(cell: Cell, part: 'pos' | 'player' = 'player'): void {
   tap(cell, part)
@@ -310,14 +347,16 @@ async function toggleDH(): Promise<void> {
   if (!draft.value) return
   draft.value = autoLineup(members.value, !draft.value.useDH)
   selected.value = null
-  await commit()
+  markDirty()
 }
 
 /** おまかせ：今の調子と能力でオーダーを組んで見せ、以後は毎試合、自動で組み直す（自分で入れ替えると解除） */
 async function setAuto(): Promise<void> {
   await game.saveLineup(null)
   selected.value = null
+  dirty.value = false
   reset()
+  guide.notify('order-saved')
   ui.notify({ title: 'おまかせ', message: '調子と能力を見てオーダーを組みました。\nこれからは毎試合、調子やケガを見て自動で組み直します。', tone: 'info' })
 }
 
@@ -585,14 +624,16 @@ const focusSkills = computed(() =>
 
     <p v-if="problems.length" class="problems">{{ problems.join('・') }}</p>
     <p v-else class="hint">
-      2人の名前を続けてタップで入れ替え。札どうしなら守備位置だけ入れ替え<span v-if="auto" class="auto">おまかせ中</span>
+      <template v-if="dirty"><b class="unsaved">保存していない変更があります。「保存」で決まります</b></template>
+      <template v-else>2人の名前を続けてタップで入れ替え。札どうしなら守備位置だけ入れ替え<span v-if="auto" class="auto">おまかせ中</span></template>
     </p>
 
     <!-- 下：操作 -->
     <div class="ops">
       <button class="op cyan" :disabled="!focus" @click="viewing = focus?.id ?? null">選手詳細</button>
       <button class="op gray" @click="toggleDH">DH{{ draft.useDH ? 'あり' : 'なし' }}</button>
-      <button class="op" :class="auto ? 'on' : 'orange'" data-tut="order-auto" @click="setAuto">おまかせ</button>
+      <button class="op" :class="auto && !dirty ? 'on' : 'orange'" data-tut="order-auto" @click="setAuto">おまかせ</button>
+      <button class="op save" :class="{ pending: dirty }" data-tut="order-save" @click="save">保存</button>
     </div>
 
 
@@ -1175,6 +1216,22 @@ const focusSkills = computed(() =>
 .op.navy {
   background: linear-gradient(180deg, #56667e, #3e4c62);
   box-shadow: 0 3px 0 #27313f;
+}
+.op.save {
+  background: linear-gradient(180deg, #5fd06b, #36a843);
+  box-shadow: 0 3px 0 #23782d;
+}
+.op.save.pending {
+  animation: savePulse 1.1s ease-in-out infinite;
+}
+@keyframes savePulse {
+  50% {
+    transform: translateY(-1px) scale(1.04);
+    box-shadow: 0 3px 0 #23782d, 0 0 0 4px rgba(95, 208, 107, 0.35);
+  }
+}
+.unsaved {
+  color: #d9483b;
 }
 .op.gray {
   background: linear-gradient(180deg, #c4cfdc, #a6b3c4);

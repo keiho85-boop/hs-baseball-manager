@@ -27,12 +27,23 @@ export const useGuideStore = defineStore('guide', () => {
   async function next(): Promise<void> {
     const a = active.value
     if (!a) return
-    if (a.index + 1 < GUIDES[a.id].length) {
-      active.value = { id: a.id, index: a.index + 1 }
+    let i = a.index + 1
+    // 飛ばす条件に当てはまる手順（部費が足りないなど）は飛ばす
+    while (i < GUIDES[a.id].length && game.save && GUIDES[a.id][i]!.skipIf?.(game.save)) i += 1
+    if (i < GUIDES[a.id].length) {
+      active.value = { id: a.id, index: i }
       return
     }
     await finish()
   }
+
+  /** 操作が終わったことを知らせる（その操作を待っている手順なら次へ） */
+  function notify(event: string): void {
+    if (step.value?.waitFor === event) void next()
+  }
+
+  /** 案内の吹き出しが画面に出ているか（試合の画面は、出ている間は進行を止める） */
+  const showing = ref(false)
 
   /** 終わり（途中で飛ばしたときも） */
   async function finish(): Promise<void> {
@@ -47,5 +58,5 @@ export const useGuideStore = defineStore('guide', () => {
     active.value = null
   }
 
-  return { active, step, total, check, next, finish, reset }
+  return { active, step, total, showing, check, next, notify, finish, reset }
 })

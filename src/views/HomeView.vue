@@ -189,7 +189,8 @@ async function nextTournamentWeek(): Promise<void> {
 
 async function startMatch(id: string): Promise<void> {
   picking.value = false
-  await game.startPracticeMatch(id)
+  // 練習試合の説明の最中は、終わっても週を進めない
+  await game.startPracticeMatch(id, { tutorial: guideStore.active?.id === 'order' })
   await router.push({ name: 'match' })
 }
 
@@ -461,7 +462,8 @@ async function onSpecial(id: string): Promise<void> {
 const IMPORTANT = ['特殊能力', '克服', '違和感', '悪化', '全治', '入部した', '適性が', 'ドラフト', '入学を決め', '進学を決め']
 
 async function finish(opts: { choice?: number; specialPlayerId?: string; specialKey?: string }): Promise<void> {
-  const r = await game.finishSquare(opts)
+  // 練習の説明の最中は、週を進めない
+  const r = await game.finishSquare({ ...opts, rehearsal: guideStore.active?.id === 'practice' })
   if (!r) return
   await afterGrowth()
   const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
@@ -483,6 +485,12 @@ const specialCandidates = computed(() =>
     .sort((a, b) => playerRating(b) - playerRating(a)),
 )
 const info2 = ref(false)
+/** オーダーのシートを閉じる（保存していない入れ替えがあれば確かめる） */
+const orderBoard = ref<{ confirmLeave: () => Promise<boolean> } | null>(null)
+async function closeOrder(): Promise<void> {
+  if (orderBoard.value && !(await orderBoard.value.confirmLeave())) return
+  orderOpen.value = false
+}
 /** 部員が9人に満たない間は、毎週はじめに勧誘をうながす */
 const guideStore = useGuideStore()
 /** 案内が「部の様子」の外を指しているのに、シートが開いたままだと案内が隠れる。シートを閉じる */
@@ -632,12 +640,14 @@ watch(
             <button class="sun full go-btn" :disabled="game.busy" @click="afterLand">{{ squareName(sg.pending.square) }}マスの続きをする</button>
           </template>
           <template v-else>
-            <div class="hand-wrap" data-tut="hand">
-              <CardHand :hand="sg.hand" :selected="selected" :disabled="moving || game.busy" @select="selectCard" />
+            <div data-tut="hand-area">
+              <div class="hand-wrap" data-tut="hand">
+                <CardHand :hand="sg.hand" :selected="selected" :disabled="moving || game.busy" @select="selectCard" />
+              </div>
+              <button class="sun full go-btn" data-tut="go" :disabled="selected === null || moving || game.busy" @click="go">
+                <GameIcon name="play" :size="14" /> {{ selected === null ? 'カードを選んでください' : `${sg.hand[selected]!.value}マス進む` }}
+              </button>
             </div>
-            <button class="sun full go-btn" data-tut="go" :disabled="selected === null || moving || game.busy" @click="go">
-              <GameIcon name="play" :size="14" /> {{ selected === null ? 'カードを選んでください' : `${sg.hand[selected]!.value}マス進む` }}
-            </button>
           </template>
         </div>
       </template>
@@ -759,9 +769,9 @@ watch(
       </div>
     </div>
 
-    <InfoSheet v-if="orderOpen" @close="orderOpen = false">
+    <InfoSheet v-if="orderOpen" @close="closeOrder">
       <h2 class="orange"><GameIcon name="clipboard" /> オーダー</h2>
-      <OrderBoard />
+      <OrderBoard ref="orderBoard" />
     </InfoSheet>
     <RecruitSheet v-if="recruitOpen" @close="recruitOpen = false" @go="goRecruit" />
     <div v-if="info2 && success && focus" class="picker-backdrop" @click.self="info2 = false">

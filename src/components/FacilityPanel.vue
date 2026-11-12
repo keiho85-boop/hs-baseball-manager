@@ -3,11 +3,13 @@
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
+import { useGuideStore } from '@/stores/guide'
 import { facilityCost } from '@/game/tournament'
 import type { Facilities } from '@/game/types'
 
 const game = useGameStore()
 const ui = useUiStore()
+const guide = useGuideStore()
 const BASE = import.meta.env.BASE_URL
 /** 学校のデータは反応しない（markRaw）ので、表示に使う値を毎回写し取る（強化した直後に表示を変えるため） */
 const school = computed(() => {
@@ -39,7 +41,10 @@ async function upgrade(key: keyof Facilities): Promise<void> {
   const cost = facilityCost(s.facilities[key])
   const ok = await ui.confirm(`${FACILITY_NAME[key]}を強化しますか？\n部費 ${cost}万円（残り ${s.funds}万円）`, { okLabel: '強化する', cancelLabel: 'やめる' })
   if (!ok) return
-  if (await game.upgradeFacility(key)) ui.notify({ title: '設備を強化！', message: `${FACILITY_NAME[key]}が★${school.value?.facilities[key]}になった`, icon: 'up' })
+  if (await game.upgradeFacility(key)) {
+    ui.notify({ title: '設備を強化！', message: `${FACILITY_NAME[key]}が★${school.value?.facilities[key]}になった`, icon: 'up' })
+    guide.notify('facility')
+  }
 }
 </script>
 

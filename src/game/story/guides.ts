@@ -3,6 +3,8 @@
 // 場面（scene）の効果で st.flags['guide:〇〇'] = 'todo' にすると始まり、終わると 'done' になる。
 
 import type { Face } from './types'
+import type { SaveData } from '../types'
+import { facilityCost } from '../tournament'
 
 export interface GuideStep {
   /** ナギの台詞 */
@@ -16,6 +18,14 @@ export interface GuideStep {
   on: 'tap' | 'target'
   /** 週の処理やイベントが終わってから出す */
   idle?: boolean
+  /** 'target' の手順で、押すと次へ進む場所（光らせる場所と違うとき。光らせた場所の中はどこでも押せる） */
+  advanceOn?: string
+  /** この操作が終わったら次へ（例：'facility' 設備を強化した、'order-saved' オーダーを保存した） */
+  waitFor?: string
+  /** 画面を暗くせず、吹き出しだけ上に出す（自由に操作してもらう手順） */
+  free?: boolean
+  /** この手順を飛ばす条件（部費が足りないなど） */
+  skipIf?: (save: SaveData) => boolean
 }
 
 /** 始める順番（同時に待っているときは、この順に流す） */
@@ -27,13 +37,18 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
   practice: [
     { route: 'home', target: 'board', on: 'tap', text: 'これが練習の盤面です。コマが止まったマスの練習を、その週にみんなでやります。' },
     { target: 'hand', on: 'target', text: '下のカードの数字だけ、コマが進みます。まず、カードを1枚選んでみてください。' },
-    { target: 'board', on: 'tap', face: 'smile', text: '止まるマスが光りました。狙ったマスでなければ、別のカードを選び直してもかまいません。' },
-    { target: 'go', on: 'target', text: 'よければ、このボタンで進みます。押してみてください。' },
+    {
+      target: 'hand-area',
+      advanceOn: 'go',
+      on: 'target',
+      face: 'smile',
+      text: '止まるマスが盤面で光ります。カードは何度でも選び直せるので、狙ったマスに止まるカードを探してください。決まったら「〇マス進む」を押します。',
+    },
     {
       idle: true,
       on: 'tap',
       face: 'smile',
-      text: 'これで1週間の練習が終わりです。カードは毎週配られます。狙ったマスに止まれるよう、先を読んで選んでくださいね。',
+      text: 'これで練習は終わりです。今回は説明のための練習なので、週は進みません。カードは毎週配られます。狙ったマスに止まれるよう、先を読んで選んでくださいね。',
     },
   ],
 
@@ -90,6 +105,16 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
     },
     {
       target: 'facilities',
+      on: 'target',
+      waitFor: 'facility',
+      skipIf: (save) => {
+        const own = save.schools[save.playerSchoolId]
+        return !own || (Object.values(own.facilities) as number[]).every((lv) => lv >= 5 || own.funds < facilityCost(lv))
+      },
+      text: 'では、どれか1つ設備を強化してみてください。右のボタンを押すと、部費を使って強化できます。',
+    },
+    {
+      target: 'facilities',
       on: 'tap',
       face: 'smile',
       text: '部費は、夏合宿の行き先にも使います。合宿の前に行き先を決めるので、少し残しておくといいですよ。部費は毎月の収入と、大会の寄付で増えます。',
@@ -116,6 +141,13 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
       on: 'tap',
       text: '迷ったら「おまかせ」です。試合のたびに、調子やケガを見て組み直します。自分で入れ替えると、おまかせは解除されます。',
     },
+    {
+      target: 'order-board',
+      on: 'target',
+      waitFor: 'order-saved',
+      free: true,
+      text: 'では、オーダーを組んでみてください。入れ替えたら「保存」を押すと決まります。このままでよければ「おまかせ」を押してください。',
+    },
     { target: 'tab-home', on: 'target', text: 'オーダーが決まったら、練習試合です。「ホーム」に戻りましょう。' },
     { route: 'home', target: 'practice-match', on: 'target', text: 'ここから練習試合を申し込めます。押してみてください。' },
     {
@@ -133,7 +165,7 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
       target: 'match-controls',
       on: 'tap',
       face: 'smile',
-      text: '「継投」で投手を代えられます。「この回まで」「結果へ」で先へ進めることもできます。では、プレイボールです！',
+      text: '「継投」で投手を代えられます。「この回まで」「結果へ」で先へ進めることもできます。今回は説明のための試合なので、週は進みません。では、プレイボールです！',
     },
   ],
 
