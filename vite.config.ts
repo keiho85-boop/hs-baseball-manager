@@ -3,6 +3,21 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import { execSync } from 'node:child_process'
+
+/** 版の表記（タイトル画面に出す）：作った日時（日本時間）と、コードの版（git のコミット） */
+function appVersion(): string {
+  const d = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  const p = (n: number) => String(n).padStart(2, '0')
+  const stamp = `${d.getUTCFullYear()}.${p(d.getUTCMonth() + 1)}.${p(d.getUTCDate())}-${p(d.getUTCHours())}${p(d.getUTCMinutes())}`
+  let hash = ''
+  try {
+    hash = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+  } catch {
+    hash = ''
+  }
+  return hash ? `${stamp} (${hash})` : stamp
+}
 
 // GitHub Pages では https://<アカウント>.github.io/hs-baseball-manager/ で公開されるため base を合わせる
 // mode が app のときは、Androidアプリ（Capacitor）に入れる版を作る（サーバー上の場所に依存せず、オフライン保存の仕組みも使わない）
@@ -12,7 +27,7 @@ export default defineConfig(({ mode }) => {
   return {
   base: standalone ? './' : '/hs-baseball-manager/',
   build: { outDir: mode === 'app' ? 'dist-app' : mode === 'artifact' ? 'dist-artifact' : 'dist' },
-  define: { __APP_BUILD__: JSON.stringify(standalone) },
+  define: { __APP_BUILD__: JSON.stringify(standalone), __APP_VERSION__: JSON.stringify(appVersion()) },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

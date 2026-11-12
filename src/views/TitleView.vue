@@ -12,6 +12,8 @@ const game = useGameStore()
 const ui = useUiStore()
 const router = useRouter()
 const BASE = import.meta.env.BASE_URL
+/** 版の表記（どの版で遊んでいるか分かるように） */
+const VERSION = __APP_VERSION__
 
 /** splash：タイトル絵　mode：モード選択 */
 const phase = ref<'splash' | 'mode'>('splash')
@@ -136,6 +138,7 @@ async function remove(slot: number, no: number): Promise<void> {
       <div v-if="ui.updateAvailable" class="update" @click.stop>
         新しい版があります　<button class="sun" @click="ui.runUpdate()">更新する</button>
       </div>
+      <div class="ver">ver. {{ VERSION }}</div>
     </div>
 
     <!-- モード選択（セーブ選択） -->
@@ -207,12 +210,30 @@ async function remove(slot: number, no: number): Promise<void> {
         <a href="./intro/">ゲーム紹介ページ</a>
         <a href="./privacy/">プライバシーポリシー</a>
       </div>
+      <p class="ver-menu">ver. {{ VERSION }}</p>
       <input ref="fileInput" type="file" accept=".hsbm,application/gzip,application/octet-stream" hidden @change="onFile" />
     </div>
   </div>
 </template>
 
 <style scoped>
+.ver {
+  position: absolute;
+  right: 10px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  opacity: 0.9;
+  pointer-events: none;
+}
+.ver-menu {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin: 6px 0 0;
+}
 .title-page {
   position: relative;
   min-height: 100dvh;
