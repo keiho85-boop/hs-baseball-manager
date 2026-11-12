@@ -213,7 +213,8 @@ function tailor(p: Player, id: FixedId, rng: Rng): void {
     set(c, 'durability', 30)
     set(b, 'power', 15)
     set(b, 'contact', 18)
-    if (p.pitching.pitches.length < 2) p.pitching.pitches.push({ type: 'fork', level: 4 })
+    // もう1つ決め球を持たせる（すでに持っている球種とは重ねない）
+    if (p.pitching.pitches.length < 2) p.pitching.pitches.push({ type: p.pitching.pitches.some((x) => x.type === 'fork') ? 'slider' : 'fork', level: 4 })
     for (const x of p.pitching.pitches) x.level = Math.max(x.level, 4)
   }
   const pos = FIXED[id].position

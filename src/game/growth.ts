@@ -32,6 +32,7 @@ const TRACKED: { label: string; get: (p: Player) => number; unit?: string }[] = 
   { label: 'スタミナ', get: (p) => p.pitching.stamina },
   { label: 'キレ', get: (p) => p.pitching.kire },
   { label: 'クイック', get: (p) => p.pitching.quick },
+  { label: '変化球', get: (p) => p.pitching.pitches.reduce((s, x) => s + x.level, 0) },
   { label: 'ケガしにくさ', get: (p) => p.common.durability },
   { label: '回復力', get: (p) => p.common.recovery },
 ]

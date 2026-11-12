@@ -7,15 +7,14 @@ import type { Player, SaveData } from '../types'
 import { successOf } from '../success/state'
 import type { MatchState } from './types'
 
-const INJURY_FACTOR = { easy: 0.5, normal: 1, hard: 1.7 } as const
-
 export interface MatchSummary {
   messages: string[]
 }
 
 export function applyMatchResults(save: SaveData, s: MatchState, rng: Rng): MatchSummary {
   const messages: string[] = []
-  const factor = INJURY_FACTOR[save.settings.injury]
+  // ケガの厳しさは「ふつう」で固定（設定はなくした）
+  const factor = 1
   const ownId = save.playerSchoolId
 
   // 打撃成績

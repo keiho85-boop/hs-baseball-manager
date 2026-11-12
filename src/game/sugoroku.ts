@@ -34,7 +34,7 @@ export const SQUARES: Record<SquareType, SquareInfo> = {
   running: { label: '走塁', short: '走', color: '#36a843', description: '走力・盗塁・走塁が伸びる', menus: ['running'] },
   practical: { label: '実戦', short: '実', color: '#d99400', description: '試合形式。勝負強さが伸び、特殊能力を覚えやすい' },
   rest: { label: '休養', short: '休', color: '#3aa8f0', description: '体力が大きく回復し、調子が整う' },
-  special: { label: '特訓', short: '特', color: '#c2185b', description: '選手を1人選んで、大きく伸ばす（選手育成モードでは育成選手）' },
+  special: { label: '特訓', short: '特', color: '#c2185b', description: '選手を1人選んで、大きく伸ばす' },
   event: { label: 'イベント', short: '!', color: '#ff5fa2', description: '何かが起きる' },
   manager: { label: 'マネージャー', short: 'マ', color: '#ff8fb1', description: '調子が上がる' },
   funds: { label: '部費', short: '¥', color: '#e9a400', description: '部費が増える' },
@@ -70,6 +70,28 @@ const PITCHER_STATS: Partial<Record<SquareType, Readonly<Record<string, number>>
   power: { velocity: 0.8, stamina: 0.6 },
   running: { stamina: 0.8, recovery: 0.6 },
 }
+/** 能力の名前（マスの説明・特訓の選択肢に出す） */
+const KEY_LABEL: Record<string, string> = {
+  contact: 'ミート', eye: '選球眼', power: 'パワー', speed: '走力', steal: '盗塁', baserunning: '走塁',
+  range: '守備範囲', catching: '捕球', arm: '肩力', throwing: '送球',
+  velocity: '球速', control: 'コントロール', stamina: 'スタミナ', kire: 'キレ', quick: 'クイック', pitches: '変化球',
+  recovery: '回復', durability: 'ケガしにくさ',
+}
+/** 選手育成モード：育成選手から見た、このマスの説明（投手と野手で伸びる能力が違う） */
+export function squareDescription(sq: SquareType, p: Pick<Player, 'mainPosition'> | null): string {
+  const keys = p ? practiceKeys(sq, p) : undefined
+  if (!keys || !SQUARES[sq].menus) return sq === 'special' && p ? '伸ばす能力を1つ選んで、大きく伸ばす。特殊能力に挑戦することもできる' : SQUARES[sq].description
+  const names = Object.keys(keys).map((k) => KEY_LABEL[k] ?? k)
+  return `${names.join('・')}が伸びる${keys.pitches !== undefined ? '（新しい球種を覚えることもある）' : ''}`
+}
+/** 選手育成モードの特訓で、特殊能力に挑戦したときに身につく確率（熱血カードなら1.5倍） */
+export const SPECIAL_SKILL_RATE = 0.45
+/** 選手育成モードの特訓マスで選べる能力（最後は特殊能力への挑戦） */
+export function specialOptions(p: Pick<Player, 'mainPosition'>): { key: string; label: string }[] {
+  const keys = p.mainPosition === 'P' ? ['velocity', 'control', 'stamina', 'kire', 'pitches'] : ['contact', 'power', 'eye', 'speed', 'arm', 'range', 'catching']
+  return [...keys.map((key) => ({ key, label: KEY_LABEL[key]! })), { key: 'skill', label: '特殊能力を取得する' }]
+}
+
 /** その選手が、このマスの週に伸ばす能力（重み） */
 export function practiceKeys(sq: SquareType, p: Pick<Player, 'mainPosition'>): Readonly<Record<string, number>> | undefined {
   return (p.mainPosition === 'P' ? PITCHER_STATS : FIELDER_STATS)[sq]
@@ -207,13 +229,11 @@ export function playCard(save: SaveData, rng: Rng, cardIndex: number): { square:
   const square = s.board[s.position]!
   // 選手育成モード：特訓は必ず育成選手（選ぶ画面は出さない）
   const focus = successOf(save)?.focusId ?? null
-  s.pending = { square, card, event: null, needsPlayer: square === 'special' && !focus }
+  s.pending = { square, card, event: null, needsPlayer: square === 'special' && !focus, needsChoice: square === 'special' && !!focus }
   return { square, path }
 }
 
 // ---------------------------------------------------------------- 練習の効果
-
-const INJURY_FACTOR = { easy: 0.5, normal: 1, hard: 1.7 } as const
 
 const INJURIES = [
   { name: '軽い捻挫', weeks: [1, 2] },
@@ -230,7 +250,9 @@ function practiceLoad(rng: Rng, save: SaveData, p: Player, cost: number, injuryM
   // ストーリーの主要人物（日向大地）はケガをしない
   if (cost <= 0 || c.injury || p.storyCast === 'daichi') return
   const tired = c.stamina < 20 ? 0.07 : c.stamina < 40 ? 0.022 : 0.002
-  const risk = tired * injuryMult * INJURY_FACTOR[save.settings.injury] * (1.5 - p.common.durability / 100)
+  // 選手育成モードのチームメイトは、ケガをしにくい（ケガの知らせが多くなりすぎないように。育成選手はそのまま）
+  const mate = successOf(save) && p.storyCast !== 'focus' ? 0.25 : 1
+  const risk = tired * injuryMult * mate * (1.5 - p.common.durability / 100)
   if (rng.chance(clamp(risk, 0, 0.4))) {
     const kind = rng.weighted(INJURIES.map((x, i) => ({ value: x, weight: [30, 30, 18, 15, 7][i]! })))
     const weeks = rng.int(kind.weeks[0], kind.weeks[1])
@@ -308,7 +330,7 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
   // OB戦の悔しさ・大地への相談など：練習の効果が上がる期間（重なると足し合わせる）
   const campMult = (camp ? campMultiplier(save) : 1) * (1 + PRACTICE_BONUS * activeModifiers(save, 'practice').length)
   const success = !!successOf(save)
-  // 選手育成モード：同じ練習マスに続けて止まると、練習がつながって効果が上がる（2回目1.2倍、3回目から1.4倍）
+  // 選手育成モード：同じ練習マスに続けて止まると、練習がつながって効果が上がる（2連続で1.5倍、3連続から2倍）
   const comboMult = success ? updateCombo(save, plan, messages) : 1
   for (const p of members) {
     if (p.retired) continue
@@ -339,6 +361,7 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     let intensity = 0.5
     let cost = 0
     let injuryMult = 1
+    let specialKeys: Record<string, number> | undefined
     if (info.menus) {
       // 選手育成モードは練習メニューを選ばないので、全員がそのマスの練習をする
       const match = success || plan.card.effect === 'all' || info.menus.includes(p.practiceMenu)
@@ -360,7 +383,17 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
       intensity = (chosen ? 3.6 : 0.6) * card.gain
       cost = (chosen ? 28 : 8) * card.cost
       injuryMult = chosen ? 1.4 : 1
-      if (chosen) trySkill(rng, p, 0.16 * card.gain, 0.15 * card.gain, messages)
+      if (chosen && success && plan.specialKey === 'skill') {
+        // 選手育成モード：特殊能力に挑戦する（能力はほとんど伸びない。確率で、ランダムな特殊能力を得るか弱点を克服する）
+        intensity = 0.6 * card.gain
+        const before = p.skills.join(',')
+        trySkill(rng, p, SPECIAL_SKILL_RATE * card.gain, 0.3 * card.gain, messages)
+        if (p.skills.join(',') === before) messages.push(`${fullName(p)}は特訓に打ち込んだが、特殊能力はつかめなかった…`)
+      } else if (chosen && success && plan.specialKey) {
+        // 選手育成モード：選んだ能力だけを、ふつうの練習マスよりも大きく伸ばす
+        intensity = 1.8 * card.gain
+        specialKeys = { [plan.specialKey]: 2.2 }
+      } else if (chosen) trySkill(rng, p, 0.16 * card.gain, 0.15 * card.gain, messages)
     } else if (sq === 'rest') {
       intensity = 0.25
       cost = -35
@@ -381,8 +414,8 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     const spirit = 0.8 + (p.condition.form - 1) * 0.1
     // サクセス：育てる選手（フォーカス選手）は大きく伸びる
     // 選手育成モード：盤面のマスを、自分の役割（投手・野手）に合わせて読み替えて練習する
-    const keys = success && plan.card.effect !== 'all' ? practiceKeys(sq, p) : undefined
-    // 疲れていると、練習の効率が落ちる（体力50未満で0.8倍、30未満で0.6倍）
+    const keys = specialKeys ?? (success && plan.card.effect !== 'all' ? practiceKeys(sq, p) : undefined)
+    // 疲れていると、練習の効率が落ちる（体力60未満で0.85倍、45未満で0.55倍、30未満で0.3倍）
     const tired = success ? (p.condition.stamina < 30 ? 0.3 : p.condition.stamina < 45 ? 0.55 : p.condition.stamina < 60 ? 0.85 : 1) : 1
     const combo = info.menus ? comboMult : 1
     growWeekly(rng, p, intensity * campMult * facilityIntensity * spirit * tired * combo * (success ? focusGrowthMult(save, p) : 1), keys)

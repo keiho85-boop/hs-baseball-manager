@@ -8,7 +8,7 @@ import RankBadge from '@/components/RankBadge.vue'
 import { PITCH_NAME, POSITION_NAME, velocityScore } from '@/game/constants'
 import { fielderRating, pitcherRating, playerRating, xpProgress } from '@/game/player'
 import { getSkill } from '@/game/skills'
-import { EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, evalStars, focusPlayer, successOf } from '@/game/success/state'
+import { EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, draftOutlook, evalStars, focusPlayer, successOf } from '@/game/success/state'
 import type { EvalKey } from '@/game/success/types'
 
 const game = useGameStore()
@@ -51,14 +51,10 @@ function formLabel(v: number): string {
   return ['', '絶不調', '不調', 'ふつう', '好調', '絶好調'][v] ?? 'ふつう'
 }
 
-/** スカウトの評価から見たドラフトの見込み */
+/** ドラフトの見込み（実際の指名の確率と、足りないものから決める） */
 const draft = computed(() => {
-  const v = st.value?.eval.scout ?? 0
-  if (v >= 90) return { label: '指名確実（上位指名の有力候補）', tone: 'gold' }
-  if (v >= 65) return { label: '指名の可能性が高い', tone: 'good' }
-  if (v >= 40) return { label: '下位指名の候補', tone: 'mid' }
-  if (v >= 20) return { label: 'スカウトの目に留まり始めた', tone: 'low' }
-  return { label: 'まだ名前が挙がっていない', tone: 'low' }
+  void game.rev
+  return game.save && p.value ? draftOutlook(game.save, p.value) : { label: '', note: '', tone: 'low' }
 })
 </script>
 
@@ -82,7 +78,7 @@ const draft = computed(() => {
         <div class="c-item">
           <img :src="`${BASE}ui/ui_stamina.webp`" alt="" />
           <span>体力</span>
-          <span class="bar"><i :style="{ width: `${p.condition.stamina}%` }" :class="{ low: p.condition.stamina < 50 }" /></span>
+          <span class="bar"><i :style="{ width: `${p.condition.stamina}%` }" :class="{ low: p.condition.stamina < 60 }" /></span>
           <b>{{ Math.round(p.condition.stamina) }}</b>
         </div>
         <div class="c-item">
@@ -91,7 +87,7 @@ const draft = computed(() => {
           <b class="mot" :class="`f${p.condition.form}`">{{ formLabel(p.condition.form) }}</b>
           <template v-if="p.condition.injury">
             <img :src="`${BASE}ui/ui_infirmary.webp`" alt="" />
-            <b class="inj">ケガ</b>
+            <b class="inj">{{ p.condition.injury.name === '補習' ? '補習' : 'ケガ' }}</b>
           </template>
         </div>
       </div>
@@ -101,6 +97,7 @@ const draft = computed(() => {
         <div>
           <small>ドラフトの見込み</small>
           <b>{{ draft.label }}</b>
+          <small class="d-note">{{ draft.note }}</small>
         </div>
         <span class="star-s">{{ stars(st.eval.scout) }}</span>
       </div>

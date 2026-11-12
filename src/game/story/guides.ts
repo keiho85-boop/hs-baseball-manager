@@ -19,7 +19,7 @@ export interface GuideStep {
 }
 
 /** 始める順番（同時に待っているときは、この順に流す） */
-export const GUIDE_ORDER = ['practice', 'recruit', 'funds', 'order', 'scout'] as const
+export const GUIDE_ORDER = ['practice', 'recruit', 'funds', 'order', 'growth', 'scout'] as const
 export type GuideId = (typeof GUIDE_ORDER)[number]
 
 export const GUIDES: Record<GuideId, GuideStep[]> = {
@@ -34,6 +34,33 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
       on: 'tap',
       face: 'smile',
       text: 'これで1週間の練習が終わりです。カードは毎週配られます。狙ったマスに止まれるよう、先を読んで選んでくださいね。',
+    },
+  ],
+
+  /** 育て方のコツ（選手育成モード）：練習に慣れたころ（1年目の5月ごろ）に出す */
+  growth: [
+    {
+      route: 'home',
+      target: 'focus-strip',
+      on: 'tap',
+      idle: true,
+      text: '育て方のコツを3つ、お伝えします。1つ目は体力です。育成選手の体力が60を切ると練習の効果が落ち始め、30を切るとほとんど身につきません。休養のマスで回復させましょう。',
+    },
+    {
+      target: 'board',
+      on: 'tap',
+      text: '2つ目は、練習のつながりです。同じ練習のマスに続けて止まると、2連続で効果が1.5倍、3連続からは2倍になります。練習以外のマスに止まると途切れます。',
+    },
+    {
+      target: 'board',
+      on: 'tap',
+      face: 'smile',
+      text: '3つ目は特訓のマスです。伸ばしたい能力を1つ選んで、大きく伸ばせます。特殊能力の取得に挑戦することもできますよ。',
+    },
+    {
+      target: 'focus-strip',
+      on: 'tap',
+      text: '能力は、経験がたまると上がります。「育成選手」の画面にある細いゲージが、次に上がるまでの目安です。高い能力ほど、上がるのに時間がかかります。',
     },
   ],
 

@@ -17,6 +17,9 @@ export const useGuideStore = defineStore('guide', () => {
     if (active.value) return
     const st = game.save?.story
     if (!st?.enabled) return
+    // 育て方のコツ：選手育成モードで、練習の説明が済んだあと（1年目の5月以降。以前のデータでも一度だけ出す）
+    const cal = game.save!.calendar
+    if (st.success && !st.success.ended && st.flags['guide:growth'] === undefined && st.flags['guide:practice'] !== 'todo' && (cal.year > 1 || cal.week >= 5)) st.flags['guide:growth'] = 'todo'
     const id = GUIDE_ORDER.find((g) => st.flags[`guide:${g}`] === 'todo')
     if (id) active.value = { id, index: 0 }
   }

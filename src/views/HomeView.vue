@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
 import { POSITION_LABEL, rankOf, SEASON_WEEKS, WEEKS_PER_YEAR, formatWeek, weekToDate } from '@/game/constants'
-import { fielderRating, pitcherRating, playerRating } from '@/game/player'
+import { fielderRating, pitcherRating, playerRating, xpProgress } from '@/game/player'
 import RankBadge from '@/components/RankBadge.vue'
 import FaceIcon from '@/components/FaceIcon.vue'
 import FieldScene from '@/components/FieldScene.vue'
@@ -14,7 +14,7 @@ import SugorokuBoard from '@/components/sugoroku/SugorokuBoard.vue'
 import CardHand from '@/components/sugoroku/CardHand.vue'
 import EventDialog from '@/components/sugoroku/EventDialog.vue'
 import PlayerSheet from '@/components/PlayerSheet.vue'
-import { BOARD_SIZE, CARD_EFFECT_DESC, SQUARES, comboIfLanding } from '@/game/sugoroku'
+import { BOARD_SIZE, CARD_EFFECT_DESC, SPECIAL_SKILL_RATE, SQUARES, comboIfLanding, specialOptions, squareDescription } from '@/game/sugoroku'
 import type { School, SquareType } from '@/game/types'
 import TournamentPanel from '@/components/tournament/TournamentPanel.vue'
 import BracketSheet from '@/components/tournament/BracketSheet.vue'
@@ -160,6 +160,7 @@ async function goRecruit(club: ClubId, target?: number): Promise<void> {
   const r = await game.recruitAt(club, target)
   if (!r) return
   play(r.result.success ? 'cheer' : 'miss')
+  await afterGrowth()
   await ui.alert(r.result.lines.join('\n'), r.result.title)
   const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
   if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
@@ -168,6 +169,7 @@ async function goRecruit(club: ClubId, target?: number): Promise<void> {
 async function autoAdvance(): Promise<void> {
   const r = await game.nextWeek()
   if (!r) return
+  await afterGrowth()
   if (r.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.messages[r.messages.length - 1]!, tone: 'info' })
 }
 
@@ -179,6 +181,7 @@ function stars(v: number): string {
 async function nextTournamentWeek(): Promise<void> {
   const r = await game.nextTournamentWeek()
   if (!r) return
+  await afterGrowth()
   const important = r.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
   if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
   else if (r.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.messages[r.messages.length - 1]!, tone: 'info' })
@@ -286,6 +289,10 @@ const nagiTip = computed(() => {
   const t = currentTournament(s)
   if (t && !t.finished && ownAlive(s, t)) return `${t.name}です。勝ち方を、一つずつ覚えていきましょう`
   if (sg.value && sg.value.campWeeks > 0) return `${successOf(s) ? `${campPlaceName(s)}で` : ''}合宿中です。よく伸びますが、疲れもたまります。休みのマスも忘れずに`
+  if (successOf(s) && focus.value && focus.value.condition.stamina < 60)
+    return focus.value.condition.stamina < 30
+      ? `${focus.value.surname}くんは、もう限界です。このまま練習しても、ほとんど身につきません。休みのマスへ`
+      : `${focus.value.surname}くんが疲れています。体力が60を切ると、練習の効果が落ちます。休みのマスも狙いましょう`
   if (teamPower.value.stamina < 50) return 'みんな疲れています。休みのマスも狙いましょう'
   if (st.chapter >= 2) return '第2章は準備中です。それまでは、このまま部を育てていきましょう'
   const sc = successOf(s)
@@ -385,12 +392,65 @@ function afterLand(): void {
   if (!pending) return
   if (pending.event) eventOpen.value = true
   else if (pending.needsPlayer) specialOpen.value = true
+  else if (pending.needsChoice && focus.value) trainOpen.value = true
   else void finish({})
 }
 
 async function onEventDone(choice: number): Promise<void> {
   eventOpen.value = false
+  // 選手育成モードの特訓マス：イベントのあとに、伸ばす能力を選ぶ
+  if (sg.value?.pending?.needsChoice && focus.value) {
+    trainChoice.value = choice
+    trainOpen.value = true
+    return
+  }
   await finish({ choice })
+}
+
+/** 選手育成モードの特訓：伸ばす能力（または特殊能力）を選ぶ */
+const trainOpen = ref(false)
+const trainChoice = ref<number | undefined>(undefined)
+const trainOptions = computed(() => {
+  void game.rev
+  const f = focus.value
+  if (!f) return []
+  const val = (k: string): number | null =>
+    k === 'velocity' ? f.pitching.velocity
+    : k === 'control' || k === 'stamina' || k === 'kire' ? f.pitching[k]
+    : k === 'contact' || k === 'power' || k === 'eye' ? f.batting[k]
+    : k === 'speed' ? f.running.speed
+    : k === 'arm' || k === 'range' || k === 'catching' ? f.fielding[k]
+    : null
+  return specialOptions(f).map((o) => {
+    const v = val(o.key)
+    return {
+      ...o,
+      value: o.key === 'pitches' ? `${f.pitching.pitches.length}球種` : o.key === 'velocity' ? `${v}km/h` : v !== null ? `${rankOf(v)} ${v}` : '',
+      xp: v !== null ? Math.round(xpProgress(f, o.key, v) * 100) : null,
+    }
+  })
+})
+const skillRate = computed(() => Math.round(Math.min(1, SPECIAL_SKILL_RATE * (sg.value?.pending?.card.effect === 'hot' ? 1.5 : sg.value?.pending?.card.effect === 'light' ? 0.7 : 1)) * 100))
+async function onTrain(key: string): Promise<void> {
+  trainOpen.value = false
+  const choice = trainChoice.value
+  trainChoice.value = undefined
+  await finish({ choice, specialKey: key })
+}
+
+/** 練習の成果の画面が閉じるまで待つ（お知らせが重ならないように） */
+function afterGrowth(): Promise<void> {
+  if (!game.showGrowth) return Promise.resolve()
+  return new Promise((resolve) => {
+    const stop = watch(
+      () => game.showGrowth,
+      (v) => {
+        if (v) return
+        stop()
+        resolve()
+      },
+    )
+  })
 }
 
 async function onSpecial(id: string): Promise<void> {
@@ -400,9 +460,10 @@ async function onSpecial(id: string): Promise<void> {
 
 const IMPORTANT = ['特殊能力', '克服', '違和感', '悪化', '全治', '入部した', '適性が', 'ドラフト', '入学を決め', '進学を決め']
 
-async function finish(opts: { choice?: number; specialPlayerId?: string }): Promise<void> {
+async function finish(opts: { choice?: number; specialPlayerId?: string; specialKey?: string }): Promise<void> {
   const r = await game.finishSquare(opts)
   if (!r) return
+  await afterGrowth()
   const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
   if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
   else if (r.week.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.week.messages[r.week.messages.length - 1]!, tone: 'info' })
@@ -424,6 +485,15 @@ const specialCandidates = computed(() =>
 const info2 = ref(false)
 /** 部員が9人に満たない間は、毎週はじめに勧誘をうながす */
 const guideStore = useGuideStore()
+/** 案内が「部の様子」の外を指しているのに、シートが開いたままだと案内が隠れる。シートを閉じる */
+watch(
+  () => guideStore.step,
+  (st) => {
+    if (!st?.target || st.target === 'facilities') return
+    info.value = null
+    info2.value = false
+  },
+)
 const shortWarned = new Set<string>()
 watch(
   () => {
@@ -470,7 +540,7 @@ watch(
     <div class="stage">
       <FieldScene v-if="!success" :height="84" :evening="evening" />
       <!-- 選手育成モード：育てている選手の様子 -->
-      <div v-if="success && focus" class="strip focus-strip">
+      <div v-if="success && focus" class="strip focus-strip" data-tut="focus-strip">
         <button class="fs-face" aria-label="育成選手を見る" @click="router.push({ name: 'focus' })">
           <img :src="`${BASE}icon/icon_focus.webp`" alt="" />
         </button>
@@ -488,7 +558,8 @@ watch(
           </div>
           <div class="fs-cond">
             <img :src="`${BASE}ui/ui_stamina.webp`" alt="体力" />
-            <span class="bar"><i :style="{ width: `${focus.condition.stamina}%` }" :class="{ low: focus.condition.stamina < 50 }" /></span>
+            <span class="bar"><i :style="{ width: `${focus.condition.stamina}%` }" :class="{ low: focus.condition.stamina < 60 }" /></span>
+            <b class="fs-stam" :class="{ low: focus.condition.stamina < 60 }">{{ Math.round(focus.condition.stamina) }}</b>
             <img :src="`${BASE}ui/ui_motivation.webp`" alt="調子" />
             <b class="mot" :class="`f${focus.condition.form}`">{{ formLabel(focus.condition.form) }}</b>
           </div>
@@ -544,6 +615,7 @@ watch(
               :preview="moving ? null : preview"
               :month="sg.boardMonth"
               :camp="sg.campWeeks > 0"
+              :desc="success && preview !== null && !moving ? squareDescription(sg.board[preview]!, focus ?? null) : null"
               :combo-next="success && game.save && preview !== null && !moving ? comboIfLanding(game.save, sg.board[preview]!) : 0"
               :combo-now="success ? (sg.combo?.count ?? 0) : 0"
               :camp-name="success && game.save ? campPlaceName(game.save) : undefined"
@@ -720,6 +792,20 @@ watch(
             </button>
             <button class="secondary look" aria-label="能力を見る" @click="viewing = p.id"><GameIcon name="search" :size="16" /></button>
           </div>
+        </div>
+      </div>
+    </div>
+    <div v-if="trainOpen && focus" class="picker-backdrop">
+      <div class="picker card">
+        <h2 class="red"><GameIcon name="flame" /> 特訓：何を伸ばす？</h2>
+        <p class="muted">選んだ能力だけが、ふつうの練習より大きく伸びます。「特殊能力を取得する」は、{{ skillRate }}%の確率でランダムな特殊能力が身につきます（能力はほとんど伸びません）。</p>
+        <div class="train-list">
+          <button v-for="o in trainOptions" :key="o.key" class="train" :class="{ skill: o.key === 'skill' }" @click="onTrain(o.key)">
+            <b>{{ o.label }}</b>
+            <span v-if="o.value" class="t-val">{{ o.value }}</span>
+            <span v-if="o.xp !== null" class="t-xp" :title="`次に上がるまで ${100 - o.xp}%`"><i :style="{ width: `${o.xp}%` }" /></span>
+            <span v-if="o.key === 'skill'" class="t-val">{{ skillRate }}%</span>
+          </button>
         </div>
       </div>
     </div>
@@ -1120,6 +1206,57 @@ watch(
   display: block;
   height: 100%;
   background: linear-gradient(90deg, #6ad66f, #2f9e3a);
+}
+.fs-stam {
+  min-width: 22px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.fs-stam.low {
+  color: #d9483b;
+}
+.train-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.train {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 2px solid #e3e9f1;
+  text-align: left;
+  color: var(--ink);
+}
+.train b {
+  font-size: 14px;
+}
+.train .t-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.train .t-xp {
+  grid-column: 1 / -1;
+  height: 4px;
+  border-radius: 2px;
+  background: #eef2f7;
+  overflow: hidden;
+}
+.train .t-xp i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #ffd36b, #ff9f1c);
+}
+.train.skill {
+  grid-column: 1 / -1;
+  border-color: #f3c0d3;
+  background: #fff5f9;
 }
 .bar i.low {
   background: linear-gradient(90deg, #ff9f43, #e0353b);

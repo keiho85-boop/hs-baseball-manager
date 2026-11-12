@@ -69,6 +69,9 @@ function seasonalEvents(save: SaveData, rng: Rng, list: Player[], messages: stri
 }
 
 /** 練習の濃さ。設備が整っているほど伸びやすい */
+/** 選手育成モード：龍ヶ峰の部員が、新年度ごとに底上げされる量 */
+const RIVAL_YEARLY_GROWTH = 4
+
 function practiceIntensity(school: School): number {
   const f = school.facilities
   const avg = (f.batting + f.pitching + f.fielding + f.running + f.fitness) / 5
@@ -157,6 +160,9 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   if (opened && opened.current === 0 && opened.weeks[0] === save.calendar.week && !messages.some((m) => m.includes(opened.name))) {
     messages.push(`${opened.name}が開幕！`)
   }
+  // 自校が不戦勝（シード）の回戦は先に進めておく（同じ週の次の回戦の試合を、きちんと自分で戦えるように）
+  const nowT = currentTournament(save)
+  if (nowT) messages.push(...progress(save, rng, nowT))
   // 9. 月が変わったら、すごろくの盤面を作り直す
   if (save.sugoroku && refreshBoard(save, rng)) messages.push(`${weekToDate(save.calendar.week).month}月になり、練習の盤面が新しくなった。`)
   // 10. 期限の切れた補正を片付け、今週の行事やレアイベントを積む（すごろくで遊ぶときだけ）
@@ -193,7 +199,7 @@ function weeklyCondition(rng: Rng, p: Player, ownMessages: string[] | null, medi
   if (c.injury) {
     c.injury.weeksLeft -= 1 + (rng.chance(medicalLevel * 0.06) ? 1 : 0)
     if (c.injury.weeksLeft <= 0) {
-      if (ownMessages) ownMessages.push(`${fullName(p)}のケガが治った。`)
+      if (ownMessages) ownMessages.push(c.injury.name === '補習' ? `${fullName(p)}の補習が終わった。` : `${fullName(p)}のケガが治った。`)
       c.injury = null
     }
   }
@@ -292,6 +298,24 @@ function startNewYear(save: SaveData, rng: Rng, messages: string[]): void {
       p.seasonStats = null
       // 監督の見立ては年に1回見直す（自校のみ、経験で精度が上がる）
       if (school.id === own.id) p.estimate = estimateTalent(rng, p, save.managerExperience)
+    }
+    // 選手育成モード：王者・龍ヶ峰は年を追うごとに強くなる（残る部員の才能と主な能力が、新年度に底上げされる）
+    if (successOf(save) && school.id === save.story?.rivalId) {
+      for (const p of schoolMembers(save, school)) {
+        if (p.retired) continue
+        p.hidden.potential = clamp(p.hidden.potential + RIVAL_YEARLY_GROWTH + 2, 1, 99)
+        const keys = p.mainPosition === 'P' ? (['control', 'stamina', 'kire'] as const) : null
+        if (keys) {
+          for (const k of keys) p.pitching[k] = clamp(p.pitching[k] + RIVAL_YEARLY_GROWTH, 1, 99)
+          p.pitching.velocity = Math.min(160, p.pitching.velocity + 2)
+        } else {
+          p.batting.contact = clamp(p.batting.contact + RIVAL_YEARLY_GROWTH, 1, 99)
+          p.batting.power = clamp(p.batting.power + RIVAL_YEARLY_GROWTH, 1, 99)
+          p.running.speed = clamp(p.running.speed + RIVAL_YEARLY_GROWTH, 1, 99)
+          p.fielding.range = clamp(p.fielding.range + RIVAL_YEARLY_GROWTH, 1, 99)
+          p.fielding.arm = clamp(p.fielding.arm + RIVAL_YEARLY_GROWTH, 1, 99)
+        }
+      }
     }
     const strength = schoolStrength(school)
     // 自校：スカウトで入学を決めた中学生が入部する（そのぶん一般の入部は少なめ）

@@ -61,31 +61,28 @@ export function focusMatchGrowth(save: SaveData, m: MatchState, rng: Rng, offici
   const out: string[] = []
   const name = p.surname
 
-  // ---- 能力の伸び：活躍の点数で量が変わる（公式戦は多め）
+  // ---- 能力の伸び：伸びる項目は完全にランダム。量は、勝ち上がるほど・活躍するほど多い
   const score = focusScore(m, id)
-  // 伸びは控えめ：公式戦で最大3、練習試合で最大2（強くなりすぎないように）
-  const points = clamp(Math.round((official ? 1 : 0.6) * (1 + score * 0.6)), 0, official ? 3 : 2)
-  const weights: { key: string; w: number }[] = []
-  if (b && b.pa > 0) {
-    weights.push({ key: 'batting.contact', w: 1 + b.h })
-    weights.push({ key: 'batting.power', w: 0.6 + (b.d + b.t) * 0.8 + b.hr * 2 })
-    weights.push({ key: 'batting.eye', w: 0.4 + b.bb })
-    weights.push({ key: 'running.speed', w: 0.4 + b.sb * 0.6 })
-    if (b.sb > 0) weights.push({ key: 'running.steal', w: b.sb })
-  }
-  if (pi && pi.outs > 0) {
-    weights.push({ key: 'pitching.control', w: 1 + Math.max(0, 3 - pi.bb) * 0.5 })
-    weights.push({ key: 'pitching.kire', w: 0.6 + pi.k * 0.25 })
-    weights.push({ key: 'pitching.stamina', w: 0.4 + pi.outs / 9 })
-    weights.push({ key: 'pitching.velocity', w: 0.3 })
-  }
+  // 試合の重み：練習試合0.6、公式戦は初戦1.0から1回戦ごとに+0.3、全国大会はさらに+0.8
+  const t = m.options?.tournament ? (save.tournaments ?? []).find((x) => x.id === m.options?.tournament!.id) : undefined
+  const national = t ? t.kind === 'summerNational' || t.kind === 'springNational' : false
+  const stage = !official ? 0.6 : 1 + (m.options?.tournament?.round ?? 0) * 0.3 + (national ? 0.8 : 0)
+  // 活躍の倍率：振るわなければ0.4倍、ふつうで1倍、大活躍で2倍まで
+  const perf = clamp(0.7 + score * 0.3, 0.4, 2)
+  const raw = stage * perf
+  const points = clamp(Math.floor(raw) + (rng.chance(raw - Math.floor(raw)) ? 1 : 0), 0, 6)
+  const pool =
+    p.mainPosition === 'P'
+      ? ['pitching.velocity', 'pitching.control', 'pitching.stamina', 'pitching.kire', 'pitching.quick', 'pitching.pinch']
+      : ['batting.contact', 'batting.power', 'batting.eye', 'running.speed', 'running.steal', 'running.baserunning', 'fielding.arm', 'fielding.range', 'fielding.catching', 'fielding.throwing']
   const grown: Record<string, number> = {}
-  for (let i = 0; i < points && weights.length; i++) {
-    const k = rng.weighted(weights.map((x) => ({ value: x.key, weight: x.w })))
+  for (let i = 0; i < points; i++) {
+    const k = rng.pick(pool)
     if (bump(p, k, 1)) grown[k] = (grown[k] ?? 0) + 1
   }
   const labels = Object.entries(grown).map(([k, n]) => `${ABILITY_LABEL[k] ?? k}+${n}`)
   if (labels.length) out.push(`${score >= 2 ? '大活躍！' : score >= 0.5 ? '試合の経験で、' : '悔しさをばねに、'}${name}の能力が伸びた（${labels.join('・')}）`)
+  else if (points > 0) out.push(`${name}は試合の経験を積んだ（能力が上がるまで、あと少し）`)
   else out.push(`${name}は、この試合ではあまり経験を積めなかった…`)
 
   // ---- 特殊能力：結果に応じて、つく・消える

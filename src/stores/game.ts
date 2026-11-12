@@ -430,7 +430,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /** 止まったマスの処理をして、1週間進める */
-  async function finishSquare(opts: { choice?: number; specialPlayerId?: string } = {}): Promise<{ week: WeekResult; eventResult: string | null } | null> {
+  async function finishSquare(opts: { choice?: number; specialPlayerId?: string; specialKey?: string } = {}): Promise<{ week: WeekResult; eventResult: string | null } | null> {
     const s = save.value
     const pending = s?.sugoroku?.pending
     if (!s || !pending || busy.value) return null
@@ -444,7 +444,7 @@ export const useGameStore = defineStore('game', () => {
         s.log.push({ year: s.calendar.year, week: s.calendar.week, text: `${pending.event.title}：${choice.result}` })
       }
       const before = takeSnapshot(ownPlayers())
-      const week = afterWeek(advanceWeek(s, { kind: 'square', square: pending.square, card: pending.card, specialPlayerId: opts.specialPlayerId ?? (pending.square === 'special' ? (successOf(s)?.focusId ?? undefined) : undefined) }))
+      const week = afterWeek(advanceWeek(s, { kind: 'square', square: pending.square, card: pending.card, specialPlayerId: opts.specialPlayerId ?? (pending.square === 'special' ? (successOf(s)?.focusId ?? undefined) : undefined), specialKey: opts.specialKey }))
       lastResult.value = week
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
       growthTitle.value = '練習の成果！'

@@ -28,6 +28,8 @@ const CORE_PITCHER: { label: string; get: (p: Player) => number; velo?: boolean 
   { label: 'クイック', get: (p) => p.pitching.quick },
   { label: 'ミート', get: (p) => p.batting.contact },
 ]
+const OFF_FIELDER = new Set(['球速', 'コントロール', 'スタミナ', 'キレ', 'クイック', '対ピンチ', '変化球'])
+const OFF_PITCHER = new Set(['盗塁', '走塁', '走塁判断', '選球眼'])
 const SHORT: Record<string, string> = { コントロール: '制球', スタミナ: 'スタミナ', 守備範囲: '守備', 走塁判断: '走塁' }
 
 interface Row {
@@ -49,6 +51,10 @@ const rows = computed<Row[]>(() => {
       return c ? c.after - c.before : 0
     }
     const coreLabels = new Set(core.map((c) => c.label))
+    // 本職と関係のない伸び（野手の投手能力、投手の盗塁・走塁）は出さない
+    const hide = p.mainPosition === 'P' ? OFF_PITCHER : OFF_FIELDER
+    const shown = e.changes.filter((c) => !hide.has(c.label))
+    if (shown.length === 0) continue
     list.push({
       e,
       p,
@@ -61,8 +67,8 @@ const rows = computed<Row[]>(() => {
           up: up(c.label),
         }
       }),
-      others: e.changes.filter((c) => !coreLabels.has(c.label)).map((c) => ({ label: SHORT[c.label] ?? c.label, up: c.after - c.before, unit: c.unit ?? '' })),
-      total: e.changes.reduce((s, c) => s + c.after - c.before, 0),
+      others: shown.filter((c) => !coreLabels.has(c.label)).map((c) => ({ label: SHORT[c.label] ?? c.label, up: c.after - c.before, unit: c.unit ?? '' })),
+      total: shown.reduce((s, c) => s + c.after - c.before, 0),
     })
   }
   // 選手育成モード：育成選手 → 各部のエースなど物語の人物 → ほかの部員 の順

@@ -408,6 +408,8 @@ export interface PendingWeek {
   event: EventInstance | null
   /** 特訓マス：選手を選ぶ必要がある */
   needsPlayer: boolean
+  /** 選手育成モードの特訓マス：伸ばす能力（または特殊能力）を選ぶ必要がある */
+  needsChoice?: boolean
 }
 
 export interface SugorokuState {
@@ -427,7 +429,7 @@ export interface SugorokuState {
 
 /** 自校のその週の過ごし方（週を進めるときに渡す） */
 export type WeekPlan =
-  | { kind: 'square'; square: SquareType; card: Card; specialPlayerId?: string }
+  | { kind: 'square'; square: SquareType; card: Card; specialPlayerId?: string; /** 選手育成モードの特訓：伸ばす能力（'skill' なら特殊能力に挑戦） */ specialKey?: string }
   | { kind: 'match' }
   /** 大会の週（試合をして、残りは軽い調整） */
   | { kind: 'tournament' }

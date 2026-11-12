@@ -62,11 +62,11 @@ export function observeStory(save: SaveData): boolean {
     const national = t.kind === 'summerNational' || t.kind === 'springNational'
     if (ownWins(t, own) > 0) set('firstWin', t.year)
     if (!national && reachedBest4(t, own)) set('best4', t.year)
-    // 全国出場：夏の県大会で優勝した時点、または全国大会の組み合わせに入った時点
-    const appeared = national ? inBracket(t, own) : t.kind === 'summerPref' && t.championId === own
+    // 全国出場：夏・秋の県大会で優勝した時点（秋の優勝校は春の全国大会に出る）、または全国大会の組み合わせに入った時点
+    const appeared = national ? inBracket(t, own) : (t.kind === 'summerPref' || t.kind === 'autumnPref') && t.championId === own
     if (appeared) {
       set('national', t.year)
-      const key = `national_${t.year}_${t.kind === 'summerPref' ? 'summerNational' : t.kind}`
+      const key = `national_${t.year}_${t.kind === 'summerPref' ? 'summerNational' : t.kind === 'autumnPref' ? 'springNational' : t.kind}`
       if (st.flags[key] === undefined) {
         st.flags[key] = true
         st.flags.nationalCount = Number(st.flags.nationalCount ?? 0) + 1

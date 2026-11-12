@@ -16,6 +16,15 @@ export const ABILITY_LABEL: Record<string, string> = {
   'batting.power': 'パワー',
   'batting.eye': '選球眼',
   'running.speed': '走力',
+  'running.steal': '盗塁',
+  'running.baserunning': '走塁',
+  'fielding.catching': '捕球',
+  'fielding.throwing': '送球',
+  'pitching.quick': 'クイック',
+  'pitching.pinch': '対ピンチ',
+  'common.clutch': '勝負強さ',
+  'common.recovery': '回復',
+  'common.durability': 'ケガしにくさ',
   'fielding.arm': '肩力',
   'fielding.range': '守備範囲',
   'pitching.velocity': '球速',
@@ -227,7 +236,7 @@ function schoolEvent(save: SaveData, rng: Rng): EventInstance {
   }
 }
 
-function slumpEvent(rng: Rng, list: Player[]): EventInstance {
+function slumpEvent(rng: Rng, list: Player[], st = false): EventInstance {
   const low = list.filter((p) => p.condition.form <= 2)
   const p = low.length ? rng.pick(low) : rng.pick(list)
   const skill = rng.chance(0.25) ? learnable(rng, p) : null
@@ -241,15 +250,15 @@ function slumpEvent(rng: Rng, list: Player[]): EventInstance {
     title: 'スランプ',
     speaker: { kind: 'player', playerId: p.id },
     relatedPlayerIds: [p.id],
-    lines: ['監督……最近、何をやってもうまくいかないんです。', '自分のどこが悪いのか、分からなくなってしまって。'],
+    lines: [st ? '朝比奈……最近、何をやってもうまくいかないんだ。' : '監督……最近、何をやってもうまくいかないんです。', st ? '自分のどこが悪いのか、分からなくなって。' : '自分のどこが悪いのか、分からなくなってしまって。'],
     choices: [
       {
-        label: 'つきっきりで特訓しよう',
+        label: st ? 'つきっきりで練習に付き合う' : 'つきっきりで特訓しよう',
         result: `${p.surname}は特訓でコツをつかみ、調子を取り戻した！${skill ? `さらに特殊能力「${skillName(skill)}」を身につけた！` : ''}`,
         ops,
       },
       {
-        label: '少し野球から離れてみよう',
+        label: st ? '少し野球から離れてみましょう' : '少し野球から離れてみよう',
         result: `${p.surname}は気分転換して、少し前向きになった。`,
         ops: [
           { op: 'condition', playerId: p.id, key: 'form', delta: 1 },
@@ -261,7 +270,7 @@ function slumpEvent(rng: Rng, list: Player[]): EventInstance {
   }
 }
 
-function awakeningEvent(rng: Rng, list: Player[]): EventInstance {
+function awakeningEvent(rng: Rng, list: Player[], st = false): EventInstance {
   const sorted = [...list].sort((a, b) => b.hidden.potential - a.hidden.potential)
   const p = rng.chance(0.7) ? sorted[rng.int(0, Math.min(4, sorted.length - 1))]! : rng.pick(list)
   const keys = rng.shuffle(mainKeys(p)).slice(0, 2)
@@ -272,8 +281,8 @@ function awakeningEvent(rng: Rng, list: Player[]): EventInstance {
     title: '覚醒の予感',
     speaker: { kind: 'player', playerId: p.id },
     relatedPlayerIds: [p.id],
-    lines: ['監督、今日の練習で……何かがつかめた気がします！', '体が勝手に動くというか、ボールがよく見えるんです！'],
-    choices: [{ label: 'その感覚を忘れるな！', result: `${p.surname}の${text}が大きく伸びた！`, ops }],
+    lines: st ? ['朝比奈、今日の練習で……何かがつかめた気がする！', '体が勝手に動くというか、ボールがよく見えるんだ！'] : ['監督、今日の練習で……何かがつかめた気がします！', '体が勝手に動くというか、ボールがよく見えるんです！'],
+    choices: [{ label: st ? 'その感覚、忘れないでください' : 'その感覚を忘れるな！', result: `${p.surname}の${text}が大きく伸びた！`, ops }],
   }
 }
 
@@ -312,7 +321,7 @@ function rivalEvent(rng: Rng, list: Player[]): EventInstance | null {
   }
 }
 
-function convertEvent(rng: Rng, list: Player[]): EventInstance | null {
+function convertEvent(rng: Rng, list: Player[], st = false): EventInstance | null {
   // ストーリーの主要人物（日向大地）は転向の対象にしない
   const toPitcher = list.filter((p) => !p.storyCast && p.mainPosition !== 'P' && !p.pitchingRetired && p.fielding.arm >= 45)
   const toField = list.filter((p) => !p.storyCast && p.mainPosition === 'P' && p.batting.contact + p.batting.power >= 80)
@@ -325,20 +334,22 @@ function convertEvent(rng: Rng, list: Player[]): EventInstance | null {
     speaker: { kind: 'player', playerId: p.id },
     relatedPlayerIds: [p.id],
     lines: [
-      pos === 'P' ? '監督、オレ……ピッチャーをやってみたいんです！' : `監督、打撃で勝負したいんです。${POSITION_NAME[pos]}をやらせてください！`,
-      '中途半端な気持ちじゃありません。お願いします！',
+      st
+        ? pos === 'P' ? '朝比奈、オレ……ピッチャーをやってみたいんだ。真壁先生に話してくれないか' : `朝比奈、打撃で勝負したいんだ。${POSITION_NAME[pos]}をやりたいって、真壁先生に話してくれないか`
+        : pos === 'P' ? '監督、オレ……ピッチャーをやってみたいんです！' : `監督、打撃で勝負したいんです。${POSITION_NAME[pos]}をやらせてください！`,
+      st ? '中途半端な気持ちじゃない。頼む！' : '中途半端な気持ちじゃありません。お願いします！',
     ],
     choices: [
       {
-        label: 'やってみろ！',
-        result: `${p.surname}は${POSITION_NAME[pos]}に転向した。練習メニューも切り替えた。`,
+        label: st ? 'やってみましょう' : 'やってみろ！',
+        result: `${p.surname}は${POSITION_NAME[pos]}に転向した。`,
         ops: [
           { op: 'position', playerId: p.id, position: pos },
           { op: 'condition', playerId: p.id, key: 'motivation', delta: 15 },
         ],
       },
       {
-        label: '今のポジションで頑張ってほしい',
+        label: st ? '今のポジションで頑張ってほしいです' : '今のポジションで頑張ってほしい',
         result: `${p.surname}は少し残念そうだ…`,
         ops: [{ op: 'condition', playerId: p.id, key: 'motivation', delta: -10 }],
       },
@@ -396,7 +407,7 @@ function painEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance | nu
     title: '体の違和感',
     speaker: { kind: 'player', playerId: p.id },
     relatedPlayerIds: [p.id],
-    lines: ['監督……実は昨日から、少し足に張りがあって。', 'でも、大丈夫です！練習、続けさせてください！'],
+    lines: story(save) ? ['朝比奈……実は昨日から、少し足に張りがあって。', 'でも、大丈夫だ！　練習、続けさせてくれ！'] : ['監督……実は昨日から、少し足に張りがあって。', 'でも、大丈夫です！練習、続けさせてください！'],
     choices: [
       {
         label: '大事をとって休ませる',
@@ -456,7 +467,7 @@ function quarrelEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance |
   }
 }
 
-function teamMeetingEvent(rng: Rng, list: Player[]): EventInstance {
+function teamMeetingEvent(rng: Rng, list: Player[], st = false): EventInstance {
   const seniors = list.filter((p) => p.grade >= 2)
   const p = seniors.length ? rng.pick(seniors) : rng.pick(list)
   return {
@@ -464,16 +475,16 @@ function teamMeetingEvent(rng: Rng, list: Player[]): EventInstance {
     title: 'ミーティング',
     speaker: { kind: 'player', playerId: p.id },
     relatedPlayerIds: [p.id],
-    lines: ['監督、部員だけでミーティングをさせてもらえませんか。', 'もっと一つになれると思うんです。'],
+    lines: st ? ['朝比奈、部員だけでミーティングをしたいんだ。', 'もっと一つになれると思う。'] : ['監督、部員だけでミーティングをさせてもらえませんか。', 'もっと一つになれると思うんです。'],
     choices: [
       {
-        label: '任せた！',
+        label: st ? 'お任せします' : '任せた！',
         result: 'チームの雰囲気が良くなった！（全員の調子が上がった）',
         ops: [{ op: 'condition', playerId: 'all', key: 'motivation', delta: 7 }],
       },
       {
-        label: '監督も参加しよう',
-        result: '監督の考えがチームに伝わった。（全員の調子が少し上向いた）',
+        label: st ? 'ナギも参加する' : '監督も参加しよう',
+        result: st ? 'ナギの考えがチームに伝わった。（全員の調子が少し上向いた）' : '監督の考えがチームに伝わった。（全員の調子が少し上向いた）',
         ops: [
           { op: 'condition', playerId: 'all', key: 'motivation', delta: 3 },
           { op: 'condition', playerId: p.id, key: 'form', delta: 1 },
@@ -670,13 +681,13 @@ function buildEventBase(save: SaveData, rng: Rng, square: SquareType, list: Play
   // ストーリーあり：まれに保健室の蓮見先生
   if (story(save) && rng.chance(0.06)) return nurseEvent(rng, list)
   const makers = [
-    () => slumpEvent(rng, list),
-    () => awakeningEvent(rng, list),
+    () => slumpEvent(rng, list, story(save)),
+    () => awakeningEvent(rng, list, story(save)),
     () => rivalEvent(rng, list),
-    () => convertEvent(rng, list),
+    () => convertEvent(rng, list, story(save)),
     () => secretPracticeEvent(rng, list),
     () => painEvent(save, rng, list),
-    () => teamMeetingEvent(rng, list),
+    () => teamMeetingEvent(rng, list, story(save)),
     () => quarrelEvent(save, rng, list),
   ]
   const weights = [16, 10, 14, 8, 18, 12, 14, 8]

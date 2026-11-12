@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // すごろくの盤面（横7×縦5の外周20マス。横いっぱいに広げ、真ん中に説明を出す）
 import { computed } from 'vue'
-import { SQUARES } from '@/game/sugoroku'
+import { COMBO_MULT, SQUARES } from '@/game/sugoroku'
 import type { SquareType } from '@/game/types'
 import GameIcon from '../GameIcon.vue'
 import { PERSON_BADGE, type Person } from '@/game/success/board'
@@ -19,6 +19,8 @@ const props = defineProps<{
   comboNext?: number
   /** いまの練習のつながり（回数） */
   comboNow?: number
+  /** 止まる予定のマスの説明（選手育成モード：育成選手に合わせた説明） */
+  desc?: string | null
   /** 選んだカードの効果の説明 */
   cardNote?: string | null
   milestone?: string
@@ -64,9 +66,9 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
       <div v-if="camp" class="camp">{{ campName ? `${campName}で合宿中！` : '夏合宿中！' }}</div>
       <div v-if="previewInfo" class="info target-info" :style="{ '--c': previewInfo.color }">
         <b>{{ previewInfo.label }}マス</b>
-        <span>{{ previewInfo.description }}</span>
+        <span>{{ desc ?? previewInfo.description }}</span>
         <span v-if="preview !== null && badge(preview)" class="person-note">＋{{ badge(preview)!.label }}のイベント</span>
-        <span v-if="(comboNext ?? 0) >= 2" class="combo-note">練習がつながる！ ×{{ comboNext === 2 ? '1.2' : '1.4' }}</span>
+        <span v-if="(comboNext ?? 0) >= 2" class="combo-note">練習がつながる！ ×{{ (COMBO_MULT[comboNext ?? 0] ?? 1).toFixed(1) }}</span>
       </div>
       <div v-else class="info" :style="{ '--c': hereInfo.color }">
         <span class="muted">いまの位置</span>

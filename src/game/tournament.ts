@@ -475,13 +475,20 @@ function finishTournament(save: SaveData, t: Tournament): string[] {
 // ---------------------------------------------------------------- 他県の学校の選手
 
 /** 総合力だけで管理している学校と対戦するときに、その場で選手を作る */
+/** 選手育成モード：全国大会の相手校の底上げ（総合力）と、1年ごとに強くなる量 */
+const NATIONAL_BASE = 5
+const NATIONAL_YEARLY_GROWTH = 5
+
 export function ensureDetailed(save: SaveData, rng: Rng, t: Tournament, schoolId: string): void {
   const school = save.schools[schoolId]
   if (!school || school.detailed) return
   const overall = school.overall
   school.detailed = true
   school.tempOverall = overall
-  populateSchool(rng, save, school, clamp(overall / 0.75, 10, 95), 0)
+  // 選手育成モード：全国大会の相手は各地の代表にふさわしい強さで、年を追うごとに強くなる（1年目+5、2年目+10、3年目+15）
+  const national = t.kind === 'summerNational' || t.kind === 'springNational'
+  const boost = national && save.story?.enabled && save.story.success ? NATIONAL_BASE + Math.max(0, Math.min(2, save.calendar.year - 1)) * NATIONAL_YEARLY_GROWTH : 0
+  populateSchool(rng, save, school, clamp((overall + boost) / 0.75, 10, 97), 0)
   school.overall = overall
   t.tempDetailed.push(schoolId)
 }

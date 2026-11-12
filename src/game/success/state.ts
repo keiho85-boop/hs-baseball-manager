@@ -33,6 +33,8 @@ export const EVAL_NOTE: Record<EvalKey, string> = {
 
 /** 告白が成功する評価の目安（ナギと大地の両方が、5段階の3の後半以上。意識して上げる必要がある） */
 export const CONFESS_LINE = 65
+/** 告白の機会ごとの目安（1年目の年末・2年目の夏祭り・卒業式）。早い機会ほど低い評価で成功する */
+export const CONFESS_LINES = [54, 60, CONFESS_LINE] as const
 
 /** 自動で進む週（年末と春休み）。1年を約40ターンにする */
 export const AUTO_WEEKS = [38, 39, 51, 52]
@@ -142,9 +144,10 @@ export function mustForfeit(save: SaveData, kind: string): 'short' | 'story' | n
 }
 
 /** ナギと大地の評価が告白の目安を超えているか */
-export function canConfess(save: SaveData): boolean {
+export function canConfess(save: SaveData, place: 1 | 2 | 3 = 3): boolean {
   const s = successOf(save)
-  return !!s && s.dating === null && s.eval.nagi >= CONFESS_LINE && s.eval.daichi >= CONFESS_LINE
+  const line = CONFESS_LINES[place - 1]!
+  return !!s && s.dating === null && s.eval.nagi >= line && s.eval.daichi >= line
 }
 
 /** フォーカス選手の練習の伸びの倍率（捕手の大地がいるので、投手は少し育てやすい） */
@@ -208,6 +211,22 @@ export function focusDraftChance(save: SaveData, p: Player): number {
   if (s.eval.scout >= 90) return 1
   // それより下は、スカウトの評価と能力の両方で決まる（どちらかが高ければ望みはある。能力C〜Bでも十分狙える）
   return clamp((s.eval.scout - 35) / 80 + (playerRating(p) - 64) / 40, 0, 0.92)
+}
+
+/** ドラフトの見込み（実際の指名の確率と、足りないもの）。育成選手の画面に出す */
+export function draftOutlook(save: SaveData, p: Player): { label: string; note: string; tone: 'gold' | 'good' | 'mid' | 'low' } {
+  const s = successOf(save)
+  const scout = s?.eval.scout ?? 0
+  const chance = focusDraftChance(save, p)
+  // スカウトへのアピール／プロで通用する能力が、それぞれ足りているか
+  const appeal = scout >= 60
+  const ability = playerRating(p) >= 70
+  if (scout >= 90) return { label: '指名確実', note: 'スカウトの評価は十分。あとは順位を上げるだけ', tone: 'gold' }
+  if (chance >= 0.7) return { label: '指名の可能性が高い', note: appeal ? '能力をもう一段上げれば、さらに確実に' : 'スカウトの前で活躍すれば、さらに確実に', tone: 'good' }
+  if (!appeal && !ability) return { label: 'まだまだ', note: '能力も、スカウトへのアピールも足りない', tone: 'low' }
+  if (!appeal) return { label: 'アピールが足りない', note: '力はある。スカウトのマスや公式戦で、名前を売りたい', tone: chance >= 0.4 ? 'mid' : 'low' }
+  if (!ability) return { label: 'プロでは通用しない', note: '注目はされている。あとは能力を上げるだけ', tone: chance >= 0.4 ? 'mid' : 'low' }
+  return { label: chance >= 0.4 ? '指名の候補に挙がっている' : 'あと一押し', note: '能力とアピールの両方を、もう少しずつ', tone: 'mid' }
 }
 
 /** フォーカス選手の名前（台本の置き換え用） */

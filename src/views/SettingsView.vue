@@ -4,7 +4,6 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
-import type { Difficulty } from '@/game/types'
 import { ref } from 'vue'
 import { fullscreenEnabled, setFullscreenEnabled } from '@/fullscreen'
 import { play, setSoundEnabled, soundEnabled } from '@/sound'
@@ -30,13 +29,6 @@ function toggleFullscreen(): void {
   setFullscreenEnabled(fullscreen.value)
 }
 
-const LABEL: Record<Difficulty, string> = { easy: 'やさしい', normal: 'ふつう', hard: 'きびしい' }
-
-async function setInjury(d: Difficulty): Promise<void> {
-  if (!game.save) return
-  game.save.settings.injury = d
-  await game.commit()
-}
 
 async function toggle(key: 'cutin' | 'lightMode'): Promise<void> {
   if (!game.save) return

@@ -163,7 +163,7 @@ function confessSteps(c: StoryContext, place: 1 | 2 | 3): Step[] {
       think('五十七にもなって、なぜ胸が鳴る。…この体のせいだ。そうに決まっている', 'surprise'),
     ]
   }
-  if (!canConfess(c.save)) {
+  if (!canConfess(c.save, place)) {
     return [
       daichiSay('normal', place === 1 ? '朝比奈、来年は…いや、なんでもない' : place === 2 ? '…なあ、朝比奈。俺さ…いや、やっぱいいや' : '朝比奈。俺、ずっと…いや。元気でな'),
       nagi('normal', '？　はい'),
@@ -188,7 +188,7 @@ function confessSteps(c: StoryContext, place: 1 | 2 | 3): Step[] {
 /** 告白の結果を反映する */
 function confessEnd(c: StoryContext, place: 1 | 2 | 3): string[] {
   const s = S(c)
-  if (s.dating !== null || !canConfess(c.save)) return []
+  if (s.dating !== null || !canConfess(c.save, place)) return []
   s.dating = Y(c)
   if (place === 3) return ['大地の告白が成功した！']
   motivation(regulars(c.save), 10)
@@ -489,13 +489,13 @@ export const CHAPTER1: Scene[] = [
     title: '春の大会、棄権',
     chapter: 1,
     when: (c) => Y(c) === 1 && c.st.flags.y1SpringForfeit !== undefined,
-    steps: () => [
+    steps: (c) => [
       bg('bg_clubroom_day'),
       n('春の県大会の組み合わせ表。七海東の名前の横に、小さく「棄権」と書かれていた'),
       makabe('troubled', 'ごめん…。春の大会のエントリーは、3月のうちに締め切られていたんだ。僕たちが動き出す前にね'),
-      daichiSay('frustrated', 'くっそ…。せっかく9人そろったのに、試合、やりたかったなあ'),
+      daichiSay('frustrated', rosterCount(c.save) >= 9 ? 'くっそ…。せっかく9人そろったのに、試合、やりたかったなあ' : 'くっそ…。どのみち、まだ9人そろってないけどさ。試合、やりたかったなあ'),
       nagi('normal', '仕方ないよ。夏の大会からは、ちゃんと出られるんだから'),
-      think('出られなかった大会のことは、もう考えない。次は夏だ。それまでに、勝てる9人にする', 'serious'),
+      think(rosterCount(c.save) >= 9 ? '出られなかった大会のことは、もう考えない。次は夏だ。それまでに、勝てる9人にする' : '出られなかった大会のことは、もう考えない。次は夏だ。それまでに9人そろえて、勝てるチームにする', 'serious'),
       nagi('smile', '夏は、初戦から勝とう'),
       daichiSay('smile', '…おう！'),
     ],
@@ -729,7 +729,12 @@ export const CHAPTER1: Scene[] = [
     chapter: 1,
     when: (c) => {
       const p = pendingGame(c.save)
-      return Y(c) >= 2 && Y(c) <= 3 && !!p && p.opponentId === c.st.rivalId
+      if (!(Y(c) >= 2 && Y(c) <= 3 && !!p && p.opponentId === c.st.rivalId)) return false
+      // 練習試合を申し込まれた春は、練習試合を終えてから（話の順序が前後しないように）
+      if (Y(c) === 2 && p.t.kind === 'springPref' && c.st.flags.rivalPractice === undefined) return false
+      // 3年目の夏の決勝は「決戦前夜」の場面だけにする
+      if (Y(c) === 3 && p.t.kind === 'summerPref') return false
+      return true
     },
     steps: () => [
       bg('bg_stadium_day'),
