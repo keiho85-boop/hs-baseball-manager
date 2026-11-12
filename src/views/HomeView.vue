@@ -157,11 +157,14 @@ function formLabel(v: number): string {
 
 async function goRecruit(club: ClubId, target?: number): Promise<void> {
   recruitOpen.value = false
-  const r = await game.recruitAt(club, target)
+  // 勧誘の説明の最中は、週を進めない
+  const rehearsal = guideStore.active?.id === 'recruit'
+  const r = await game.recruitAt(club, target, { rehearsal })
   if (!r) return
   play(r.result.success ? 'cheer' : 'miss')
   await afterGrowth()
   await ui.alert(r.result.lines.join('\n'), r.result.title)
+  if (rehearsal) guideStore.notify('recruited')
   const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
   if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
 }

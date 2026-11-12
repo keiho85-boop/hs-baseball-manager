@@ -443,7 +443,8 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_kanyu',
     title: 'はじめての勧誘',
     chapter: 1,
-    when: (c) => Y(c) === 1 && W(c) >= 2,
+    // 練習の説明が終わったら、続けてはじめての勧誘へ（以前のデータでは2週目に）
+    when: (c) => Y(c) === 1 && (W(c) >= 2 || c.st.flags['guide:practice'] === 'done'),
     steps: () => [
       bg('bg_classroom_day'),
       n('昼休みの教室。大地が、帰宅部の男子を5人、ぞろぞろと連れてきた'),

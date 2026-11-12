@@ -79,9 +79,9 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
     },
   ],
 
-  /** 勧誘（サクセス）：はじめての勧誘の場面のあと */
+  /** 勧誘（サクセス）：はじめての勧誘の場面のあと（練習の説明に続けて。説明の勧誘では週は進まない） */
   recruit: [
-    { route: 'home', target: 'recruit-btn', on: 'target', text: '部員集めは「勧誘」からです。練習の代わりに1週間を使います。押してみてください。' },
+    { route: 'home', target: 'recruit-btn', on: 'target', text: '部員集めは「勧誘」からです。ふだんは練習の代わりに1週間を使います。押してみてください。' },
     {
       target: 'recruit-list',
       on: 'tap',
@@ -89,9 +89,16 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
     },
     {
       target: 'recruit-list',
+      on: 'target',
+      waitFor: 'recruited',
+      free: true,
+      text: 'では、声をかける相手を選んで「声をかける」を押してください。今回は説明のための勧誘なので、週は進みません。',
+    },
+    {
       on: 'tap',
+      idle: true,
       face: 'smile',
-      text: 'エースは一度では入ってくれません。話すたびに、気持ちが動いていきますよ。9人そろえば、練習試合と大会に出られますよ。今日は閉じて、練習から始めましょう。',
+      text: 'エースは一度では入ってくれません。話すたびに、気持ちが動いていきますよ。9人そろえば、練習試合と大会に出られます。では、今週の練習を始めましょう。',
     },
   ],
 
