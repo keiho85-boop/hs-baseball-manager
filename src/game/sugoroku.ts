@@ -431,10 +431,10 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
 
 /**
  * 選手育成モードの休養マスの回復量。
- * 体力100から「練習・練習・休養」の3週で、ふつうは90、よく休めると100、あまり休めないと80に戻るくらい
+ * 体力100から「練習・練習・練習・休養」の4週で、ふつうは90、よく休めると100、あまり休めないと80に戻るくらい
  * （練習1回で27減り、毎週の自然な回復が約8）
  */
-export const REST_GAIN = { good: 30, normal: 20, poor: 10 } as const
+export const REST_GAIN = { good: 50, normal: 40, poor: 30 } as const
 function rollRest(rng: Rng, messages: string[]): number {
   const r = rng.next()
   if (r < 0.2) {
