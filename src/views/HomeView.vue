@@ -157,14 +157,16 @@ function formLabel(v: number): string {
 
 async function goRecruit(club: ClubId, target?: number): Promise<void> {
   recruitOpen.value = false
-  // 勧誘の説明の最中は、週を進めない
-  const rehearsal = guideStore.active?.id === 'recruit'
+  // 勧誘の説明の最中と、説明なしで始めたときの最初の勧誘は、週を進めない
+  const first = game.save?.story?.flags.firstRecruit === 'todo'
+  const rehearsal = guideStore.active?.id === 'recruit' || first
   const r = await game.recruitAt(club, target, { rehearsal })
   if (!r) return
   play(r.result.success ? 'cheer' : 'miss')
   await afterGrowth()
   await ui.alert(r.result.lines.join('\n'), r.result.title)
   if (rehearsal) guideStore.notify('recruited')
+  if (first) await game.setStoryFlag('firstRecruit', 'done')
   const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
   if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
 }
@@ -496,6 +498,23 @@ async function closeOrder(): Promise<void> {
 }
 /** 部員が9人に満たない間は、毎週はじめに勧誘をうながす */
 const guideStore = useGuideStore()
+/** 説明なしで始めたとき：はじめての勧誘の場面のあと、週を使わない勧誘を必ず1回行う */
+const firstRecruit = computed(() => {
+  void game.rev
+  const st = game.save?.story
+  return !!st && st.flags.firstRecruit === 'todo' && st.seen.includes('c1_kanyu')
+})
+watch(
+  () => firstRecruit.value && !game.story && !game.busy && !game.showGrowth && !ui.dialog && !ui.notice && !game.match && !recruitOpen.value,
+  (ready) => {
+    if (!ready) return
+    // 場面の結果の知らせが出るのを待ってから開く（知らせと勧誘の画面が重ならないように）
+    setTimeout(() => {
+      if (firstRecruit.value && !game.story && !ui.dialog && !ui.notice && !game.busy && !recruitOpen.value) recruitOpen.value = true
+    }, 500)
+  },
+  { immediate: true },
+)
 /** 案内が「部の様子」の外を指しているのに、シートが開いたままだと案内が隠れる。シートを閉じる */
 watch(
   () => guideStore.step,
@@ -512,6 +531,8 @@ watch(
     const s = game.save
     if (!s || !success.value || ended.value || roster.value >= 9) return null
     if (game.story || guideStore.active || game.match || sg.value?.pending || game.busy) return null
+    // 説明なしで始めたときの最初の勧誘の前は、知らせを出さない（勧誘の画面がすぐ開く）
+    if (s.story?.flags.firstRecruit === 'todo') return null
     return `${s.calendar.year}-${s.calendar.week}`
   },
   async (key) => {
@@ -776,7 +797,7 @@ watch(
       <h2 class="orange"><GameIcon name="clipboard" /> オーダー</h2>
       <OrderBoard ref="orderBoard" />
     </InfoSheet>
-    <RecruitSheet v-if="recruitOpen" @close="recruitOpen = false" @go="goRecruit" />
+    <RecruitSheet v-if="recruitOpen" :forced="firstRecruit" @close="recruitOpen = false" @go="goRecruit" />
     <div v-if="info2 && success && focus" class="picker-backdrop" @click.self="info2 = false">
       <div class="picker card">
         <h2 class="grass"><img class="h-icon" :src="`${BASE}ui/ui_eval.webp`" alt="" /> {{ focus.surname }} {{ focus.givenName }}への評価</h2>

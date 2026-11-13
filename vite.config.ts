@@ -26,7 +26,12 @@ export default defineConfig(({ mode }) => {
   const standalone = mode === 'app' || mode === 'artifact'
   return {
   base: standalone ? './' : '/hs-baseball-manager/',
-  build: { outDir: mode === 'app' ? 'dist-app' : mode === 'artifact' ? 'dist-artifact' : 'dist' },
+  build: {
+    outDir: mode === 'app' ? 'dist-app' : mode === 'artifact' ? 'dist-artifact' : 'dist',
+    // 画面ごとの見た目（CSS）を1つのファイルにまとめ、起動時に読み込む。
+    // 画面ごとに分けていると、オフラインのときにまだ開いていない画面の見た目が読み込めず、表示が崩れるため
+    cssCodeSplit: false,
+  },
   define: { __APP_BUILD__: JSON.stringify(standalone), __APP_VERSION__: JSON.stringify(appVersion()) },
   resolve: {
     alias: {
@@ -76,8 +81,10 @@ export default defineConfig(({ mode }) => {
       workbox: {
         // フォントは文字の範囲ごとに細かく分かれていて数が多いため、最初にまとめて保存せず、
         // 使った分だけ保存する（一度表示した文字は通信なしでも表示できる）
-        globPatterns: ['**/*.{js,css,html,svg,png}'],
-        globIgnores: ['intro/**', 'privacy/**'],
+        // 画面の部品の絵（タイトル・アイコン・UI）も最初に保存する（オフラインでも表示できるように）。
+        // 立ち絵・背景・一枚絵は大きいので、表示した分だけ保存する（下の runtimeCaching）
+        globPatterns: ['**/*.{js,css,html,svg,png,webp}'],
+        globIgnores: ['intro/**', 'privacy/**', 'chara/**', 'bg/**', 'ev/**'],
         navigateFallback: '/hs-baseball-manager/index.html',
         // 紹介ページはゲーム本体とは別のページとして開く
         navigateFallbackDenylist: [/\/intro\//, /\/privacy\//],

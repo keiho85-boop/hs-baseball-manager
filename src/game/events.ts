@@ -680,12 +680,15 @@ function buildEventBase(save: SaveData, rng: Rng, square: SquareType, list: Play
   }
   // ストーリーあり：まれに保健室の蓮見先生
   if (story(save) && rng.chance(0.06)) return nurseEvent(rng, list)
+  // 選手育成モード：スランプと居残り練習は、育成選手の出来事にする（休む選択肢で体力が回復する）
+  const fp = successOf(save) ? list.find((p) => p.id === successOf(save)!.focusId) : undefined
+  const mine = fp ? [fp] : list
   const makers = [
-    () => slumpEvent(rng, list, story(save)),
+    () => slumpEvent(rng, mine, story(save)),
     () => awakeningEvent(rng, list, story(save)),
     () => rivalEvent(rng, list),
     () => convertEvent(rng, list, story(save)),
-    () => secretPracticeEvent(rng, list),
+    () => secretPracticeEvent(rng, mine),
     () => painEvent(save, rng, list),
     () => teamMeetingEvent(rng, list, story(save)),
     () => quarrelEvent(save, rng, list),

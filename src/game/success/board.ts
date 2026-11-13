@@ -155,6 +155,11 @@ function attachEventBase(save: SaveData, rng: Rng, person: Person): EventInstanc
           result: `幼馴染の二人の練習は、日が暮れるまで続いた。（${keys.map((k) => ABILITY_LABEL[k]).join('と')}が上がった。大地の評価が上がった）${skill ? `さらに特殊能力「${skillName(skill)}」を身につけた！` : ''}`,
           ops,
         },
+        {
+          label: '今日は早く帰って休む',
+          result: '「…そっか。じゃあ、肉まん買って帰ろうぜ」（体力が回復した。大地の評価が少し上がった）',
+          ops: [{ op: 'condition', playerId: f.id, key: 'stamina', delta: 20 }, ev('daichi', 1)],
+        },
       ],
     }
   }
@@ -283,6 +288,31 @@ export function successRandomEvent(save: SaveData, rng: Rng): EventInstance | nu
       ],
     }),
   ]
+  // 体を休める出来事（体力が回復する）
+  list.push(
+    (): EventInstance => ({
+      id: eid('sento'),
+      title: '銭湯の招待券',
+      speaker: { ...GENZO },
+      relatedPlayerIds: [f.id],
+      lines: ['おう、商店街の福引で、銭湯の招待券が当たってな。わしは毎日入っとるから、お前らにやる！', '風呂上がりのコーヒー牛乳もつけてやるぞ。わっはっは！'],
+      choices: [
+        { label: '部員みんなで行く', result: '大きな湯船で、部員たちの疲れが溶けていった。（全員の体力が回復した。チームメイトの評価が上がった）', ops: [{ op: 'condition', playerId: 'all', key: 'stamina', delta: 15 }, ev('team', 2)] },
+        { label: `${name}がゆっくり浸かる`, result: `${name}は、のぼせる寸前まで湯船に浸かった。（体力が大きく回復した。源造の評価が上がった）`, ops: [{ op: 'condition', playerId: f.id, key: 'stamina', delta: 30 }, ev('genzo', 2)] },
+      ],
+    }),
+    (): EventInstance => ({
+      id: eid('hirune'),
+      title: '昼休みの昼寝',
+      speaker: { ...NARR },
+      relatedPlayerIds: [f.id],
+      lines: ['昼休み。日だまりの屋上で、まぶたが重くなってきた。', '…午後の授業まで、あと20分。'],
+      choices: [
+        { label: '少しだけ眠る', result: `${name}は、チャイムの音で目を覚ました。（体力が回復した）`, ops: [{ op: 'condition', playerId: f.id, key: 'stamina', delta: 20 }] },
+        { label: 'シャドーピッチング・素振りをする', result: `${name}は、昼休みも体を動かした。（${ABILITY_LABEL[f.mainPosition === 'P' ? 'pitching.control' : 'batting.contact']}が少し上がった。体力が少し減った）`, ops: [...grow(f, [f.mainPosition === 'P' ? 'pitching.control' : 'batting.contact'], 1), { op: 'condition', playerId: f.id, key: 'stamina', delta: -5 }] },
+      ],
+    }),
+  )
   const make = rng.pick(list)
   return make()
 }

@@ -88,7 +88,7 @@ export const useGameStore = defineStore('game', () => {
     if (persistent.value === null) persistent.value = await requestPersistentStorage()
   }
 
-  async function startNewGame(input: Omit<NewGameInput, 'seed'> & { story?: boolean; focusName?: { surname: string; givenName: string }; focusPosition?: Position }): Promise<void> {
+  async function startNewGame(input: Omit<NewGameInput, 'seed'> & { story?: boolean; focusName?: { surname: string; givenName: string }; focusPosition?: Position; tutorial?: boolean }): Promise<void> {
     busy.value = true
     try {
       await ensurePersistence()
@@ -97,7 +97,7 @@ export const useGameStore = defineStore('game', () => {
       // 選手育成モード（ストーリーあり）は、地名をすべて架空のものにする
       setFictionalPlaces(!!input.story)
       const data = createNewGame({ ...input, seed: (Math.random() * 2 ** 32) >>> 0 })
-      if (input.story) setupStoryWorld(data, { focusName: input.focusName, position: input.focusPosition })
+      if (input.story) setupStoryWorld(data, { focusName: input.focusName, position: input.focusPosition, tutorial: input.tutorial })
       ensureSugoroku(data)
       {
         const rng = new Rng(data.rngState)

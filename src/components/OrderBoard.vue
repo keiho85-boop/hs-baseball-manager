@@ -147,10 +147,6 @@ function groupApt(p: Player, key: string): number {
 function mainGroup(p: Player): string {
   return p.mainPosition === 'P' ? 'P' : aptGroupOf(p.mainPosition)
 }
-const MAIN_MARK: Record<string, { label: string; kind: string }> = {
-  P: { label: '投', kind: 'p' },
-  ...Object.fromEntries(APT_GROUPS.map((g) => [g.key, { label: g.label, kind: g.kind }])),
-}
 /** 本職以外で△以上のまとまり（名前の右に色の札で出す） */
 function subGroups(p: Player): { label: string; kind: string }[] {
   const main = mainGroup(p)
@@ -516,7 +512,6 @@ const focusSkills = computed(() =>
               <FormIcon :form="players[c.id]!.condition.form" :size="15" />
               <span class="body">
                 <span class="nm">
-                  <i class="mk" :class="`m-${MAIN_MARK[mainGroup(players[c.id]!)]!.kind}`">{{ MAIN_MARK[mainGroup(players[c.id]!)]!.label }}</i>
                   <span class="nt">{{ players[c.id]?.surname }}</span>
                   <small>{{ players[c.id]?.bats === 'L' ? 'L' : players[c.id]?.bats === 'S' ? 'S' : 'R' }}</small>
                   <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>
@@ -559,7 +554,6 @@ const focusSkills = computed(() =>
               <FormIcon :form="players[c.id]!.condition.form" :size="15" />
               <span class="body">
                 <span class="nm">
-                  <i class="mk" :class="`m-${MAIN_MARK[mainGroup(players[c.id]!)]!.kind}`">{{ MAIN_MARK[mainGroup(players[c.id]!)]!.label }}</i>
                   <span class="nt">{{ players[c.id]?.surname }}</span>
                   <small>{{ players[c.id]?.grade }}年</small>
                   <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>
@@ -602,7 +596,6 @@ const focusSkills = computed(() =>
               <FormIcon :form="players[c.id]!.condition.form" :size="15" />
               <span class="body">
                 <span class="nm">
-                  <i class="mk" :class="`m-${MAIN_MARK[mainGroup(players[c.id]!)]!.kind}`">{{ MAIN_MARK[mainGroup(players[c.id]!)]!.label }}</i>
                   <span class="nt">{{ players[c.id]?.surname }}</span>
                   <small>{{ c.note ?? `${players[c.id]?.grade}年` }}</small>
                   <i v-for="g in subGroups(players[c.id]!)" :key="g.label" class="sq" :class="`m-${g.kind}`">{{ g.label }}</i>

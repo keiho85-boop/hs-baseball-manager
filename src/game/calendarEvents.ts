@@ -96,7 +96,8 @@ function recruitEvent(save: SaveData, rng: Rng): EventInstance {
 
 /** テスト期間（7月・12月） */
 function testEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance {
-  const p = rng.pick(list)
+  // 選手育成モード：テストで悩むのは育成選手（勉強で休めば体力が回復する）
+  const p = focusPlayer(save) ?? rng.pick(list)
   const pass = rng.chance(0.5)
   return {
     id: eid('test'),
@@ -161,7 +162,7 @@ function typhoonEvent(save: SaveData): EventInstance {
       {
         label: '全員帰す',
         result: '部員たちは家でゆっくり休んだ。（全員の体力が回復した）',
-        ops: [{ op: 'condition', playerId: 'all', key: 'stamina', delta: 15 }],
+        ops: [{ op: 'condition', playerId: 'all', key: 'stamina', delta: 25 }],
       },
     ],
   }
@@ -227,7 +228,7 @@ function christmasEvent(save: SaveData): EventInstance {
       {
         label: 'みんなで食べよう',
         result: '部員たちはケーキを分け合って、すっかり元気になった。（全員の体力が回復した）',
-        ops: [{ op: 'condition', playerId: 'all', key: 'stamina', delta: 15 }],
+        ops: [{ op: 'condition', playerId: 'all', key: 'stamina', delta: 25 }],
       },
     ],
   }
@@ -467,7 +468,7 @@ function campCurryEvent(save: SaveData): EventInstance {
       {
         label: 'しっかり食べろ',
         result: '部員たちは、山盛りのカレーを平らげた。（全員の体力が回復した）',
-        ops: [{ op: 'condition', playerId: 'all', key: 'stamina', delta: 8 }],
+        ops: [{ op: 'condition', playerId: 'all', key: 'stamina', delta: 15 }],
       },
     ],
   }
@@ -696,7 +697,7 @@ function genzoSnackEvent(): EventInstance {
         label: 'ありがとうございます！',
         result: '部員たちは差し入れをたいらげた。（全員の体力と調子が上がった）',
         ops: [
-          { op: 'condition', playerId: 'all', key: 'stamina', delta: 8 },
+          { op: 'condition', playerId: 'all', key: 'stamina', delta: 15 },
           { op: 'condition', playerId: 'all', key: 'motivation', delta: 3 },
         ],
       },

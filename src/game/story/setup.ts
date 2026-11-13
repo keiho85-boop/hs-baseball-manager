@@ -5,6 +5,7 @@
 // ・残りは勧誘で集める（9人そろうと練習試合と大会に出られる）
 // ・県内で一番強い学校を、ライバル校「龍ヶ峰学園」にする
 
+import { GUIDE_ORDER } from './guides'
 import { Rng, clamp } from '../rng'
 import { defaultPracticeMenu, generatePlayer, playerRating } from '../player'
 import { computeOverall, generateGrade, newId, schoolStrength } from '../world'
@@ -29,7 +30,7 @@ export function newStoryState(): StoryState {
 }
 
 /** 新しいゲームをストーリーありで始めるときに呼ぶ（第1章はサクセス：1人の選手を3年間育てる） */
-export function setupStoryWorld(save: SaveData, opts: { focusName?: { surname: string; givenName: string }; position?: Position } = {}): void {
+export function setupStoryWorld(save: SaveData, opts: { focusName?: { surname: string; givenName: string }; position?: Position; tutorial?: boolean } = {}): void {
   const rng = new Rng(save.rngState)
   const st = newStoryState()
   st.success = newSuccessState()
@@ -86,6 +87,11 @@ export function setupStoryWorld(save: SaveData, opts: { focusName?: { surname: s
     st.rivalId = rival.id
   }
 
+  // 操作の説明なし：説明はすべて済んだ扱いにする。最初の勧誘だけは、週を使わずに必ず行う
+  if (opts.tutorial === false) {
+    for (const id of GUIDE_ORDER) st.flags[`guide:${id}`] = 'done'
+    st.flags.firstRecruit = 'todo'
+  }
   save.story = st
   save.managerName = '朝比奈 ナギ'
   save.log = [{ year: 1, week: 1, text: `${own.name}の野球部に、マネージャーとして入部した。` }]

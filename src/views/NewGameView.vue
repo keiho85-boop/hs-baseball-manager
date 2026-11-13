@@ -42,6 +42,8 @@ const POS_OPTIONS: { pos: Position; label: string }[] = [
   { pos: 'CF', label: '外野手' },
 ]
 const focusPos = ref<Position>('P')
+/** 操作の説明（チュートリアル）を出すか */
+const tutorial = ref(true)
 const ch2Unlocked = computed(() => unlockedScenarios().includes(2))
 
 // ---------------------------------------------------------------- チーム育成モード
@@ -73,6 +75,7 @@ async function start(): Promise<void> {
       kind: player ? 'public' : kind.value,
       schoolName: player ? PLAYER_MODE_SCHOOL : schoolName.value.trim().slice(0, 16),
       focusPosition: player ? focusPos.value : undefined,
+      tutorial: player ? tutorial.value : undefined,
       focusName: player ? { surname: surname.value.trim().slice(0, 6), givenName: givenName.value.trim().slice(0, 6) } : undefined,
       // 運の大きさは「高校野球らしく少し多め」で固定（構想書の決定事項）
       settings: { injury: 'normal', luck: 'normal', cutin: true, gameSpeed: 2, lightMode: false },
@@ -142,6 +145,12 @@ async function start(): Promise<void> {
           <button v-for="o in POS_OPTIONS" :key="o.pos" :class="focusPos === o.pos ? '' : 'secondary'" @click="focusPos = o.pos">{{ o.label }}</button>
         </div>
         <p class="muted small">{{ focusPos === 'C' ? '捕手を選ぶと、幼馴染の大地が投手になってバッテリーを組みます。' : focusPos === 'P' ? '投手を選ぶと、幼馴染の大地が捕手としてボールを受けます。' : '大地は捕手です。' }}</p>
+        <div class="label">操作の説明</div>
+        <div class="positions">
+          <button :class="tutorial ? '' : 'secondary'" @click="tutorial = true">あり</button>
+          <button :class="tutorial ? 'secondary' : ''" @click="tutorial = false">なし</button>
+        </div>
+        <p class="muted small">{{ tutorial ? 'はじめて遊ぶ方におすすめです。練習・勧誘・部費・オーダー・練習試合のやり方を、ナギが順に説明します。' : '説明は出ません。最初の勧誘だけは、週を使わずに必ず行います。' }}</p>
       </div>
     </template>
 

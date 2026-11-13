@@ -85,10 +85,11 @@ const milestone = computed(() => {
   return best
 })
 // ストーリー：週が進んだり試合が終わったりしたら、流す場面があるか確かめる（成長の知らせを閉じてから）
+// 場面の結果の知らせやダイアログが出ている間は、次の場面を始めない（知らせの上に場面が重ならないように）
 watch(
-  () => [game.rev, game.busy, game.showGrowth, game.match] as const,
+  () => [game.rev, game.busy, game.showGrowth, game.match, ui.notice, ui.dialog] as const,
   () => {
-    if (!game.showGrowth && !game.busy) void game.checkStory()
+    if (!game.showGrowth && !game.busy && !ui.notice && !ui.dialog) void game.checkStory()
   },
   { immediate: true },
 )

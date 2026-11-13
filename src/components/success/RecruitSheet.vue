@@ -8,6 +8,7 @@ import { POSITION_LABEL } from '@/game/constants'
 import type { ClubId, ClubMember } from '@/game/success/types'
 import type { Position } from '@/game/types'
 
+const props = defineProps<{ /** 最初の勧誘（必ず行う。やめられない） */ forced?: boolean }>()
 const emit = defineEmits<{ close: []; go: [club: ClubId, target: number] }>()
 const game = useGameStore()
 const BASE = import.meta.env.BASE_URL
@@ -59,13 +60,13 @@ function go(): void {
 </script>
 
 <template>
-  <div class="picker-backdrop" @click.self="emit('close')">
+  <div class="picker-backdrop" @click.self="!props.forced && emit('close')">
     <div class="picker card">
       <div class="top">
         <img :src="`${BASE}ui/ui_recruit.webp`" alt="" />
         <div>
           <h2>勧誘に行く</h2>
-          <p>声をかける相手を選んでください。1週間を使います。</p>
+          <p>{{ props.forced ? '最初の勧誘です。声をかける相手を選んでください。今回は週を使いません。' : '声をかける相手を選んでください。1週間を使います。' }}</p>
         </div>
       </div>
       <div class="stats">
@@ -99,7 +100,7 @@ function go(): void {
         </div>
       </div>
       <div class="foot">
-        <button class="secondary" @click="emit('close')">やめる</button>
+        <button v-if="!props.forced" class="secondary" @click="emit('close')">やめる</button>
         <button class="sun" :disabled="!picked || game.busy" @click="go">{{ picked ? '声をかける' : '相手を選んでください' }}</button>
       </div>
     </div>
