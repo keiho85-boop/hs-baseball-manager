@@ -33,7 +33,7 @@ export const SQUARES: Record<SquareType, SquareInfo> = {
   fielding: { label: '守備', short: '守', color: '#14a7a0', description: '守備・捕球・肩が伸びる', menus: ['fielding'] },
   running: { label: '走塁', short: '走', color: '#36a843', description: '走力・盗塁・走塁が伸びる', menus: ['running'] },
   practical: { label: '実戦', short: '実', color: '#d99400', description: '試合形式。勝負強さが伸び、特殊能力を覚えやすい' },
-  rest: { label: '休養', short: '休', color: '#3aa8f0', description: '体力が大きく回復し、調子が整う' },
+  rest: { label: '休養', short: '休', color: '#3aa8f0', description: '体力が回復し、調子が整う（よく休めることも、あまり休めないこともある）' },
   special: { label: '特訓', short: '特', color: '#c2185b', description: '選手を1人選んで、大きく伸ばす' },
   event: { label: 'イベント', short: '!', color: '#ff5fa2', description: '何かが起きる' },
   manager: { label: 'マネージャー', short: 'マ', color: '#ff8fb1', description: '調子が上がる' },
@@ -332,6 +332,8 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
   const success = !!successOf(save)
   // 選手育成モード：同じ練習マスに続けて止まると、練習がつながって効果が上がる（2連続で1.5倍、3連続から2倍）
   const comboMult = success ? updateCombo(save, plan, messages) : 1
+  // 選手育成モードの休養：その週の休み方で、回復量が変わる（よく休めた・ふつう・あまり休めなかった）
+  const restGain = success && plan?.kind === 'square' && plan.square === 'rest' ? rollRest(rng, messages) : 35
   for (const p of members) {
     if (p.retired) continue
     if (!plan) {
@@ -396,7 +398,7 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
       } else if (chosen) trySkill(rng, p, 0.16 * card.gain, 0.15 * card.gain, messages)
     } else if (sq === 'rest') {
       intensity = 0.25
-      cost = -35
+      cost = -restGain
       if (p.condition.form < 3 && rng.chance(0.6)) p.condition.form += 1
     } else if (sq === 'rain') {
       intensity = 0.5 * card.gain
@@ -425,6 +427,25 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     const medical = own ? 1.15 - own.facilities.medical * 0.07 : 1
     practiceLoad(rng, save, p, cost * (cost > 0 ? campMult : 1), injuryMult * (camp ? 1.2 : 1) * medical, messages)
   }
+}
+
+/**
+ * 選手育成モードの休養マスの回復量。
+ * 体力100から「練習・練習・休養」の3週で、ふつうは90、よく休めると100、あまり休めないと80に戻るくらい
+ * （練習1回で27減り、毎週の自然な回復が約8）
+ */
+export const REST_GAIN = { good: 30, normal: 20, poor: 10 } as const
+function rollRest(rng: Rng, messages: string[]): number {
+  const r = rng.next()
+  if (r < 0.2) {
+    messages.push('休養：ぐっすり休めた！（いつもより体力が回復した）')
+    return REST_GAIN.good
+  }
+  if (r < 0.4) {
+    messages.push('休養：あまり休めなかった…（体力の回復が少なかった）')
+    return REST_GAIN.poor
+  }
+  return REST_GAIN.normal
 }
 
 /** 練習のつながり：同じ練習マスが続いた回数を数え、倍率を返す（練習マス以外に止まると途切れる） */
