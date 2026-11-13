@@ -106,6 +106,8 @@ function orderDisabled(o: BattingOrder): boolean {
   if (o === 'steal') return !((s.bases[0] && !s.bases[1]) || (s.bases[1] && !s.bases[2]))
   if (o === 'hitrun') return !s.bases[0]
   if (o === 'squeeze') return !s.bases[2] || s.outs >= 2
+  // 三塁に走者がいるときは、送りバントではなくスクイズ
+  if (o === 'bunt') return !!s.bases[2]
   return false
 }
 
@@ -428,7 +430,7 @@ function chanceOptions(s: MatchState): NagiOption[] {
   const opts: NagiOption[] = []
   if ((b1 && !b2) || (b2 && !b3)) opts.push({ label: '盗塁', say: 'ここは走ろう。初球からいって！', orders: { batting: 'steal' } })
   if ((b1 || b2) && s.outs < 2) opts.push({ label: 'エンドラン', say: 'エンドラン。何が来ても、転がして', orders: { batting: 'hitrun' } })
-  if ((b1 || b2) && s.outs < 2) opts.push({ label: '送りバント', say: '確実に送ろう。次で決める', orders: { batting: 'bunt' } })
+  if ((b1 || b2) && !b3 && s.outs < 2) opts.push({ label: '送りバント', say: '確実に送ろう。次で決める', orders: { batting: 'bunt' } })
   if (b3 && s.outs < 2) opts.push({ label: 'スクイズ', say: 'スクイズ。…三塁、スタートを切って！', orders: { batting: 'squeeze' } })
   opts.push(
     { label: '一発狙い', say: '狙っていこう。甘い球を、思い切り', orders: { batting: 'swing' } },
@@ -571,7 +573,8 @@ function tacticResult(o: NagiOption, kind: 'bat' | 'pitch', evs: PlayEvent[], st
   }
   if (order === 'squeeze') {
     if (main?.kind === 'sacbunt' && main.runs > 0) return { label: o.label, title: 'スクイズ成功！', sub: detail(main), good: true, ...who(batterId) }
-    if (!main || main.kind === 'buntfail') return { label: o.label, title: 'スクイズ失敗…', sub: main ? detail(main) : lastPitch, good: false, ...who(batterId) }
+    // 空振りで三塁走者がアウト（打席は続く）／小フライ／本塁タッチアウト
+    return { label: o.label, title: 'スクイズ失敗…', sub: main ? detail(main) : stealEv ? stealEv.text : lastPitch, good: false, ...who(batterId) }
   }
   if (order === 'bunt') {
     if (main?.kind === 'sacbunt') return { label: o.label, title: '送りバント成功！', sub: detail(main), good: true, ...who(batterId) }
@@ -583,7 +586,9 @@ function tacticResult(o: NagiOption, kind: 'bat' | 'pitch', evs: PlayEvent[], st
   const batGood = r.tone === 'hit' || r.tone === 'hr' || r.tone === 'walk' || r.tone === 'error' || main.runs > 0
   // 投手の作戦は、打ち取れば成功
   const good = kind === 'bat' ? batGood : !batGood
-  return { label: o.label, title: r.title, sub: `${players.value[main.batterId]?.surname ?? ''}　${detail(main)}`, good, ...who(kind === 'bat' ? batterId : main.pitcherId) }
+  // エンドランの空振りで走者が勝負した結果も添える
+  const runNote = order === 'hitrun' && stealEv ? `${stealEv.text}／` : ''
+  return { label: o.label, title: r.title, sub: `${runNote}${players.value[main.batterId]?.surname ?? ''}　${detail(main)}`, good, ...who(kind === 'bat' ? batterId : main.pitcherId) }
 }
 /** 盗塁を試みた走者（動けなかったときは、塁上の走者） */
 function s0Runner(_evs: PlayEvent[]): string | null {

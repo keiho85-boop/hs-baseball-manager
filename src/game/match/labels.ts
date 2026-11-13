@@ -83,7 +83,7 @@ export function bigResult(e: PlayEvent): { title: string; tone: 'hit' | 'hr' | '
     case 'doubleplay':
       return { title: 'ゲッツー', tone: 'out' }
     case 'sacbunt':
-      return { title: '送りバント成功', tone: 'walk' }
+      return { title: e.text.includes('スクイズ') ? 'スクイズ成功！' : '送りバント成功', tone: 'walk' }
     case 'sacfly':
       return { title: '犠牲フライ', tone: 'walk' }
     case 'error':
@@ -93,9 +93,9 @@ export function bigResult(e: PlayEvent): { title: string; tone: 'hit' | 'hr' | '
     case 'steal':
       return { title: '盗塁成功！', tone: 'hit' }
     case 'caughtstealing':
-      return { title: '盗塁失敗', tone: 'out' }
+      return { title: e.text.includes('スクイズ') ? 'スクイズ失敗' : e.text.includes('エンドラン') ? 'タッチアウト' : '盗塁失敗', tone: 'out' }
     case 'buntfail':
-      return { title: 'バント失敗', tone: 'out' }
+      return { title: e.text.includes('スクイズ') ? 'スクイズ失敗' : 'バント失敗', tone: 'out' }
     default: {
       const pos = shortResult(e).replace(/[ゴロ飛直]/g, '')
       const kind = e.kind === 'groundout' ? 'ゴロ' : e.kind === 'lineout' ? 'ライナー' : 'フライ'

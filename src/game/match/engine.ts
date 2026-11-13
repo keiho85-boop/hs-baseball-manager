@@ -324,6 +324,11 @@ function batterNow(s: MatchState, ctx: MatchContext, order: BattingOrder): Batte
     contact -= 10
     power += 12
   }
+  // エンドラン：何が来ても当てにいく（ミート重視）
+  if (order === 'hitrun') {
+    contact += 8
+    power -= 10
+  }
   // 引っ張り：強い打球を狙うぶん確実性が少し落ちる／流し打ち：当てる確実性が上がり、長打は減る
   if (order === 'pull') {
     contact -= 4
@@ -514,10 +519,14 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
   }
 
   // 盗塁
+  // 走者がスタートを切り、その1球は打者が見送る（球はふつうに投げる）
+  let stealEv: PlayEvent | null = null
   if (batOrder === 'steal') {
     s.pending.batting = 'auto'
-    const ev = attemptSteal(s, ctx)
-    if (ev) return { paEnded: s.finished, event: ev }
+    const half = halfKey(s)
+    stealEv = attemptSteal(s, ctx)
+    // 盗塁失敗で3アウトになったら、その球は投げない
+    if (stealEv && (s.finished || halfKey(s) !== half)) return { paEnded: true, event: stealEv }
   }
 
   const pitcher = ctx.players[field.pitcherId]!
@@ -564,7 +573,8 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
 
   // 3. 打者の判断
   let swing: boolean
-  if (batOrder === 'hitrun') swing = true
+  if (stealEv) swing = false
+  else if (batOrder === 'hitrun') swing = true
   else if (batOrder === 'wait' && s.count.strikes < 2) swing = false
   else if (inZone) {
     swing = rng.chance(clamp(0.66 + (s.count.strikes === 2 ? 0.22 : 0) - (s.count.balls === 3 && s.count.strikes === 0 ? 0.45 : 0) + (meatball ? 0.1 : 0), 0.1, 0.97))
@@ -583,7 +593,8 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
       s.lastPitch = `${pitchName} ${speedText}、ボール`
       if (s.count.balls >= 4) return endPA(s, ctx, 'walk', 0, null, '四球')
     }
-    return { paEnded: false, event: null }
+    if (stealEv) s.lastPitch = `${stealEv.text}／${s.lastPitch}`
+    return { paEnded: false, event: stealEv }
   }
 
   // 4. 当たり判定
@@ -593,8 +604,26 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
   if (!rng.chance(pContact)) {
     s.count.strikes += 1
     s.lastPitch = `${pitchName} ${speedText}、空振り`
-    if (s.count.strikes >= 3) return endPA(s, ctx, 'strikeout', 0, null, '空振り三振')
-    if (batOrder === 'hitrun' && s.bases[0]) runnerCaughtOnMiss(s, ctx)
+    if (s.count.strikes >= 3) {
+      const half = halfKey(s)
+      const res = endPA(s, ctx, 'strikeout', 0, null, '空振り三振')
+      // エンドランなら、走者はスタートを切っている（三振のあと、塁上で勝負）
+      if (batOrder === 'hitrun' && !s.finished && halfKey(s) === half) runnerGoesOnMiss(s, ctx)
+      return res
+    }
+    if (batOrder === 'hitrun') {
+      // 空振り：走者は盗塁の扱い。セーフでもアウトでも、1球たって打席は続く（サインは解ける）
+      const half = halfKey(s)
+      const ev = runnerGoesOnMiss(s, ctx)
+      if (ev) {
+        const over = s.finished || halfKey(s) !== half
+        if (!over) {
+          s.pending.batting = 'auto'
+          s.lastPitch = `${pitchName} ${speedText}、空振り／${ev.text}`
+        }
+        return { paEnded: over, event: ev }
+      }
+    }
     return { paEnded: s.finished, event: null }
   }
   const foulRate = (inZone ? 0.36 : 0.46) + (s.count.strikes === 2 && has(batter, 'persistent') ? 0.12 : 0)
@@ -616,6 +645,7 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
   if (pitch && (pitch.type === 'sinker' || pitch.type === 'fork' || pitch.type === 'splitter')) la -= 3
   const pullSide = batter.bats === 'L' ? 1 : batter.bats === 'R' ? -1 : (pitcher.throws === 'R' ? 1 : -1)
   if (batOrder === 'grounder') la -= 16
+  if (batOrder === 'hitrun') la -= 5
   if (batOrder === 'oppo') la -= 2
   const wide = has(batter, 'all_fields')
   // 打球の方向：引っ張りは引っ張る側へ、流し打ちは逆方向へ寄せる
@@ -698,12 +728,14 @@ function battedBall(
   const rng = ctx.rng
   const field = fieldingTeam(s)
   const speed = batter.running.speed
-  const infieldIn = s.pending.shift === 'infieldIn'
+  // 前進守備は、プレイヤーが守っているときだけ
+  const infieldIn = isUser(s, field) && s.pending.shift === 'infieldIn'
   const v = ev / 3.6
   const rad = (Math.max(la, 1) * Math.PI) / 180
   // 飛距離（空気抵抗を大まかに入れた計算。低反発バットを想定して控えめ）
   const carry = clamp(((v * v * Math.sin(2 * rad)) / 9.8) * 0.62, 2, 140)
   const toXY = (d: number) => ({ x: Math.sin((dir * Math.PI) / 180) * d, y: Math.cos((dir * Math.PI) / 180) * d })
+  const fence = fenceAt(dir)
 
   if (la < 10) {
     // ゴロ
@@ -713,41 +745,40 @@ function battedBall(
     if (has(f, 'highlight_defense')) pHit -= 0.05
     if (order === 'hitrun') pHit += 0.04 + userTactic(s) / 2
     pHit = clamp(pHit, 0.04, 0.6)
-    const ball = { ...toXY(clamp(ev * 0.32, 18, 60)), type: 'ground' as const }
+    // 内野手がさばく打球は内野に、抜けた打球は外野まで転がす（実況と絵を合わせる）
+    const infieldBall = { ...toXY(pos === 'P' ? clamp(ev * 0.16, 8, 17) : clamp(ev * 0.3, 20, 42)), type: 'ground' as const }
     if (rng.chance(pHit)) {
-      const kind: PlayKind = ev > 150 && Math.abs(dir) > 34 && rng.chance(0.35) ? 'double' : 'single'
-      const where = kind === 'double' ? `${dir < 0 ? '三塁線' : '一塁線'}を破る` : pos === 'P' ? '内野安打' : `${FIELD_NAMES[pos === '3B' || pos === 'SS' ? 'LF' : pos === '2B' ? 'CF' : 'RF']}前への`
-      return hit(s, ctx, kind, ball, kind === 'double' ? `${where}ツーベース` : pos === 'P' ? '内野安打' : `${where}ヒット`, order)
+      if (ev > 150 && Math.abs(dir) > 34 && rng.chance(0.35))
+        return hit(s, ctx, 'double', { ...toXY(clamp(58 + ev * 0.2, 84, fence - 5)), type: 'ground' }, `${dir < 0 ? '三塁線' : '一塁線'}を破るツーベース`, order)
+      // 投手前や当たりの弱いゴロは、足でかせぐ内野安打
+      if (pos === 'P' || ev < 92) return hit(s, ctx, 'single', infieldBall, `${FIELD_NAMES[pos]}への内野安打`, order, true)
+      return hit(s, ctx, 'single', { ...toXY(clamp(36 + ev * 0.22, 56, 74)), type: 'ground' }, `${FIELD_NAMES[airFielder(dir)]}前へのヒット`, order)
     }
     // エラー
     const pErr = 0.05 + (55 - f.fielding.catching) / 650 + (55 - f.fielding.throwing) / 1000
     if (rng.chance(clamp(pErr, 0.005, 0.12))) {
       field.errors += 1
-      return reachOnError(s, ctx, ball, `${FIELD_NAMES[pos]}のエラー`)
+      return reachOnError(s, ctx, infieldBall, `${FIELD_NAMES[pos]}のエラー`)
     }
-    // 併殺
-    if (s.bases[0] && s.outs < 2) {
-      const pDP = clamp(0.48 + (has(batter, 'double_play') ? 0.15 : 0) - (speed - 50) / 220 - (order === 'hitrun' ? 0.3 : 0) + (ev - 120) / 400, 0.05, 0.8)
-      if (rng.chance(pDP)) return doublePlay(s, ctx, ball, `${FIELD_NAMES[pos]}ゴロ、ゲッツー`)
-    }
-    return groundOut(s, ctx, ball, `${FIELD_NAMES[pos]}ゴロ`, infieldIn, order)
+    return groundPlay(s, ctx, infieldBall, pos, ev, batter, infieldIn, order)
   }
 
   if (la >= 50) {
-    // 内野フライ
-    const pos: Position = rng.pick(['C', '1B', '2B', '3B', 'SS'] as Position[])
-    return airOut(s, ctx, 'popout', { ...toXY(clamp(carry, 5, 40)), type: 'pop' }, `${FIELD_NAMES[pos]}フライ`, false)
+    // 内野フライ：打球の方向にいる野手が捕る
+    const d = clamp(carry, 5, 40)
+    const pos = infieldFlyFielder(dir, d)
+    return airOut(s, ctx, 'popout', { ...toXY(d), type: 'pop' }, `${FIELD_NAMES[pos]}フライ`, d, pos, order)
   }
 
   if (la < 25) {
     // ライナー
-    const pos = carry < 40 ? groundFielder(dir) : airFielder(dir)
+    const short = carry < 40
+    const pos = short ? groundFielder(dir) : airFielder(dir)
     const f = ctx.players[fielderAt(field, pos)]!
     let pHit = 0.63 + (ev - 125) / 240 - (f.fielding.range - 50) / 420
     if (has(f, 'highlight_defense')) pHit -= 0.06
     pHit = clamp(pHit, 0.25, 0.9)
-    const d = clamp(carry * 1.1, 25, 105)
-    const ball = { ...toXY(d), type: 'line' as const }
+    const base = carry * 1.1
     if (rng.chance(pHit)) {
       let kind: PlayKind = 'single'
       // 外野の間（左中間・右中間）や線際に飛ぶと長打になりやすい
@@ -756,19 +787,20 @@ function battedBall(
       if (kind === 'double' && speed >= 65 && rng.chance(0.12)) kind = 'triple'
       const of = FIELD_NAMES[airFielder(dir)]
       const text = kind === 'single' ? `${of}前ヒット` : kind === 'double' ? `${of}へのツーベース` : `${of}へのスリーベース`
-      return hit(s, ctx, kind, ball, text, order)
+      // 単打は外野手の前、長打は外野の深いところに落とす
+      const d = kind === 'single' ? clamp(Math.max(base, 55 + rng.next() * 10), 55, 78) : clamp(Math.max(base, 82 + rng.next() * 8), 82, fence - 4)
+      return hit(s, ctx, kind, { ...toXY(d), type: 'line' }, text, order)
     }
-    return airOut(s, ctx, 'lineout', ball, `${FIELD_NAMES[pos]}ライナー`, carry > 50)
+    const d = short ? clamp(base, 22, 42) : clamp(base, 56, fence - 6)
+    return airOut(s, ctx, 'lineout', { ...toXY(d), type: 'line' }, `${FIELD_NAMES[pos]}ライナー`, d, pos, order)
   }
 
   // フライ
   const pos = airFielder(dir)
   const f = ctx.players[fielderAt(field, pos)]!
-  const fence = fenceAt(dir)
-  const ball = { ...toXY(Math.min(carry, fence + 15)), type: 'fly' as const }
   if (carry >= fence) {
     const where = Math.abs(dir) > 30 ? `${dir < 0 ? 'レフト' : 'ライト'}ポール際` : `${FIELD_NAMES[pos]}スタンド`
-    return hit(s, ctx, 'homerun', ball, `${where}へのホームラン！`, order)
+    return hit(s, ctx, 'homerun', { ...toXY(Math.min(carry, fence + 15)), type: 'fly' }, `${where}へのホームラン！`, order)
   }
   let pHit = 0.14 + Math.max(0, carry - 65) / 110 - (f.fielding.range - 50) / 380
   if (has(f, 'highlight_defense')) pHit -= 0.06
@@ -777,14 +809,28 @@ function battedBall(
     let kind: PlayKind = carry > fence * 0.84 ? 'double' : 'single'
     if (kind === 'double' && speed >= 60 && Math.abs(dir) < 25 && rng.chance(0.2)) kind = 'triple'
     const of = FIELD_NAMES[pos]
-    const text = kind === 'single' ? `${of}前に落ちるヒット` : kind === 'double' ? `${of}の頭を越えるツーベース` : `${of}オーバーのスリーベース`
-    return hit(s, ctx, kind, ball, text, order)
+    // 浅い当たりは「前に落ちる」、深い当たりは「へのヒット」
+    const text = kind === 'single' ? (carry < 72 ? `${of}前に落ちるヒット` : `${of}へのヒット`) : kind === 'double' ? `${of}の頭を越えるツーベース` : `${of}オーバーのスリーベース`
+    const d = kind === 'single' ? clamp(carry, 52, fence * 0.84) : clamp(carry, fence * 0.84, fence - 2)
+    return hit(s, ctx, kind, { ...toXY(d), type: 'fly' }, text, order)
   }
-  if (rng.chance(0.012)) {
+  if (carry >= 46 && rng.chance(0.012)) {
     field.errors += 1
-    return reachOnError(s, ctx, ball, `${FIELD_NAMES[pos]}の落球`)
+    return reachOnError(s, ctx, { ...toXY(carry), type: 'fly' }, `${FIELD_NAMES[pos]}の落球`)
   }
-  return airOut(s, ctx, 'flyout', ball, `${FIELD_NAMES[pos]}フライ`, carry > 60)
+  // 外野まで届かないフライは、内野手が捕る
+  if (carry < 46) {
+    const ipos = infieldFlyFielder(dir, carry)
+    return airOut(s, ctx, 'popout', { ...toXY(carry), type: 'pop' }, `${FIELD_NAMES[ipos]}フライ`, carry, ipos, order)
+  }
+  return airOut(s, ctx, 'flyout', { ...toXY(carry), type: 'fly' }, `${FIELD_NAMES[pos]}フライ`, carry, pos, order)
+}
+
+/** 内野に上がったフライを捕る野手（打球の方向と距離から決める） */
+function infieldFlyFielder(dir: number, d: number): Position {
+  if (d < 10) return 'C'
+  if (d < 24 && Math.abs(dir) < 12) return 'P'
+  return groundFielder(dir)
 }
 
 // ---------------------------------------------------------------- 結果の反映
@@ -793,7 +839,7 @@ function runner(ctx: MatchContext, id: string | null): Player | undefined {
   return id ? ctx.players[id] : undefined
 }
 
-function hit(s: MatchState, ctx: MatchContext, kind: PlayKind, ball: PlayEvent['ball'], text: string, order: BattingOrder): PitchResult {
+function hit(s: MatchState, ctx: MatchContext, kind: PlayKind, ball: PlayEvent['ball'], text: string, order: BattingOrder, infield = false): PitchResult {
   const rng = ctx.rng
   const batterId = currentBatterId(s)
   const [r1, r2, r3] = s.bases
@@ -822,6 +868,10 @@ function hit(s: MatchState, ctx: MatchContext, kind: PlayKind, ball: PlayEvent['
       else bases[2] = r1
     }
     bases[1] = batterId
+  } else if (infield) {
+    // 内野安打：走者は1つずつ進む
+    if (r3) scored.push(r3)
+    bases = [batterId, r1, r2]
   } else {
     // シングル
     if (r3) scored.push(r3)
@@ -837,16 +887,21 @@ function hit(s: MatchState, ctx: MatchContext, kind: PlayKind, ball: PlayEvent['
   }
   runs = scored.length
   s.bases = bases
-  const t = battingTeam(s)
-  t.hits += 1
-  const box = s.batting[batterId]!
+  creditHit(s, kind)
+  return endPA(s, ctx, kind, runs, ball, text, scored)
+}
+
+/** 安打の記録（チームの安打数、打者・投手の成績） */
+function creditHit(s: MatchState, kind: PlayKind): void {
+  battingTeam(s).hits += 1
+  const box = s.batting[currentBatterId(s)]!
   box.h += 1
   if (kind === 'double') box.d += 1
   if (kind === 'triple') box.t += 1
   if (kind === 'homerun') box.hr += 1
-  s.pitching[fieldingTeam(s).pitcherId]!.h += 1
-  if (kind === 'homerun') s.pitching[fieldingTeam(s).pitcherId]!.hr += 1
-  return endPA(s, ctx, kind, runs, ball, text, scored)
+  const pbox = s.pitching[fieldingTeam(s).pitcherId]!
+  pbox.h += 1
+  if (kind === 'homerun') pbox.hr += 1
 }
 
 function reachOnError(s: MatchState, ctx: MatchContext, ball: PlayEvent['ball'], text: string): PitchResult {
@@ -855,62 +910,206 @@ function reachOnError(s: MatchState, ctx: MatchContext, ball: PlayEvent['ball'],
   if (r3) scored.push(r3)
   const bases: Bases = [currentBatterId(s), r1, r2]
   s.bases = bases
-  return endPA(s, ctx, 'error', scored.length, ball, text, scored, true)
+  return endPA(s, ctx, 'error', scored.length, ball, text, scored)
 }
 
-function doublePlay(s: MatchState, ctx: MatchContext, ball: PlayEvent['ball'], text: string): PitchResult {
-  const [, r2, r3] = s.bases
-  s.outs += 2
-  const scored: string[] = []
-  // 3アウト目でなければ、三塁走者は生還し、二塁走者は三塁へ
-  if (s.outs < 3 && r3) scored.push(r3)
-  s.bases = s.outs < 3 ? [null, null, r2] : [null, null, null]
-  return endPA(s, ctx, 'doubleplay', scored.length, ball, text, scored, true)
-}
-
-function groundOut(s: MatchState, ctx: MatchContext, ball: PlayEvent['ball'], text: string, infieldIn: boolean, order: BattingOrder): PitchResult {
+/**
+ * 内野ゴロの処理：どこでアウトを取るかを、打球の強さ・野手の守備・打者と走者の足で決める
+ * （ゲッツー、封殺、進塁打、本塁生還）
+ */
+function groundPlay(
+  s: MatchState,
+  ctx: MatchContext,
+  ball: PlayEvent['ball'],
+  pos: Position,
+  ev: number,
+  batter: Player,
+  infieldIn: boolean,
+  order: BattingOrder,
+): PitchResult {
   const rng = ctx.rng
+  const field = fieldingTeam(s)
+  const f = ctx.players[fielderAt(field, pos)]!
+  const text = `${FIELD_NAMES[pos]}ゴロ`
+  const batterId = currentBatterId(s)
   const [r1, r2, r3] = s.bases
-  s.outs += 1
-  const scored: string[] = []
-  let bases: Bases = [null, null, null]
-  if (s.outs < 3) {
-    // 三塁走者：前進守備なら本塁で刺されやすい
-    if (r3) {
-      // ゴロ狙いの作戦では、三塁走者は打球が転がった瞬間にスタートを切る
-      const go = order === 'grounder' ? 0.3 : 0
-      if (rng.chance(infieldIn ? 0.22 + go : r1 && r2 ? 0.0 : 0.55 + go)) scored.push(r3)
-      else bases[2] = r3
+  const sp = (id: string) => ctx.players[id]?.running.speed ?? 50
+  const br = (id: string) => ctx.players[id]?.running.baserunning ?? 50
+  // エンドランでは、走者は投球と同時にスタートを切っている
+  const moving = order === 'hitrun'
+
+  // 2アウト：一塁でアウト
+  if (s.outs >= 2) {
+    s.outs += 1
+    return endPA(s, ctx, 'groundout', 0, ball, text, [], true)
+  }
+
+  const fieldSkill = (f.fielding.catching + f.fielding.throwing) / 2
+  // 三塁走者がゴロで生還できる見込み（足・走塁判断・打球の強さ・前進守備）
+  const go = order === 'grounder' ? 0.3 : 0
+  const homeChance = (id: string) => clamp((infieldIn ? 0.2 : 0.52) + go + (sp(id) - 50) / 160 + (br(id) - 50) / 300 - (ev - 120) / 500, 0.03, 0.97)
+
+  if (r1) {
+    // ---- 一塁に走者：ゲッツーを狙える
+    const pivot = ctx.players[fielderAt(field, pos === 'SS' || pos === '3B' ? '2B' : 'SS')]
+    const r1p = ctx.players[r1]!
+    let pDP =
+      0.3 +
+      (ev - 120) / 320 +
+      (fieldSkill - 50) / 260 +
+      ((pivot?.fielding.throwing ?? 50) - 50) / 400 -
+      (batter.running.speed - 50) / 170 -
+      (r1p.running.speed - 50) / 260 +
+      (has(batter, 'double_play') ? 0.15 : 0) +
+      (pos === '1B' ? -0.1 : pos === 'P' ? -0.04 : 0) -
+      (infieldIn ? 0.08 : 0)
+    if (moving) pDP -= 0.3 + (r1p.running.steal - 50) / 300
+    pDP = clamp(pDP, 0.02, 0.7)
+    if (rng.chance(pDP)) {
+      s.outs += 2
+      const live = s.outs < 3
+      if (r2 && r3) {
+        // 満塁：本塁→一塁、または二塁→一塁（その間に1点）
+        if (infieldIn || pos === 'P' || rng.chance(0.3)) {
+          s.bases = live ? [null, r1, r2] : [null, null, null]
+          return endPA(s, ctx, 'doubleplay', 0, ball, `${text}、本塁ゲッツー`, [], true)
+        }
+        s.bases = live ? [null, null, r2] : [null, null, null]
+        return endPA(s, ctx, 'doubleplay', live ? 1 : 0, ball, `${text}、ゲッツー`, live ? [r3] : [], true)
+      }
+      if (r2) {
+        // 一・二塁：三塁を踏んで一塁へ（二塁走者と打者がアウト）、または二塁→一塁
+        if (pos === '3B' || (pos === 'SS' && rng.chance(0.25))) {
+          s.bases = live ? [null, r1, null] : [null, null, null]
+          return endPA(s, ctx, 'doubleplay', 0, ball, `${text}、三塁封殺から一塁へ送ってゲッツー`, [], true)
+        }
+        s.bases = live ? [null, null, r2] : [null, null, null]
+        return endPA(s, ctx, 'doubleplay', 0, ball, `${text}、ゲッツー`, [], true)
+      }
+      // 一塁（と三塁）：3アウト目でなければ三塁走者は生還
+      const scored = live && r3 ? [r3] : []
+      s.bases = [null, null, null]
+      return endPA(s, ctx, 'doubleplay', scored.length, ball, `${text}、ゲッツー`, scored, true)
+    }
+
+    // ---- ゲッツーにならなかった：先の走者を封殺するか、一塁でアウトにするか
+    let pForce = 0.42 + (ev - 120) / 400 - (r1p.running.speed - 50) / 220 + (fieldSkill - 50) / 400 - (pos === '1B' ? 0.15 : 0)
+    if (moving) pForce -= 0.35
+    pForce = clamp(pForce, 0.03, 0.75)
+    s.outs += 1
+    if (r2 && r3) {
+      if (rng.chance(infieldIn ? 0.85 : 0.45)) {
+        s.bases = [batterId, r1, r2]
+        return endPA(s, ctx, 'fielderschoice', 0, ball, `${text}、本塁フォースアウト`, [], true)
+      }
+      if (rng.chance(pForce)) {
+        s.bases = [batterId, null, r2]
+        return endPA(s, ctx, 'groundout', 1, ball, `${text}、二塁フォースアウト`, [r3], true)
+      }
+      s.bases = [null, r1, r2]
+      return endPA(s, ctx, 'groundout', 1, ball, text, [r3], true)
     }
     if (r2) {
-      if (!bases[2]) bases[2] = r2
-      else bases[1] = r2
+      if (rng.chance(pForce)) {
+        if (pos === '3B') {
+          s.bases = [batterId, r1, null]
+          return endPA(s, ctx, 'groundout', 0, ball, `${text}、三塁フォースアウト`, [], true)
+        }
+        s.bases = [batterId, null, r2]
+        return endPA(s, ctx, 'groundout', 0, ball, `${text}、二塁フォースアウト`, [], true)
+      }
+      s.bases = [null, r1, r2]
+      return endPA(s, ctx, 'groundout', 0, ball, text, [], true)
     }
-    if (r1) bases[1] = bases[1] ?? r1
-    if (order === 'hitrun' && r1 && !bases[1]) bases[1] = r1
-    // 満塁などで押し出された場合
-    if (r1 && r2 && r3 && !scored.includes(r3)) {
-      // フォースアウトは本塁で取った扱い：走者はそのまま、打者が一塁
-      bases = [currentBatterId(s), r2 ? r1 : null, r2]
-      return endPA(s, ctx, 'fielderschoice', 0, ball, `${text}、本塁フォースアウト`, [], true)
+    const scored = r3 && rng.chance(homeChance(r3)) ? [r3] : []
+    const third = scored.length ? null : r3
+    if (rng.chance(pForce)) {
+      s.bases = [batterId, null, third]
+      return endPA(s, ctx, 'groundout', scored.length, ball, `${text}、二塁フォースアウト`, scored, true)
+    }
+    s.bases = [null, r1, third]
+    return endPA(s, ctx, 'groundout', scored.length, ball, text, scored, true)
+  }
+
+  // ---- 一塁が空：打者は一塁でアウト。走者は足と打球の方向しだいで進む
+  s.outs += 1
+  const scored: string[] = []
+  let third = r3
+  let second = r2
+  if (r3 && rng.chance(homeChance(r3))) {
+    scored.push(r3)
+    third = null
+  }
+  if (r2 && !third) {
+    const right = pos === '2B' || pos === '1B'
+    const pAdv = (right ? 0.85 : 0.3) + (sp(r2) - 50) / 150 + (br(r2) - 50) / 300 + (order === 'grounder' ? 0.1 : 0) + (moving ? 0.3 : 0)
+    if (rng.chance(clamp(pAdv, 0.05, 0.98))) {
+      third = r2
+      second = null
     }
   }
-  s.bases = bases
+  s.bases = [null, second, third]
   return endPA(s, ctx, 'groundout', scored.length, ball, text, scored, true)
 }
 
-function airOut(s: MatchState, ctx: MatchContext, kind: PlayKind, ball: PlayEvent['ball'], text: string, deep: boolean): PitchResult {
+/** フライ・ライナーのアウト：タッチアップ（走者の足と外野手の肩）、エンドランの飛び出し */
+function airOut(
+  s: MatchState,
+  ctx: MatchContext,
+  kind: PlayKind,
+  ball: PlayEvent['ball'],
+  text: string,
+  dist: number,
+  pos: Position,
+  order: BattingOrder,
+): PitchResult {
   const rng = ctx.rng
+  const field = fieldingTeam(s)
+  const pbox = s.pitching[field.pitcherId]!
   s.outs += 1
-  const scored: string[] = []
   const [r1, r2, r3] = s.bases
-  if (s.outs < 3 && kind === 'flyout' && r3) {
-    const p = runner(ctx, r3)!
-    if (rng.chance(clamp((deep ? 0.75 : 0.35) + (p.running.speed - 50) / 150, 0.05, 0.97))) {
-      scored.push(r3)
-      s.bases = [r1, r2, null]
-      if (deep && r2 && rng.chance(0.4)) s.bases = [r1, null, r2]
-      return endPA(s, ctx, 'sacfly', 1, ball, `${text}、犠牲フライ`, scored, false, true)
+  if (s.outs >= 3) return endPA(s, ctx, kind, 0, ball, text, [], true)
+  const arm = ctx.players[fielderAt(field, pos)]?.fielding.arm ?? 50
+
+  // エンドランで内野へのライナー：スタートを切っていた走者が戻れないことがある（走塁判断と足）
+  if (kind === 'lineout' && order === 'hitrun' && dist <= 42) {
+    const from: 0 | 1 | null = r1 ? 0 : r2 ? 1 : null
+    if (from !== null) {
+      const id = s.bases[from]!
+      const p = ctx.players[id]!
+      if (rng.chance(clamp(0.35 - (p.running.baserunning - 50) / 120 - (p.running.speed - 50) / 300, 0.05, 0.8))) {
+        s.bases[from] = null
+        s.outs += 1
+        pbox.outs += 1
+        return endPA(s, ctx, kind, 0, ball, `${text}、飛び出した${name(ctx, id)}も戻れずダブルプレー`, [], true)
+      }
+    }
+  }
+
+  if (kind === 'flyout') {
+    // 外野フライ：打球の深さ・走者の足と走塁判断・外野手の肩で、タッチアップできるかが決まる
+    const tagUp = (id: string, bonus: number) => {
+      const p = ctx.players[id]!
+      return clamp(0.5 + (dist - 72) / 36 + (p.running.speed - 50) / 110 + (p.running.baserunning - 50) / 300 - (arm - 50) / 160 + bonus, 0, 0.98)
+    }
+    if (r3) {
+      const p = tagUp(r3, 0)
+      // 見込みが薄いときは自重する（ときどき思い切って突っ込む）
+      if (p >= 0.45 || (p >= 0.15 && rng.chance(0.2))) {
+        if (rng.chance(clamp(p + 0.25, 0, 0.98))) {
+          s.bases = [r1, r2, null]
+          if (r2 && rng.chance(tagUp(r2, -0.25))) s.bases = [r1, null, r2]
+          return endPA(s, ctx, 'sacfly', 1, ball, `${text}、犠牲フライ`, [r3], false, true)
+        }
+        // 本塁でタッチアウト
+        s.bases = [r1, r2, null]
+        s.outs += 1
+        pbox.outs += 1
+        return endPA(s, ctx, kind, 0, ball, `${text}、タッチアップの${name(ctx, r3)}は本塁タッチアウト`, [], true)
+      }
+    } else if (r2 && rng.chance(tagUp(r2, -0.25))) {
+      // 二塁走者が三塁へ
+      s.bases = [r1, null, r2]
     }
   }
   return endPA(s, ctx, kind, 0, ball, text, [], true)
@@ -919,21 +1118,46 @@ function airOut(s: MatchState, ctx: MatchContext, kind: PlayKind, ball: PlayEven
 function bunt(s: MatchState, ctx: MatchContext, batter: Player): PitchResult {
   const rng = ctx.rng
   s.pending.batting = 'auto'
+  const batterId = currentBatterId(s)
+  const [r1, r2, r3] = s.bases
+
+  // 走者なし：セーフティバント（足とミートで決まる）
+  if (!r1 && !r2 && !r3) {
+    const pSafe = clamp(0.16 + (batter.running.speed - 50) / 170 + (batter.batting.contact - 50) / 450 + (has(batter, 'bunt') ? 0.06 : 0) + userTactic(s), 0.04, 0.5)
+    const x = rng.next()
+    const side = rng.chance(0.5) ? -8 : 8
+    if (x < pSafe) {
+      s.bases = [batterId, null, null]
+      creditHit(s, 'single')
+      return endPA(s, ctx, 'single', 0, { x: side, y: 15, type: 'ground' }, 'セーフティバント成功！')
+    }
+    if (x < pSafe + 0.18) {
+      if (s.count.strikes >= 2) return endPA(s, ctx, 'strikeout', 0, null, 'スリーバント失敗、三振')
+      s.count.strikes += 1
+      s.lastPitch = 'バントはファウル'
+      s.pending.batting = 'bunt'
+      return { paEnded: false, event: null }
+    }
+    s.outs += 1
+    const pos: Position = side < 0 ? (rng.chance(0.5) ? '3B' : 'P') : rng.chance(0.5) ? '1B' : 'P'
+    return endPA(s, ctx, 'groundout', 0, { x: side, y: 14, type: 'ground' }, `セーフティバント失敗、${FIELD_NAMES[pos]}ゴロ`, [], true)
+  }
+
   let pSuccess = 0.72 + (has(batter, 'bunt') ? 0.15 : 0) + (batter.batting.contact - 50) / 300 - (has(batter, 'sign_lost') ? 0.15 : 0) + userTactic(s)
   pSuccess = clamp(pSuccess, 0.35, 0.95)
   const r = rng.next()
   if (r < pSuccess) {
     // 成功：走者が進み、打者はアウト（まれに内野安打）
     if (rng.chance(0.06 + (batter.running.speed - 50) / 500)) {
-      s.bases = [currentBatterId(s), s.bases[0], s.bases[1]]
-      return endPA(s, ctx, 'single', 0, { x: 0, y: 15, type: 'ground' }, 'セーフティバント成功！', [], false)
+      const scored = r3 ? [r3] : []
+      s.bases = [batterId, r1, r2]
+      creditHit(s, 'single')
+      return endPA(s, ctx, 'single', scored.length, { x: 0, y: 15, type: 'ground' }, 'セーフティバント成功！', scored)
     }
-    const scored: string[] = []
-    const [r1, r2, r3] = s.bases
     s.outs += 1
-    if (r3 && s.outs < 3) scored.push(r3)
-    s.bases = [null, r1, r2]
-    return endPA(s, ctx, 'sacbunt', scored.length, { x: rng.chance(0.5) ? -8 : 8, y: 14, type: 'ground' }, '送りバント成功', scored, false, true)
+    // 三塁走者は動かない（本塁を狙うのはスクイズ）
+    s.bases = r3 ? (r2 ? [r1, r2, r3] : [null, r1, r3]) : [null, r1, r2]
+    return endPA(s, ctx, 'sacbunt', 0, { x: rng.chance(0.5) ? -8 : 8, y: 14, type: 'ground' }, '送りバント成功', [], false, true)
   }
   if (r < pSuccess + 0.15 && s.count.strikes < 2) {
     s.count.strikes += 1
@@ -942,25 +1166,43 @@ function bunt(s: MatchState, ctx: MatchContext, batter: Player): PitchResult {
     return { paEnded: false, event: null }
   }
   if (s.count.strikes >= 2) return endPA(s, ctx, 'strikeout', 0, null, 'スリーバント失敗、三振')
-  // 失敗：先の走者がフォースアウト
+  // 失敗：先の走者がアウトになり、打者は一塁に残る
   s.outs += 1
-  const lead = s.bases[1] ? 1 : 0
-  if (lead === 1) s.bases = [currentBatterId(s), s.bases[0], s.bases[2]]
-  else s.bases = [currentBatterId(s), s.bases[1], s.bases[2]]
-  return endPA(s, ctx, 'buntfail', 0, { x: 0, y: 12, type: 'ground' }, 'バント失敗、先の走者がアウト', [], true)
+  const ball = { x: 0, y: 12, type: 'ground' as const }
+  if (r2) {
+    s.bases = [batterId, r1, r3]
+    return endPA(s, ctx, 'buntfail', 0, ball, `バント失敗、二塁走者が三塁で${r1 ? 'フォース' : 'タッチ'}アウト`, [], true)
+  }
+  if (r1) {
+    s.bases = [batterId, null, r3]
+    return endPA(s, ctx, 'buntfail', 0, ball, 'バント失敗、一塁走者が二塁でフォースアウト', [], true)
+  }
+  // 三塁走者だけ：小フライで打者がアウト
+  return endPA(s, ctx, 'buntfail', 0, { x: 0, y: 8, type: 'pop' }, 'バント失敗、小フライ', [], true)
 }
 
-/** スクイズ：三塁走者がスタートを切り、打者はバントで転がす */
 function squeeze(s: MatchState, ctx: MatchContext, batter: Player): PitchResult {
   const rng = ctx.rng
   s.pending.batting = 'auto'
-  let pSuccess = 0.66 + (has(batter, 'bunt') ? 0.15 : 0) + (batter.batting.contact - 50) / 300 - (has(batter, 'sign_lost') ? 0.15 : 0) + userTactic(s)
-  pSuccess = clamp(pSuccess, 0.3, 0.92)
+  const field = fieldingTeam(s)
+  const pbox = s.pitching[field.pitcherId]!
+  const batterId = currentBatterId(s)
   const [r1, r2, r3] = s.bases
+  const run = ctx.players[r3!]!
+  // 打者のバントのうまさと、三塁走者のスタート（足・走塁判断）で決まる
+  let pSuccess =
+    0.64 +
+    (has(batter, 'bunt') ? 0.15 : 0) +
+    (batter.batting.contact - 50) / 300 +
+    (run.running.speed - 50) / 500 +
+    (run.running.baserunning - 50) / 600 -
+    (has(batter, 'sign_lost') ? 0.15 : 0) +
+    userTactic(s)
+  pSuccess = clamp(pSuccess, 0.3, 0.92)
   const r = rng.next()
   if (r < pSuccess) {
     s.outs += 1
-    const scored = r3 && s.outs < 3 ? [r3] : []
+    const scored = s.outs < 3 ? [r3!] : []
     s.bases = [null, r1, r2]
     return endPA(s, ctx, 'sacbunt', scored.length, { x: rng.chance(0.5) ? -6 : 6, y: 12, type: 'ground' }, 'スクイズ成功！', scored, false, true)
   }
@@ -971,13 +1213,49 @@ function squeeze(s: MatchState, ctx: MatchContext, batter: Player): PitchResult 
     s.pending.batting = 'squeeze'
     return { paEnded: false, event: null }
   }
-  // 失敗：空振り（または小フライ）で三塁走者が挟まれてアウト
+  // ---- 失敗：空振り／小フライ／転がしたが本塁でアウト
+  const x = rng.next()
+  const pMiss = clamp(0.45 - (batter.batting.contact - 50) / 200, 0.2, 0.7)
+  if (x < pMiss) {
+    // 空振り：飛び出した三塁走者がアウト。打席は続く
+    const half = halfKey(s)
+    s.bases = [r1, r2, null]
+    s.outs += 1
+    pbox.outs += 1
+    s.count.strikes = Math.min(2, s.count.strikes + 1)
+    const ev = makeEvent(s, ctx, r3!, 'caughtstealing', `スクイズ空振り！三塁走者の${name(ctx, r3!)}がタッチアウト`, 0)
+    s.events.push(ev)
+    s.lastPitch = ev.text
+    if (s.outs >= 3) endHalfInning(s, ctx)
+    return { paEnded: s.finished || halfKey(s) !== half, event: ev }
+  }
+  if (x < pMiss + 0.2) {
+    // 小フライ：打者がアウト、戻れない三塁走者もアウト
+    const two = s.outs + 2 <= 3
+    s.outs += two ? 2 : 1
+    if (two) pbox.outs += 1
+    s.bases = [r1, r2, null]
+    const pos: Position = rng.pick(['P', 'C', '1B', '3B'] as Position[])
+    return endPA(s, ctx, 'buntfail', 0, { x: pos === '3B' ? -6 : pos === '1B' ? 6 : 0, y: pos === 'C' ? 3 : 9, type: 'pop' }, `スクイズ失敗、${FIELD_NAMES[pos]}への小フライでダブルプレー`, [], true)
+  }
+  // 転がしたが、三塁走者が本塁でタッチアウト（打者は一塁に生きる）
   s.outs += 1
-  s.bases = [r1, r2, null]
-  if (s.outs >= 3) return endPA(s, ctx, 'buntfail', 0, null, 'スクイズ失敗、三塁走者がアウト', [], true)
-  s.count.strikes = Math.min(2, s.count.strikes + 1)
-  s.lastPitch = 'スクイズ失敗！三塁走者がアウト'
-  return { paEnded: false, event: null }
+  s.bases = [batterId, r1, r2]
+  return endPA(s, ctx, 'buntfail', 0, { x: rng.chance(0.5) ? -5 : 5, y: 10, type: 'ground' }, `スクイズ失敗、三塁走者の${name(ctx, r3!)}が本塁タッチアウト`, [], true)
+}
+
+/** 盗塁の成功率（走者の盗塁・足、捕手の肩、投手のクイック） */
+function stealChance(s: MatchState, ctx: MatchContext, from: 0 | 1): number {
+  const field = fieldingTeam(s)
+  const r = ctx.players[s.bases[from]!]!
+  const catcher = ctx.players[fielderAt(field, 'C')]!
+  const pitcher = ctx.players[field.pitcherId]!
+  let p = 0.6 + (r.running.steal - 50) / 160 + (r.running.speed - 50) / 220 - (catcher.fielding.arm - 50) / 220 - (pitcher.pitching.quick - 50) / 300
+  if (has(r, 'rocket_start')) p += 0.1
+  if (has(pitcher, 'no_steal')) p -= 0.1
+  if (from === 1) p -= 0.08
+  p += userTactic(s)
+  return clamp(p, 0.15, 0.95)
 }
 
 function attemptSteal(s: MatchState, ctx: MatchContext): PlayEvent | null {
@@ -989,14 +1267,8 @@ function attemptSteal(s: MatchState, ctx: MatchContext): PlayEvent | null {
   else return null
   const id = s.bases[from]!
   const r = ctx.players[id]!
-  const catcher = ctx.players[fielderAt(field, 'C')]!
   const pitcher = ctx.players[field.pitcherId]!
-  let p = 0.6 + (r.running.steal - 50) / 160 + (r.running.speed - 50) / 220 - (catcher.fielding.arm - 50) / 220 - (pitcher.pitching.quick - 50) / 300
-  if (has(r, 'rocket_start')) p += 0.1
-  if (has(pitcher, 'no_steal')) p -= 0.1
-  if (from === 1) p -= 0.08
-  p += userTactic(s)
-  p = clamp(p, 0.15, 0.95)
+  const p = stealChance(s, ctx, from)
   // 動けず：投手のクイックや牽制でスタートを切れない（その球はふつうに投げる）
   let stuck = 0.15 + (pitcher.pitching.quick - 50) / 250 - (r.running.steal - 50) / 300
   if (has(r, 'rocket_start')) stuck -= 0.06
@@ -1005,13 +1277,11 @@ function attemptSteal(s: MatchState, ctx: MatchContext): PlayEvent | null {
     s.stealStuck = `${name(ctx, id)}、スタートを切れず`
     return null
   }
-  s.pitching[field.pitcherId]!.pitches += 1
   const success = rng.chance(p)
   s.bases[from] = null
   if (success) {
     s.bases[from === 0 ? 1 : 2] = id
     s.batting[id] && (s.batting[id]!.sb += 1)
-    if (s.count.balls < 3) s.count.balls += 1
   } else {
     s.outs += 1
     s.pitching[field.pitcherId]!.outs += 1
@@ -1023,21 +1293,38 @@ function attemptSteal(s: MatchState, ctx: MatchContext): PlayEvent | null {
   return ev
 }
 
-function runnerCaughtOnMiss(s: MatchState, ctx: MatchContext): void {
-  const id = s.bases[0]
-  if (!id || s.bases[1]) return
-  const r = ctx.players[id]!
-  if (ctx.rng.chance(clamp(0.55 - (r.running.speed - 50) / 150, 0.15, 0.8))) {
-    s.bases[0] = null
+/** エンドランで打者が空振り：スタートを切っていた走者は、盗塁と同じ勝負になる */
+function runnerGoesOnMiss(s: MatchState, ctx: MatchContext): PlayEvent | null {
+  let from: 0 | 1
+  if (s.bases[1] && !s.bases[2]) from = 1
+  else if (s.bases[0] && !s.bases[1]) from = 0
+  else return null
+  const id = s.bases[from]!
+  const success = ctx.rng.chance(stealChance(s, ctx, from))
+  const trail = from === 1 ? s.bases[0] : null
+  s.bases[from] = null
+  if (success) {
+    s.bases[from === 0 ? 1 : 2] = id
+    s.batting[id] && (s.batting[id]!.sb += 1)
+  } else {
     s.outs += 1
     s.pitching[fieldingTeam(s).pitcherId]!.outs += 1
-    s.events.push(makeEvent(s, ctx, id, 'caughtstealing', `${name(ctx, id)}、エンドランで飛び出しアウト`, 0))
-    if (s.outs >= 3) endHalfInning(s, ctx)
-  } else {
-    s.bases[0] = null
-    s.bases[1] = id
   }
+  // 一・二塁なら、後ろの走者も二塁へ
+  if (trail) {
+    s.bases[0] = null
+    s.bases[1] = trail
+  }
+  const base = from === 0 ? '二塁' : '三塁'
+  const text = success ? `エンドラン空振りも、${name(ctx, id)}は${base}へ盗塁成功！` : `エンドラン空振り、${name(ctx, id)}は${base}でタッチアウト`
+  const ev = makeEvent(s, ctx, id, success ? 'steal' : 'caughtstealing', text, 0)
+  s.events.push(ev)
+  s.lastPitch = ev.text
+  if (s.outs >= 3) endHalfInning(s, ctx)
+  return ev
 }
+
+const halfKey = (s: MatchState): string => `${s.inning}${s.top ? 't' : 'b'}`
 
 function makeEvent(s: MatchState, ctx: MatchContext, batterId: string, kind: PlayKind, text: string, runs: number, ball?: PlayEvent['ball']): PlayEvent {
   return {
@@ -1110,7 +1397,7 @@ function endPA(
   pbox.r += runs
   addRuns(s, runs)
 
-  const ev = makeEvent(s, ctx, batterId, kind, `${name(ctx, batterId)}：${text}`, runs, ball ?? undefined)
+  const ev = makeEvent(s, ctx, batterId, kind, `${name(ctx, batterId)}：${withScoreNote(kind, text, runs)}`, runs, ball ?? undefined)
   s.events.push(ev)
   if (s.events.length > 400) s.events.splice(0, s.events.length - 400)
   s.lastPitch = ev.text
@@ -1121,8 +1408,33 @@ function endPA(
   bat.battingIndex = (bat.battingIndex + 1) % 9
 
   checkWalkoff(s)
+  if (s.finished && runs > 0) {
+    ev.text += '　サヨナラ！'
+    s.lastPitch = ev.text
+  }
   if (!s.finished && s.outs >= 3) endHalfInning(s, ctx)
   return { paEnded: true, event: ev }
+}
+
+/** 点が入ったプレーは、実況にもそのことを入れる */
+function withScoreNote(kind: PlayKind, text: string, runs: number): string {
+  if (runs <= 0) return text
+  switch (kind) {
+    case 'homerun':
+      return text.replace('ホームラン', `${['ソロ', 'ツーラン', 'スリーラン', '満塁'][runs - 1] ?? ''}ホームラン`)
+    case 'single':
+    case 'double':
+    case 'triple':
+      return `${text.replace(/！$/, '')}、${runs >= 2 ? `${runs}点` : ''}タイムリー！`
+    case 'walk':
+    case 'hbp':
+      return `押し出しの${text}`
+    case 'sacbunt':
+    case 'sacfly':
+      return text
+    default:
+      return `${text}、その間に${runs >= 2 ? `${runs}人` : '三塁走者'}が生還`
+  }
 }
 
 function addRuns(s: MatchState, runs: number): void {
