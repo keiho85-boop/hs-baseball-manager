@@ -286,6 +286,10 @@ export function trySkill(rng: Rng, p: Player, learnRate: number, cureRate: numbe
   messages.push(`${fullName(p)}が特殊能力「${skill.name}」を身につけた！`)
 }
 
+/** 選手育成モードの練習：体力の消費の倍率と、伸びの倍率（調整用） */
+export const SUCCESS_PRACTICE_COST = 0.8
+export const SUCCESS_PRACTICE_GAIN = 0.85
+
 const CARD_MULT: Record<CardEffect, { gain: number; cost: number }> = {
   none: { gain: 1, cost: 1 },
   hot: { gain: 1.5, cost: 1.6 },
@@ -412,6 +416,11 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
       intensity = 0.6 * card.gain
       cost = 8 * card.cost
     }
+    // 選手育成モード：練習の体力の消費を2割減らし、そのぶん練習の伸びを少し抑える（育成の結果は変えない）
+    if (success && cost > 0) {
+      cost *= SUCCESS_PRACTICE_COST
+      intensity *= SUCCESS_PRACTICE_GAIN
+    }
     // 調子が良いほど伸びる（絶不調0.8倍〜普通1.0倍〜絶好調1.2倍）
     const spirit = 0.8 + (p.condition.form - 1) * 0.1
     // サクセス：育てる選手（フォーカス選手）は大きく伸びる
@@ -432,7 +441,7 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
 /**
  * 選手育成モードの休養マスの回復量。
  * 体力100から「練習・練習・練習・休養」の4週で、ふつうは90、よく休めると100、あまり休めないと80に戻るくらい
- * （練習1回で27減り、毎週の自然な回復が約8）
+ * （練習1回で約22減り、毎週の自然な回復が約8）
  */
 export const REST_GAIN = { good: 50, normal: 40, poor: 30 } as const
 function rollRest(rng: Rng, messages: string[]): number {

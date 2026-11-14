@@ -31,7 +31,7 @@ const rows = computed(() => {
   if (!s) return []
   return CLUBS.map((c) => ({
     club: c,
-    members: (s.clubs.find((r) => r.club === c.id)?.members ?? []).map((m, i) => ({ m, i })),
+    members: (s.clubs.find((r) => r.club === c.id)?.members ?? []).map((m, i) => ({ m, i })).filter((x) => x.m.kind !== 'fixed' || !s.joined[x.m.id]),
     visits: s.visits[c.id] ?? 0,
     done: !!(c.fixed && s.joined[c.fixed]),
   })).sort((a, b) => Number(b.members.length > 0) - Number(a.members.length > 0))

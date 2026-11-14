@@ -117,7 +117,7 @@ async function start(): Promise<void> {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
         <div>
           <b>第2章 ナギ大学編</b>
-          <small>{{ ch2Unlocked ? '準備中です' : '第1章で選手をプロ入りさせると解禁' }}</small>
+          <small>{{ ch2Unlocked ? '準備中です' : '第1章で全国優勝すると解禁' }}</small>
         </div>
       </div>
 

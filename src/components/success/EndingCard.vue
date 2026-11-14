@@ -21,6 +21,7 @@ const pro = computed(() => st.value?.ended === 'pro')
 const drafted = computed(() => f.value?.drafted ?? null)
 const dating = computed(() => st.value?.dating !== null && st.value?.dating !== undefined)
 const history = computed(() => game.ownSchool()?.history ?? [])
+const champion = computed(() => history.value.some((h) => h.results.some((r) => r.includes('全国優勝'))))
 
 const EVAL_ICON: Record<EvalKey, string> = {
   nagi: 'nagi',
@@ -165,7 +166,7 @@ function stars(v: number): string {
               <AbilityBar label="送球" :value="f.fielding.throwing" />
             </div>
           </div>
-          <p class="save-note">{{ pro ? 'この選手はプロ入りした育成選手として保存されました。（第2章「ナギ大学編」は今後追加予定です）' : 'プロに届かなかったため、この選手は保存されません。' }}<br />育成はこれで終了です（セーブデータは残りません）。</p>
+          <p class="save-note">{{ pro ? 'この選手はプロ入りした育成選手として保存されました。' : 'プロに届かなかったため、この選手は保存されません。' }}<br /><template v-if="champion">全国優勝を果たしたので、第2章「ナギ大学編」が解禁されました。（今後追加予定です）<br /></template>育成はこれで終了です（セーブデータは残りません）。</p>
           <button class="sun full" @click.stop="emit('title')">タイトルに戻る</button>
         </div>
       </Transition>

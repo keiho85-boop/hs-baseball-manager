@@ -273,6 +273,8 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
       if (save.calendar.year >= 3) p.grade = 3
       tailor(p, fixedHere.id, rng)
       s.joined[fixedHere.id] = p.id
+      // 入部したので、その部活の今週の顔ぶれから外す（週を進めない最初の勧誘でも、次の勧誘に出てこない）
+      if (roster) roster.members = roster.members.filter((x) => x !== fixedHere)
       ;(save.story!.flags[`join_${fixedHere.id}`] = save.calendar.year)
       success = true
       fixed = fixedHere.id

@@ -207,10 +207,10 @@ export function evalAfterMatch(save: SaveData, m: MatchState, official: boolean,
 export function focusDraftChance(save: SaveData, p: Player): number {
   const s = successOf(save)
   if (!s) return 0
-  // スカウトの評価が90以上なら、必ず指名される
-  if (s.eval.scout >= 90) return 1
+  // スカウトの評価が85以上なら、必ず指名される
+  if (s.eval.scout >= 85) return 1
   // それより下は、スカウトの評価と能力の両方で決まる（どちらかが高ければ望みはある。能力C〜Bでも十分狙える）
-  return clamp((s.eval.scout - 35) / 80 + (playerRating(p) - 64) / 40, 0, 0.92)
+  return clamp((s.eval.scout - 30) / 80 + (playerRating(p) - 62) / 40, 0, 0.92)
 }
 
 /** ドラフトの見込み（実際の指名の確率と、足りないもの）。育成選手の画面に出す */
@@ -221,7 +221,7 @@ export function draftOutlook(save: SaveData, p: Player): { label: string; note: 
   // スカウトへのアピール／プロで通用する能力が、それぞれ足りているか
   const appeal = scout >= 60
   const ability = playerRating(p) >= 70
-  if (scout >= 90) return { label: '指名確実', note: 'スカウトの評価は十分。あとは順位を上げるだけ', tone: 'gold' }
+  if (scout >= 85) return { label: '指名確実', note: 'スカウトの評価は十分。あとは順位を上げるだけ', tone: 'gold' }
   if (chance >= 0.7) return { label: '指名の可能性が高い', note: appeal ? '能力をもう一段上げれば、さらに確実に' : 'スカウトの前で活躍すれば、さらに確実に', tone: 'good' }
   if (!appeal && !ability) return { label: 'まだまだ', note: '能力も、スカウトへのアピールも足りない', tone: 'low' }
   if (!appeal) return { label: 'アピールが足りない', note: '力はある。スカウトのマスや公式戦で、名前を売りたい', tone: chance >= 0.4 ? 'mid' : 'low' }

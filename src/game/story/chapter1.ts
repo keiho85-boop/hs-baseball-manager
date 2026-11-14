@@ -1177,12 +1177,15 @@ export const CHAPTER1: Scene[] = [
       // ドラフトのあとは、卒業式（3月）まで一気に進む
       c.save.calendar.week = SEASON_WEEKS.graduation
       const f = focus(c)
+      // 第2章は、全国大会で優勝すると解禁（プロ入りできたかどうかは問わない）
+      const champion = (c.save.schools[c.save.playerSchoolId]?.history ?? []).some((h) => h.results.some((r) => r.includes('全国優勝')))
+      if (champion) unlockScenario(2)
+      const unlockMsg = champion ? ['全国優勝を果たしたので、第2章「ナギ大学編」が解禁された。（今後のアップデートで追加予定です）'] : []
       if (f?.drafted) {
         savePlayer(f, 1)
-        unlockScenario(2)
-        return [`${fullName(f)}がプロ入り！選手を保存した。`, '第2章「ナギ大学編」は、今後のアップデートで追加予定です。']
+        return [`${fullName(f)}がプロ入り！選手を保存した。`, ...unlockMsg]
       }
-      return ['指名はなかった…。（育成失敗）']
+      return ['指名はなかった…。（育成失敗）', ...unlockMsg]
     },
   },
   {
