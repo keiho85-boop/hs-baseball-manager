@@ -305,11 +305,21 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
     if (rng.chance(chance)) {
       const p = addMember(save, rng, { grade: m.grade, position: m.position as Position, strength: m.strength, surname: m.surname, givenName: m.givenName })
       success = true
-      lines.push(`「野球か…まあ、やってみてもいいかな」${fullName(p)}が入部した！`)
+      const yes = rng.pick([
+        '「野球か…まあ、やってみてもいいかな」',
+        '「ちょうど何かやりたいと思ってたんだ。よろしく」',
+        '「試合に出られるなら、やるよ」',
+        '「中学まで少しやってたんだ。また、やってみるか」',
+        '「…そこまで言われたら、断れないな」',
+        '「楽しそうだし、入ってみようかな」',
+      ])
+      lines.push(`${yes}${fullName(p)}が入部した！`)
       evals.push(addEval(save, 'nagi', 2), addEval(save, 'team', 1))
       roster!.members = roster!.members.filter((x) => x !== m)
     } else {
-      lines.push('「ごめん、野球はちょっと…」断られてしまった。')
+      lines.push(
+        `${rng.pick(['「ごめん、野球はちょっと…」', '「今は自分の部が楽しいんだ。悪いね」', '「放課後はバイトがあって…ごめん」', '「うーん、考えておくよ」'])}断られてしまった。`,
+      )
     }
   } else {
     lines.push(`${club.name}には、今日は誰もいなかった。`)

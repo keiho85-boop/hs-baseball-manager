@@ -138,6 +138,9 @@ const panels = computed(() => {
 
 /** 吹き出しは、光らせた場所の上か下（空いているほう） */
 const bubbleStyle = computed(() => {
+  // 位置の指定があれば従う（上：盤面などを隠さない／下：シートの見出しを隠さず、下のボタンの上に出す）
+  if (step.value?.place === 'top') return { top: 'calc(8px + env(safe-area-inset-top, 0px))' }
+  if (step.value?.place === 'bottom') return { bottom: 'calc(84px + var(--safe-bottom, 0px))' }
   // 自由に操作してもらう手順は、吹き出しを画面の上に出す（下のボタンを隠さないように）
   if (step.value?.free) return { top: 'calc(8px + env(safe-area-inset-top, 0px))' }
   const r = rect.value

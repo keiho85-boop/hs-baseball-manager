@@ -33,20 +33,33 @@ function batScore(p: Player): number {
   return b.contact * 0.45 + b.power * 0.35 + b.eye * 0.1 + p.running.speed * 0.1
 }
 
-export function autoLineup(players: Player[], wantDH: boolean): LineupConfig {
+/**
+ * オーダーを自動で組む。
+ * mustPlay：必ず出場させる選手（選手育成モードの育成選手）。投手なら先発、野手なら本職の守備位置で起用する
+ */
+export function autoLineup(players: Player[], wantDH: boolean, mustPlay?: Player | null): LineupConfig {
   let pool = players.filter(available)
   // ケガ人が多くて9人に満たないときは、ケガをしている選手も出場させる
   if (pool.length < 9) pool = players.filter((p) => !p.retired)
   // DHは投手＋打者9人の10人が必要。足りなければDHなしで組む
   const useDH = wantDH && pool.length >= 10
+  const must = mustPlay && pool.some((p) => p.id === mustPlay.id) && available(mustPlay) ? mustPlay : null
+  // 育成選手が投手なら先発させる（疲れきっているときと、肩・肘に不安があるときは休ませる）
+  const mustStart = must && must.mainPosition === 'P' && canPitch(must) && must.condition.stamina >= 20 && !must.condition.armIssue
   const pitcherList = [...pool].filter(canPitch).sort((a, b) => starterScore(b) - starterScore(a))
-  const starter = pitcherList[0] ?? pool[0]!
+  const starter = mustStart ? must : (pitcherList.find((p) => !must || must.mainPosition === 'P' || p.id !== must.id) ?? pool[0]!)
 
   const used = new Set<string>([starter.id])
   const positions = new Map<Position | 'DH', Player>()
   if (!useDH) positions.set('P', starter)
+  // 育成選手が野手なら、本職の守備位置に先に入れる
+  if (must && must.mainPosition !== 'P' && !used.has(must.id)) {
+    positions.set(must.mainPosition, must)
+    used.add(must.id)
+  }
 
   for (const pos of FILL_ORDER) {
+    if (positions.has(pos)) continue
     let best: Player | null = null
     let bestScore = -Infinity
     for (const p of pool) {

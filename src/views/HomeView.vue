@@ -118,6 +118,8 @@ watch(
 )
 /** ホーム上部に出す育成選手の主な能力（部員表の「能力1」と同じ項目） */
 const focusStats = computed(() => {
+  // セーブデータは直接書き換わるので、週や試合のたびに読み直す
+  void game.rev
   const p = focus.value
   if (!p) return []
   if (p.mainPosition === 'P') {
@@ -156,26 +158,32 @@ function formLabel(v: number): string {
 }
 
 async function goRecruit(club: ClubId, target?: number): Promise<void> {
-  recruitOpen.value = false
-  // 勧誘の説明の最中と、説明なしで始めたときの最初の勧誘は、週を進めない
-  const first = game.save?.story?.flags.firstRecruit === 'todo'
-  const rehearsal = guideStore.active?.id === 'recruit' || first
-  const r = await game.recruitAt(club, target, { rehearsal })
-  if (!r) return
-  play(r.result.success ? 'cheer' : 'miss')
-  await afterGrowth()
-  await ui.alert(r.result.lines.join('\n'), r.result.title)
-  if (rehearsal) guideStore.notify('recruited')
-  if (first) await game.setStoryFlag('firstRecruit', 'done')
-  const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
-  if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
+  // 結果の知らせを出し終えるまで、次の場面を始めない
+  await game.holdStory(async () => {
+    recruitOpen.value = false
+    // 勧誘の説明の最中と、説明なしで始めたときの最初の勧誘は、週を進めない
+    const first = game.save?.story?.flags.firstRecruit === 'todo'
+    const rehearsal = guideStore.active?.id === 'recruit' || first
+    const r = await game.recruitAt(club, target, { rehearsal })
+    if (!r) return
+    play(r.result.success ? 'cheer' : 'miss')
+    await afterGrowth()
+    await ui.alert(r.result.lines.join('\n'), r.result.title)
+    if (rehearsal) guideStore.notify('recruited')
+    if (first) await game.setStoryFlag('firstRecruit', 'done')
+    const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
+    if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
+  })
 }
 
 async function autoAdvance(): Promise<void> {
-  const r = await game.nextWeek()
-  if (!r) return
-  await afterGrowth()
-  if (r.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.messages[r.messages.length - 1]!, tone: 'info' })
+  // 結果の知らせを出し終えるまで、次の場面を始めない
+  await game.holdStory(async () => {
+    const r = await game.nextWeek()
+    if (!r) return
+    await afterGrowth()
+    if (r.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.messages[r.messages.length - 1]!, tone: 'info' })
+  })
 }
 
 function stars(v: number): string {
@@ -184,12 +192,15 @@ function stars(v: number): string {
 }
 
 async function nextTournamentWeek(): Promise<void> {
-  const r = await game.nextTournamentWeek()
-  if (!r) return
-  await afterGrowth()
-  const important = r.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
-  if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
-  else if (r.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.messages[r.messages.length - 1]!, tone: 'info' })
+  // 結果の知らせを出し終えるまで、次の場面を始めない
+  await game.holdStory(async () => {
+    const r = await game.nextTournamentWeek()
+    if (!r) return
+    await afterGrowth()
+    const important = r.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
+    if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
+    else if (r.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.messages[r.messages.length - 1]!, tone: 'info' })
+  })
 }
 
 async function startMatch(id: string): Promise<void> {
@@ -467,20 +478,23 @@ async function onSpecial(id: string): Promise<void> {
 const IMPORTANT = ['特殊能力', '克服', '違和感', '悪化', '全治', '入部した', '適性が', 'ドラフト', '入学を決め', '進学を決め']
 
 async function finish(opts: { choice?: number; specialPlayerId?: string; specialKey?: string }): Promise<void> {
-  // 練習の説明の最中は、週を進めない
-  const r = await game.finishSquare({ ...opts, rehearsal: guideStore.active?.id === 'practice' })
-  if (!r) return
-  await afterGrowth()
-  const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
-  if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
-  else if (r.week.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.week.messages[r.week.messages.length - 1]!, tone: 'info' })
-  if (r.week.backupPrompt) {
-    const ok = await ui.confirm(
-      '新しい年度になりました。\nスマホの故障や機種変更に備えて、セーブデータを書き出しておきませんか？',
-      { title: 'バックアップのおすすめ', okLabel: '書き出す', cancelLabel: 'あとで' },
-    )
-    if (ok) await game.exportCurrent()
-  }
+  // 結果の知らせを出し終えるまで、次の場面を始めない
+  await game.holdStory(async () => {
+    // 練習の説明の最中は、週を進めない
+    const r = await game.finishSquare({ ...opts, rehearsal: guideStore.active?.id === 'practice' })
+    if (!r) return
+    await afterGrowth()
+    const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
+    if (important.length > 0) await ui.alert(important.join('\n'), '今週の出来事')
+    else if (r.week.messages.length > 0) ui.notify({ title: '今週の出来事', message: r.week.messages[r.week.messages.length - 1]!, tone: 'info' })
+    if (r.week.backupPrompt) {
+      const ok = await ui.confirm(
+        '新しい年度になりました。\nスマホの故障や機種変更に備えて、セーブデータを書き出しておきませんか？',
+        { title: 'バックアップのおすすめ', okLabel: '書き出す', cancelLabel: 'あとで' },
+      )
+      if (ok) await game.exportCurrent()
+    }
+  })
 }
 
 const specialCandidates = computed(() =>
@@ -651,7 +665,7 @@ watch(
               :combo-next="success && game.save && preview !== null && !moving ? comboIfLanding(game.save, sg.board[preview]!) : 0"
               :combo-now="success ? (sg.combo?.count ?? 0) : 0"
               :camp-name="success && game.save ? campPlaceName(game.save) : undefined"
-              :milestone="success ? undefined : `${milestone.label}まで あと${milestone.weeks}週`"
+              :milestone="success ? undefined : milestone.weeks <= 0 ? `${milestone.label}は今週` : `${milestone.label}まで あと${milestone.weeks}週`"
               :card-note="selected !== null && sg.hand[selected] && sg.hand[selected]!.effect !== 'none' ? CARD_EFFECT_DESC[sg.hand[selected]!.effect] : null"
               :attach="sg.attach ?? null"
             />
@@ -845,7 +859,7 @@ watch(
     </div>
     <PlayerSheet v-if="viewing" :player-id="viewing" @close="viewing = null" />
     <BoardRefresh
-      v-if="game.boardNotice && !game.showGrowth && sg && !eventOpen && !ui.dialog"
+      v-if="game.boardNotice && !game.showGrowth && sg && !eventOpen && !ui.dialog && !ui.notice && !game.story && !game.busy && game.storyHold === 0"
       :month="game.boardNotice"
       :board="sg.board"
       @close="game.boardNotice = null"

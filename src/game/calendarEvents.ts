@@ -11,7 +11,7 @@ import { ABILITY_LABEL, eid, learnable, mainKeys, players, skillName, story } fr
 import { SKILLS } from './skills'
 import { absWeek } from './modifiers'
 import type { EffectOp, EventInstance, Player, SaveData, Speaker } from './types'
-import { CAMP_PLACES, campStartWeek, focusPlayer, rosterCount, successOf } from './success/state'
+import { CAMP_PLACES, campStartWeek, focusPlayer, mustForfeit, rosterCount, successOf } from './success/state'
 
 // ---------------------------------------------------------------- 話し手
 
@@ -771,12 +771,13 @@ function bigLossEvent(save: SaveData, cap: Player | undefined): EventInstance {
 const PREF_KINDS: TournamentKind[] = ['springPref', 'summerPref', 'autumnPref']
 
 /** 大会で自校が敗退した（または大会が終わった）か。勝ち上がった回数も返す */
-function ownFinished(save: SaveData, t: Tournament): { done: boolean; wins: number; bigLoss: boolean } {
+function ownFinished(save: SaveData, t: Tournament): { done: boolean; wins: number; bigLoss: boolean; forfeit: boolean } {
   const own = save.playerSchoolId
   let wins = 0
   let lost = false
   let bigLoss = false
   let appeared = false
+  let forfeit = false
   for (const games of t.rounds) {
     for (const g of games) {
       if (g.a !== own && g.b !== own) continue
@@ -785,6 +786,7 @@ function ownFinished(save: SaveData, t: Tournament): { done: boolean; wins: numb
       if (g.winner === own) wins += 1
       else {
         lost = true
+        if (g.note?.includes('棄権')) forfeit = true
         if (g.score) {
           const [sa, sb] = g.score
           const diff = g.a === own ? sb - sa : sa - sb
@@ -793,7 +795,7 @@ function ownFinished(save: SaveData, t: Tournament): { done: boolean; wins: numb
       }
     }
   }
-  return { done: appeared && (lost || t.finished), wins, bigLoss }
+  return { done: appeared && (lost || t.finished), wins, bigLoss, forfeit }
 }
 
 /** 週を進めた後に呼ぶ：今週の行事やレアイベントを積む */
@@ -864,12 +866,16 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng): void {
     const r = ownFinished(save, t)
     if (!r.done || flags(save)[`after:${t.id}`] !== undefined) continue
     flags(save)[`after:${t.id}`] = true
+    // 棄権で終わった大会のあとは、大会の話をしない
+    if (r.forfeit) continue
     if (r.bigLoss && rng.chance(0.6)) push(bigLossEvent(save, captainOf(save, list)))
     else if (st && y <= 3 && (st.seen.includes('c1_shoutenkai') || st.seen.includes('c1_9nin')) && rng.chance(0.4)) push(ramuneEvent(r.wins >= 2))
   }
 
   // ストーリー：大会の前の週に、源造の差し入れ
-  if (st && st.chapter === 1 && (st.seen.includes('c1_shoutenkai') || st.seen.includes('c1_9nin')) && (w === 4 || w === 14 || w === 27) && onceThisYear(save, `snack${w}`)) push(genzoSnackEvent())
+  // 棄権が決まっている大会（1年目の春・部員が足りないとき）の前には出さない
+  const snackKind: TournamentKind | null = w === 4 ? 'springPref' : w === 14 ? 'summerPref' : w === 27 ? 'autumnPref' : null
+  if (st && st.chapter === 1 && snackKind && !mustForfeit(save, snackKind) && (st.seen.includes('c1_shoutenkai') || st.seen.includes('c1_9nin')) && onceThisYear(save, `snack${w}`)) push(genzoSnackEvent())
 
   // 積みすぎない（たまっているときは、新しいもの3つだけ残す）
   if (q.length > 3) q.splice(0, q.length - 3)

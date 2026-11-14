@@ -24,6 +24,8 @@ export interface GuideStep {
   waitFor?: string
   /** 画面を暗くせず、吹き出しだけ上に出す（自由に操作してもらう手順） */
   free?: boolean
+  /** 吹き出しの位置（光らせる場所や、見てほしい場所を隠さないように決める） */
+  place?: 'top' | 'bottom'
   /** この手順を飛ばす条件（部費が足りないなど） */
   skipIf?: (save: SaveData) => boolean
 }
@@ -36,11 +38,12 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
   /** 練習（すごろく）の進め方：作戦ノートの場面のあと */
   practice: [
     { route: 'home', target: 'board', on: 'tap', text: 'これが練習の盤面です。コマが止まったマスの練習を、その週にみんなでやります。' },
-    { target: 'hand', on: 'target', text: '下のカードの数字だけ、コマが進みます。まず、カードを1枚選んでみてください。' },
+    { target: 'hand', on: 'target', place: 'top', text: '下のカードの数字だけ、コマが進みます。まず、カードを1枚選んでみてください。' },
     {
       target: 'hand-area',
       advanceOn: 'go',
       on: 'target',
+      place: 'top',
       face: 'smile',
       text: '止まるマスが盤面で光ります。カードは何度でも選び直せるので、狙ったマスに止まるカードを探してください。決まったら「〇マス進む」を押します。',
     },
@@ -92,6 +95,7 @@ export const GUIDES: Record<GuideId, GuideStep[]> = {
       on: 'target',
       waitFor: 'recruited',
       free: true,
+      place: 'bottom',
       text: 'では、声をかける相手を選んで「声をかける」を押してください。今回は説明のための勧誘なので、週は進みません。',
     },
     {

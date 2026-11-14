@@ -172,7 +172,10 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   ensureScout(save, rng)
   // 8. 大会の開幕
   const opened = ensureTournament(save, rng)
-  if (opened && opened.current === 0 && opened.weeks[0] === save.calendar.week && !messages.some((m) => m.includes(opened.name))) {
+  // 全国大会は、自校が出るときだけ知らせる
+  const nationalOpened = opened && (opened.kind === 'summerNational' || opened.kind === 'springNational')
+  const ownIn = opened ? opened.rounds[0]!.some((g) => g.a === save.playerSchoolId || g.b === save.playerSchoolId) : false
+  if (opened && (!nationalOpened || ownIn) && opened.current === 0 && opened.weeks[0] === save.calendar.week && !messages.some((m) => m.includes(opened.name))) {
     messages.push(`${opened.name}が開幕！`)
   }
   // 自校が不戦勝（シード）の回戦は先に進めておく（同じ週の次の回戦の試合を、きちんと自分で戦えるように）

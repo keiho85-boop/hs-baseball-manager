@@ -87,9 +87,9 @@ const milestone = computed(() => {
 // ストーリー：週が進んだり試合が終わったりしたら、流す場面があるか確かめる（成長の知らせを閉じてから）
 // 場面の結果の知らせやダイアログが出ている間は、次の場面を始めない（知らせの上に場面が重ならないように）
 watch(
-  () => [game.rev, game.busy, game.showGrowth, game.match, ui.notice, ui.dialog] as const,
+  () => [game.rev, game.busy, game.showGrowth, game.match, ui.notice, ui.dialog, game.storyHold] as const,
   () => {
-    if (!game.showGrowth && !game.busy && !ui.notice && !ui.dialog) void game.checkStory()
+    if (!game.showGrowth && !game.busy && !ui.notice && !ui.dialog && game.storyHold === 0) void game.checkStory()
   },
   { immediate: true },
 )
@@ -116,6 +116,7 @@ const overall = computed(() => {
         <div class="pref muted-light">{{ playerMode ? '第1章 ナギ現役編' : game.ownSchool()?.kind === 'private' ? '私立' : '公立' }}</div>
         <div class="school">{{ game.ownSchool()?.name }}</div>
         <div v-if="milestone.live" class="milestone live">{{ milestone.label }} <b>開催中</b></div>
+        <div v-else-if="milestone.weeks <= 0" class="milestone">{{ milestone.label }} <b>今週</b></div>
         <div v-else class="milestone">{{ milestone.label }}まで <b>あと{{ milestone.weeks }}週</b></div>
       </div>
       <div v-if="overall !== null" class="overall">

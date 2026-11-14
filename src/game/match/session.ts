@@ -10,12 +10,17 @@ import { createMatch, defaultOptions, score, type MatchContext } from './engine'
 import { applyMatchResults } from './results'
 import type { MatchOptions, MatchState } from './types'
 import { TACTIC_BONUS, consumeOnce, hasModifier } from '../modifiers'
+import { focusPlayer } from '../success/state'
 
 /** 自校のオーダー。保存したものが使えなければ、自動で組み直す */
 export function ownLineup(save: SaveData): LineupConfig {
   const school = save.schools[save.playerSchoolId]!
   const saved = save.lineup
-  if (saved && lineupValid(saved, save.players)) {
+  const focus = focusPlayer(save)
+  // 選手育成モード：出られる育成選手が入っていない古いオーダーは使わない
+  const focusMissing = !!focus && !!save.story?.success && available(focus) && !focus.retired
+    && !!saved && !saved.batters.some((b) => b.playerId === focus.id) && saved.startingPitcherId !== focus.id
+  if (saved && !focusMissing && lineupValid(saved, save.players)) {
     // 控え：出られない選手（ケガ・引退）は外す。選手育成モードでは、スタメン以外の全員が控え
     const starting = new Set([...saved.batters.map((b) => b.playerId), saved.startingPitcherId])
     const ok = (id: string): boolean => {
@@ -26,7 +31,7 @@ export function ownLineup(save: SaveData): LineupConfig {
     if (save.story?.enabled) for (const p of activeMembers(save, school)) if (ok(p.id) && !bench.includes(p.id)) bench.push(p.id)
     return { ...saved, bench }
   }
-  return autoLineup(activeMembers(save, school), saved?.useDH ?? true)
+  return autoLineup(activeMembers(save, school), saved?.useDH ?? true, focus)
 }
 
 export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial: Partial<MatchOptions> = {}): MatchState {
@@ -78,7 +83,7 @@ export function finishMatch(save: SaveData, m: MatchState, rng: Rng): FinishResu
     .sort((x, y) => y.b!.rbi * 2 + y.b!.h - (x.b!.rbi * 2 + x.b!.h))[0]
   if (hero && hero.b && hero.b.h >= 2) {
     const p = save.players[hero.id]
-    if (p) messages.unshift(`${fullName(p)}が${hero.b.h}安打${hero.b.rbi}打点の活躍！`)
+    if (p) messages.unshift(`${fullName(p)}が${hero.b.h}安打${hero.b.rbi > 0 ? `${hero.b.rbi}打点` : ''}の活躍！`)
   }
   return { messages, won, text }
 }

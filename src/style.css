@@ -442,3 +442,12 @@ textarea {
 .rk-E { color: #1fa64a; }
 .rk-F { color: #3d7be0; }
 .rk-G { color: #8d99a8; }
+
+/* 軽量モード：アニメーションと切り替えの動きを止める */
+.light-mode *,
+.light-mode *::before,
+.light-mode *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

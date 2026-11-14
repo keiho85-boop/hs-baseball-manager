@@ -252,7 +252,7 @@ const JOIN: { id: FixedId; char: CharId; bgName: string; steps: (c: StoryContext
     char: 'kobayakawa',
     bgName: 'bg_gym_table_tennis',
     steps: () => [
-      n('体育館の卓球台。フォーカス選手と、反射神経の勝負になった'),
+      n('体育館の卓球台。{フォーカス}と、反射神経の勝負になった'),
       say('kobayakawa', 'serious', '…今の打球、見えてたのか'),
       fv('お前こそ、なんで今のが取れるんだよ'),
       say('kobayakawa', 'smile', '…いいね。二塁、やらせてくれ。至近距離の打球なら、全部止める'),
@@ -495,9 +495,9 @@ export const CHAPTER1: Scene[] = [
       n('春の県大会の組み合わせ表。七海東の名前の横に、小さく「棄権」と書かれていた'),
       makabe('troubled', 'ごめん…。春の大会のエントリーは、3月のうちに締め切られていたんだ。僕たちが動き出す前にね'),
       daichiSay('frustrated', rosterCount(c.save) >= 9 ? 'くっそ…。せっかく9人そろったのに、試合、やりたかったなあ' : 'くっそ…。どのみち、まだ9人そろってないけどさ。試合、やりたかったなあ'),
-      nagi('normal', '仕方ないよ。夏の大会からは、ちゃんと出られるんだから'),
+      nagi('normal', '仕方ありません。夏の大会からは、ちゃんと出られますから'),
       think(rosterCount(c.save) >= 9 ? '出られなかった大会のことは、もう考えない。次は夏だ。それまでに、勝てる9人にする' : '出られなかった大会のことは、もう考えない。次は夏だ。それまでに9人そろえて、勝てるチームにする', 'serious'),
-      nagi('smile', '夏は、初戦から勝とう'),
+      nagi('smile', '夏は、初戦から勝ちましょう'),
       daichiSay('smile', '…おう！'),
     ],
     onEnd: (c) => evals(c, [['daichi', 1], ['team', 1]]),
@@ -785,11 +785,13 @@ export const CHAPTER1: Scene[] = [
     chapter: 1,
     // 先に全国へ行っていたら、ベスト4の場面は出さない
     when: (c) => flag(c, 'best4') && !national(c),
-    steps: () => [
+    steps: (c) => [
       bg('bg_liquor_day'),
       n('校門に「祝 県大会ベスト4」の垂れ幕。商店街のあちこちから声がかかる'),
       genzo('smile', 'おう、野球部！　うちのラムネだ。飲んでいけ！'),
-      daichiSay('smile', '去年までは、誰も声なんてかけてこなかったのにな'),
+      seen(c, 'c1_ato_ippo')
+        ? daichiSay('smile', 'あと一歩だった壁、やっと越えたな')
+        : daichiSay('smile', Y(c) === 1 ? '春までは、誰も声なんてかけてこなかったのにな' : '去年までは、誰も声なんてかけてこなかったのにな'),
       nagi('smile', '次は、もっと上ですよ'),
     ],
     onEnd: (c) => {
@@ -1003,8 +1005,8 @@ export const CHAPTER1: Scene[] = [
     chapter: 1,
     when: (c) => Y(c) === 3 && W(c) >= 12 && W(c) <= 16 && (flag(c, 'metRival_3') || W(c) >= 14),
     steps: () => [
-      bg('bg_stadium_day'),
-      n('球場の通路。久我が一人で待っていた'),
+      bg('bg_stadium_stands'),
+      n('試合のあと、球場のスタンドの通路。久我が一人で待っていた'),
       kuga('normal', '朝比奈さん、だったね。少しいいかな'),
       kuga('normal', '君の采配は、ある人にそっくりなんだ。僕が現役だったころの監督に'),
       kuga('normal', '1点が欲しい場面ほど、打者に任せる。…それに、ピンチで帽子のつばを二回触る癖'),
@@ -1072,16 +1074,25 @@ export const CHAPTER1: Scene[] = [
     title: '全国へ',
     chapter: 1,
     when: (c) => national(c) && Y(c) <= 3,
-    steps: () => [
-      bg('bg_stadium_day'),
-      n('優勝が決まった瞬間。ベンチから部員たちが飛び出していく'),
-      makabe('surprise', '朝比奈さん！　全国、全国だよ！'),
-      daichiSay('smile', '朝比奈！　…約束、守ったぞ'),
-      title('全国大会　開会式'),
-      bg('bg_national_stadium'),
-      n('入場行進する部員たちを、ナギはスタンドから見つめている。そっと、涙をぬぐった'),
-      think('プロで日本一になった夜より、なぜか胸が熱い', 'smile'),
-    ],
+    steps: (c) => {
+      // 秋の県大会の優勝で決まった全国（春の全国大会）は、開会式はまだ先
+      const y = Number(c.st.flags.national ?? Y(c))
+      const spring = c.st.flags[`national_${y}_springNational`] !== undefined && c.st.flags[`national_${y}_summerNational`] === undefined
+      return [
+        bg('bg_stadium_day'),
+        n(spring ? '秋の県大会、優勝が決まった瞬間。ベンチから部員たちが飛び出していく' : '優勝が決まった瞬間。ベンチから部員たちが飛び出していく'),
+        makabe('surprise', spring ? '朝比奈さん！　春の全国大会だよ！' : '朝比奈さん！　全国、全国だよ！'),
+        seen(c, 'c1_kessen_zenya') ? daichiSay('smile', '{フォーカス}！　…約束、守ったぞ') : daichiSay('smile', '朝比奈！　全国だ、全国だぞ！'),
+        ...(spring
+          ? [n('春の全国大会への出場が決まった。開会式は、来年の3月'), think('プロで日本一になった夜より、なぜか胸が熱い。…春が待ち遠しいな', 'smile')]
+          : [
+              title('全国大会　開会式'),
+              bg('bg_national_stadium'),
+              n('入場行進する部員たちを、ナギはスタンドから見つめている。そっと、涙をぬぐった'),
+              think('プロで日本一になった夜より、なぜか胸が熱い', 'smile'),
+            ]),
+      ]
+    },
     onEnd: (c) => [...evals(c, [['scout', 10], ['genzo', 5]]), ...addAchievement(c.st, '全国初出場'), ...addCostume(c.st, '応援')],
   },
   {

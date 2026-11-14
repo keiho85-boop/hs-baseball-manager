@@ -20,6 +20,11 @@ const byPosition = computed(() =>
 )
 
 const open = ref<'pos' | 'menu' | null>(null)
+/** 選手育成モードでは練習メニューを使わない（止まったマスの練習を全員でする） */
+const playerMode = computed(() => {
+  void game.rev
+  return !!game.save?.story?.success
+})
 
 const menuCount = computed(() => {
   const counts = Object.fromEntries(Object.keys(PRACTICE_NAME).map((k) => [k, 0])) as Record<PracticeMenu, number>
@@ -33,7 +38,7 @@ const menuCount = computed(() => {
     <div class="team-head">
       <h2 class="ttl"><GameIcon name="clipboard" :size="18" /> オーダー</h2>
       <button class="secondary tool" @click="open = 'pos'"><GameIcon name="glove" :size="15" />ポジション別</button>
-      <button class="secondary tool" @click="open = 'menu'"><GameIcon name="run" :size="15" />練習</button>
+      <button v-if="!playerMode" class="secondary tool" @click="open = 'menu'"><GameIcon name="run" :size="15" />練習</button>
     </div>
     <OrderBoard />
     <InfoSheet v-if="open === 'pos'" @close="open = null">

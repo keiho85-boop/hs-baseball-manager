@@ -60,6 +60,18 @@ const say = computed<SayStep | null>(() => (!cut.value && current.value?.kind ==
 const choice = computed<ChoiceStep | null>(() => (!cut.value && !locked.value && current.value?.kind === 'choice' ? current.value : null))
 const narr = computed(() => (!cut.value && current.value?.kind === 'narr' ? current.value.text : null))
 const speaker = computed<CharId | null>(() => say.value?.char ?? null)
+/** 選択肢を出している間も、直前の台詞（問いかけ）を残して見せる */
+const askLine = computed<SayStep | { kind: 'narr'; text: string } | null>(() => {
+  if (!choice.value) return null
+  for (let i = index.value - 1; i >= 0; i--) {
+    const st = queue.value[i]
+    if (!st) break
+    if (st.kind === 'say') return st
+    if (st.kind === 'narr') return { kind: 'narr', text: st.text }
+    if (st.kind === 'title' || st.kind === 'choice') break
+  }
+  return null
+})
 
 function wait(ms: number): Promise<void> {
   return new Promise((r) => window.setTimeout(r, ms))
@@ -250,8 +262,9 @@ async function finish(): Promise<void> {
   dark.value = true
   await wait(FADE_MS)
   const title = game.story?.scene.title ?? ''
-  const messages = await game.finishStory(picks)
-  if (messages.length) ui.notify({ title, message: messages.join('\n'), tone: 'good', duration: 2600 + messages.length * 900 })
+  await game.finishStory(picks, (messages) => {
+    if (messages.length) ui.notify({ title, message: messages.join('\n'), tone: 'good', duration: 2600 + messages.length * 900 })
+  })
 }
 
 function preload(steps: Step[]): void {
@@ -343,7 +356,14 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
       <button v-for="(o, i) in choice.options" :key="i" class="choice" @click="pick(i)">{{ o.label }}</button>
     </div>
 
-    <div v-if="narr !== null" class="narr">
+    <div v-if="askLine && askLine.kind === 'narr'" class="narr">
+      <p>{{ askLine.text }}</p>
+    </div>
+    <div v-else-if="askLine && askLine.kind === 'say'" class="window" :class="{ think: askLine.think }">
+      <div class="name" :style="{ background: nameColor(askLine.char) }">{{ askLine.name }}</div>
+      <p class="text">{{ askLine.think ? `（${askLine.text}）` : askLine.text }}</p>
+    </div>
+    <div v-else-if="narr !== null" class="narr">
       <p>{{ shown }}</p>
     </div>
     <div v-else-if="say" class="window" :class="{ think: say.think }">

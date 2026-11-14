@@ -74,7 +74,7 @@ async function backToTitle(): Promise<void> {
         <input type="checkbox" class="check" :checked="settings.lightMode" @change="toggle('lightMode')" />
         軽量モード（演出を減らして動作を軽くする）
       </label>
-      <p class="muted">軽量モードは、今後追加する演出から順に効くようになります。</p>
+      <p class="muted">軽量モードにすると、画面の動きを減らして、古いスマホでも動きやすくします。</p>
     </div>
 
     <div class="card stack">
@@ -114,7 +114,9 @@ async function backToTitle(): Promise<void> {
   flex: 1;
 }
 .check {
-  width: auto;
+  width: 24px;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px var(--line, #c9d6e4);
 }
 .warn {
   color: var(--red);

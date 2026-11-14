@@ -9,6 +9,7 @@ import { useUiStore } from '@/stores/ui'
 import { APT_GROUPS, APTITUDE_LABEL, aptGroupOf, POSITIONS, POSITION_LABEL_RAW, POSITION_NAME_RAW, rankOf, velocityScore } from '@/game/constants'
 import { autoLineup, available, BENCH_SIZE, canPitch, lineupValid } from '@/game/match/lineup'
 import { ownLineup } from '@/game/match/session'
+import { focusPlayer } from '@/game/success/state'
 import type { LineupConfig, Player, Position } from '@/game/types'
 import { getSkill } from '@/game/skills'
 import GameIcon from './GameIcon.vue'
@@ -341,7 +342,7 @@ async function commit(): Promise<void> {
 
 async function toggleDH(): Promise<void> {
   if (!draft.value) return
-  draft.value = autoLineup(members.value, !draft.value.useDH)
+  draft.value = autoLineup(members.value, !draft.value.useDH, game.save ? focusPlayer(game.save) : null)
   selected.value = null
   markDirty()
 }

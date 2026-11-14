@@ -104,7 +104,7 @@ function orderDisabled(o: BattingOrder): boolean {
   const s = m.value
   if (!s) return true
   if (o === 'steal') return !((s.bases[0] && !s.bases[1]) || (s.bases[1] && !s.bases[2]))
-  if (o === 'hitrun') return !s.bases[0]
+  if (o === 'hitrun') return !(s.bases[0] || s.bases[1] || s.bases[2])
   if (o === 'squeeze') return !s.bases[2] || s.outs >= 2
   // 三塁に走者がいるときは、送りバントではなくスクイズ
   if (o === 'bunt') return !!s.bases[2]
@@ -329,7 +329,7 @@ function checkCutin(): void {
   const p = sit === 'chance' ? batter.value : pitcher.value
   if (!p) return
   const outs = ['ノーアウト', 'ワンアウト', 'ツーアウト'][s.outs]
-  const runners = s.bases.every((b) => b) ? '満塁' : s.bases[2] ? '三塁に走者' : s.bases[1] ? '得点圏に走者' : '走者あり'
+  const runners = runnerLabel(s)
   cutin.value = { kind: sit, player: p, sub: `${s.inning}回${s.top ? '表' : '裏'} ${outs}${runners}` }
 }
 
@@ -353,6 +353,23 @@ function resume(): void {
 // ---- 選手育成モード：チャンス・育成選手の打席・育成選手のピンチの登板で、ナギが指示を出す ----
 const focusId = computed(() => (game.save ? (successOf(game.save)?.focusId ?? null) : null))
 const focusP = computed<Player | null>(() => (focusId.value ? (players.value[focusId.value] ?? null) : null))
+
+// 育成選手の投手が、疲れや肩・肘の不安で先発を外れたときは、試合の初めに知らせる
+const restNoticeFor = ref<string | null>(null)
+watch(
+  () => [m.value?.id, m.value?.events.length] as const,
+  () => {
+    const mm = m.value
+    const p = focusP.value
+    const t = ownTeam.value
+    if (!mm || !p || !t || mm.events.length > 0 || restNoticeFor.value === mm.id) return
+    restNoticeFor.value = mm.id
+    if (p.mainPosition !== 'P' || t.pitcherId === p.id || t.lineup.some((b) => b.playerId === p.id)) return
+    const why = p.condition.armIssue ? '肩・肘に不安があるため' : '疲れが溜まっているため'
+    ui.notify({ title: '今日はベンチスタート', message: `${p.surname}は${why}、今日は先発を外れた（ベンチに入っている）`, tone: 'info' })
+  },
+  { immediate: true },
+)
 interface NagiOption {
   label: string
   say: string
@@ -424,12 +441,26 @@ function runnerViews(s: MatchState): SideView[] {
   return out
 }
 
+/** 塁の状況の言い方（一・二塁、一・三塁など） */
+function runnerLabel(s: MatchState): string {
+  const [b1, b2, b3] = s.bases
+  if (b1 && b2 && b3) return '満塁'
+  const on = [b1 ? '一' : '', b2 ? '二' : '', b3 ? '三' : ''].filter(Boolean)
+  if (on.length === 0) return '走者なし'
+  return `${on.join('・')}塁${on.length === 1 ? 'に走者' : ''}`
+}
+
+/** 得点圏（二塁・三塁）に走者がいるか */
+function scoringPosition(s: MatchState): boolean {
+  return !!(s.bases[1] || s.bases[2])
+}
+
 /** チャンスの作戦（その場面でできるものだけ） */
 function chanceOptions(s: MatchState): NagiOption[] {
   const [b1, b2, b3] = s.bases
   const opts: NagiOption[] = []
   if ((b1 && !b2) || (b2 && !b3)) opts.push({ label: '盗塁', say: 'ここは走ろう。初球からいって！', orders: { batting: 'steal' } })
-  if ((b1 || b2) && s.outs < 2) opts.push({ label: 'エンドラン', say: 'エンドラン。何が来ても、転がして', orders: { batting: 'hitrun' } })
+  if (b1 || b2 || b3) opts.push({ label: 'エンドラン', say: 'エンドラン。何が来ても、転がして', orders: { batting: 'hitrun' } })
   if ((b1 || b2) && !b3 && s.outs < 2) opts.push({ label: '送りバント', say: '確実に送ろう。次で決める', orders: { batting: 'bunt' } })
   if (b3 && s.outs < 2) opts.push({ label: 'スクイズ', say: 'スクイズ。…三塁、スタートを切って！', orders: { batting: 'squeeze' } })
   opts.push(
@@ -453,13 +484,14 @@ function askIfFocus(force = false): boolean {
   const key = `${s.inning}${s.top}${battingTeam(s).battingIndex}${s.outs}`
   if (key === askedKey && !force) return false
   const outs = ['ノーアウト', 'ワンアウト', 'ツーアウト'][s.outs]
-  const runners = s.bases.every((b) => b) ? '満塁' : s.bases[2] ? '三塁に走者' : s.bases[1] ? '二塁に走者' : s.bases[0] ? '一塁に走者' : '走者なし'
+  const runners = runnerLabel(s)
   const sub = `${s.inning}回${s.top ? '表' : '裏'}　${outs}${runners}`
   const bat = batter.value
   const pit = pitcher.value
   if (ownBatting.value && bat && pit) {
     const isFocus = currentBatterId(s) === fid
-    const chance = situation(s) === 'chance'
+    // 作戦の指示は、得点圏に走者がいるときだけ
+    const chance = scoringPosition(s)
     if (!isFocus && !chance) return false
     askedKey = key
     let options: NagiOption[]
@@ -646,10 +678,13 @@ async function pickSub(inId: string): Promise<void> {
 
 // ---- 試合終了 ----
 async function finish(): Promise<void> {
-  const r = await game.endMatch()
-  if (!r) return
-  await router.replace({ name: 'home' })
-  if (r.finish.messages.length > 0) await ui.alert(r.finish.messages.join('\n'), '試合を終えて')
+  // 試合の結果の知らせを出し終えるまで、次の場面を始めない
+  await game.holdStory(async () => {
+    const r = await game.endMatch()
+    if (!r) return
+    await router.replace({ name: 'home' })
+    if (r.finish.messages.length > 0) await ui.alert(r.finish.messages.join('\n'), '試合を終えて')
+  })
 }
 
 function back(): void {
@@ -713,7 +748,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
     <!-- BSO -->
     <div class="bso">
       <span class="inning">{{ m.inning }}回{{ m.top ? '表' : '裏' }}</span>
-      <span class="side" :class="ownBatting ? 'atk' : 'def'">{{ ownBatting ? '攻撃' : '守備' }}</span>
+      <span class="atkdef" :class="ownBatting ? 'atk' : 'def'">{{ ownBatting ? '攻撃' : '守備' }}</span>
       <span class="lamp"><b>B</b><i v-for="n in 3" :key="n" :class="{ on: n <= m.count.balls }" class="g" /></span>
       <span class="lamp"><b>S</b><i v-for="n in 2" :key="n" :class="{ on: n <= m.count.strikes }" class="y" /></span>
       <span class="lamp"><b>O</b><i v-for="n in 2" :key="n" :class="{ on: n <= m.outs }" class="r" /></span>
@@ -1130,17 +1165,17 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
   font-size: 14px;
   color: #ffd36b;
 }
-.side {
+.atkdef {
   font-size: 12px;
   font-weight: 900;
   color: #fff;
   border-radius: 999px;
   padding: 1px 10px;
 }
-.side.atk {
+.atkdef.atk {
   background: linear-gradient(180deg, #ff9f43, #e8590c);
 }
-.side.def {
+.atkdef.def {
   background: linear-gradient(180deg, #4dabf7, #1a6fc2);
 }
 .change {

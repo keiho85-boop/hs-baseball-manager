@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { createNewGame } from '../src/game/world'
 import { advanceWeek } from '../src/game/season'
 import { ensureSugoroku } from '../src/game/sugoroku'
+import { addFriendsOfDaichi } from '../src/game/success/clubs'
+import { rosterCount } from '../src/game/success/state'
 import { setupStoryWorld } from '../src/game/story/setup'
 import { applyOps, players } from '../src/game/events'
 import { __test } from '../src/game/calendarEvents'
@@ -63,10 +65,16 @@ describe('季節の行事', () => {
     }
   })
 
-  it('ストーリーでは、大会前に源造の差し入れが届く', { timeout: 120000 }, () => {
+  it('ストーリーでは、大会前に源造の差し入れが届く（棄権する大会の前には届かない）', { timeout: 120000 }, () => {
     const save = newGame(8, true)
     save.story!.seen.push('c1_shoutenkai')
-    const titles = run(save, 30, new Rng([5, 6, 7, 8]))
+    // 1年目の春は棄権なので、その前の週（4週目）には届かない
+    const spring = run(save, 5, new Rng([5, 6, 7, 8]))
+    expect(spring).not.toContain('大会前の差し入れ')
+    // 部員が9人いれば、夏の大会の前に届く
+    const rng = new Rng([1, 2, 3, 4])
+    addFriendsOfDaichi(save, rng, Math.max(0, 9 - rosterCount(save)))
+    const titles = run(save, 12, new Rng([5, 6, 7, 8]))
     expect(titles).toContain('大会前の差し入れ')
   })
 })

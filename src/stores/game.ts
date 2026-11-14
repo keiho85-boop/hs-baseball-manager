@@ -49,6 +49,17 @@ export const useGameStore = defineStore('game', () => {
   const rev = ref(0)
   const slots = ref<(SaveSummary | null)[]>([null, null, null])
   const busy = ref(false)
+  /** 画面側の一連の処理（結果の知らせを出すまで）の最中は、次の場面を始めない */
+  const storyHold = ref(0)
+  async function holdStory<T>(fn: () => Promise<T>): Promise<T> {
+    storyHold.value += 1
+    try {
+      return await fn()
+    } finally {
+      // 知らせを出し終えてから、次の描画のあとに解除する
+      setTimeout(() => (storyHold.value = Math.max(0, storyHold.value - 1)), 0)
+    }
+  }
   const lastResult = ref<WeekResult | null>(null)
   const persistent = ref<boolean | null>(null)
   /** 直前の週に伸びた選手（成長の演出に使う） */
@@ -545,11 +556,13 @@ export const useGameStore = defineStore('game', () => {
   }
 
   /** 場面を見終わった：効果を反映して保存する。戻り値は画面に出す知らせ */
-  async function finishStory(picks: number[]): Promise<string[]> {
+  async function finishStory(picks: number[], onMessages?: (messages: string[]) => void): Promise<string[]> {
     const s = save.value
     const cur = story.value
     if (!s || !cur) return []
     const messages = completeScene(s, cur.scene, cur.steps, picks)
+    // 結果の知らせを先に出してから場面を閉じる（知らせの下で次の場面が始まらないように）
+    onMessages?.(messages)
     story.value = null
     touch()
     await writeSave(s)
@@ -611,6 +624,8 @@ export const useGameStore = defineStore('game', () => {
     rev,
     slots,
     busy,
+    storyHold,
+    holdStory,
     lastResult,
     persistent,
     lastGrowth,
