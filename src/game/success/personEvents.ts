@@ -8,7 +8,7 @@ import { ABILITY_LABEL, eid, learnable, mainKeys, skillName } from '../events'
 import { getSkill } from '../skills'
 import { absWeek } from '../modifiers'
 import type { EffectOp, EventInstance, Player, SaveData } from '../types'
-import { evalStars, successOf } from './state'
+import { evalStars, focusPlayer, successOf } from './state'
 import type { EvalKey } from './types'
 
 export type Person = 'scout' | 'nagi' | 'genzo' | 'hasumi' | 'daichi' | 'makabe'
@@ -405,53 +405,70 @@ const EVENTS: Record<Person, Maker[]> = {
 }
 
 /**
- * 蓮見先生の秘密の施術（まれ。1年に1回まで）：受けると、才能が開花することもあれば、体を痛めることもある。
- * 成功しやすさは蓮見の評価しだい（★1で45%〜★5で73%）
+ * 蓮見先生の秘密の施術（毎週0.4%の抽選・ゲーム中1回まで）。保健室の奥の秘密の扉の先、秘密の施術室で行われる。
+ * 成功しやすさは蓮見の評価しだい（★1で45%〜★5で70%）。
+ * 成功すれば第1章でもS・SSクラスが狙えるほど伸び、失敗すれば育成を投げ出したくなるほど落ちる
  */
-function hasumiSecret(save: SaveData, rng: Rng, f: Player): EventInstance | null {
-  const flags = save.story?.flags
-  const key = `hasumiSecret_${save.calendar.year}`
-  if (!flags || flags[key] !== undefined) return null
-  flags[key] = true
-  const s = successOf(save)!
-  const rate = 0.45 + (evalStars(s.eval.hasumi) - 1) * 0.07
+export function hasumiSecret(save: SaveData, rng: Rng): EventInstance | null {
+  const f = focusPlayer(save)
+  const s = successOf(save)
+  if (!f || !s) return null
+  const rate = 0.45 + (evalStars(s.eval.hasumi) - 1) * 0.0625
   const ok = rng.chance(rate)
   const keys = mainKeys(f)
-  const skill = ok && rng.chance(0.5) ? learnable(rng, f) : null
-  const weeks = rng.int(2, 4)
+  const direct = (key: string, lo: number, hi: number): EffectOp => {
+    const v = rng.int(lo, hi)
+    return { op: 'ability', playerId: f.id, key: `direct:${key}`, delta: key === 'pitching.velocity' ? Math.round(v / 2) : v }
+  }
+  const skills: string[] = []
+  if (ok) {
+    for (let i = 0; i < 2; i++) {
+      const sk = learnable(rng, { ...f, skills: [...f.skills, ...skills] })
+      if (sk) skills.push(sk)
+    }
+  }
+  const weeks = rng.int(8, 12)
   const ops: EffectOp[] = ok
-    ? [{ op: 'flag', key: `potential:${f.id}:6`, value: true }, ...grow(f, keys, 4), ev('hasumi', 5), ...(skill ? [{ op: 'skill' as const, playerId: f.id, add: skill }] : [])]
-    : [{ op: 'flag', key: `potential:${f.id}:-4`, value: true }, ...grow(f, keys, -3), { op: 'ability', playerId: f.id, key: '__injury', delta: weeks }, ev('hasumi', 2)]
+    ? [
+        { op: 'flag', key: `potential:${f.id}:15`, value: true },
+        ...keys.map((k) => direct(k, 15, 20)),
+        ...skills.map((sk) => ({ op: 'skill' as const, playerId: f.id, add: sk })),
+        ev('hasumi', 8),
+      ]
+    : [
+        { op: 'flag', key: `potential:${f.id}:-15`, value: true },
+        ...keys.map((k) => direct(k, -15, -10)),
+        { op: 'injury', playerId: f.id, name: '施術の後遺症', weeks },
+        ev('hasumi', 2),
+      ]
   return {
     id: eid('hasumi_secret'),
     title: '蓮見先生の秘密の施術',
     speaker: { ...HASUMI },
     relatedPlayerIds: [f.id],
+    bg: 'bg_secret_room',
+    cast: [{ char: 'hasumi', face: 'tease' }],
     lines: [
-      '放課後の保健室。カーテンの向こうで、蓮見先生が古い革の鞄を開けた。',
-      `…${f.surname}くん。昔、ある人に教わった施術があるの。うまくいけば、あなたの体は一段上に行ける`,
-      'でもね、合わない人もいる。…どうする？　決めるのは、あなたよ',
+      `放課後の保健室。蓮見先生が、薬品棚の奥の壁を押した。…音もなく、扉が開く。`,
+      '扉の先は、古い器具と革の鞄が並ぶ小さな部屋。「ここは、秘密の施術室よ」',
+      `…${f.surname}くん。昔、ある人に教わった施術があるの。うまくいけば、あなたの体は別物になる`,
+      'でもね、合わない人もいる。失敗すれば、今までの努力が水の泡になるかもしれない。…どうする？　決めるのは、あなたよ',
     ],
     choices: [
       {
         label: '施術を受ける',
         result: ok
-          ? `目を覚ますと、体の奥から力がわいてくる。「…ふふ、成功ね」（才能が開花した！${labels(keys)}が上がった。${skill ? `特殊能力「${skillName(skill)}」を身につけた！` : ''}蓮見の評価が上がった）`
-          : `目を覚ますと、体が鉛のように重い。「…ごめんなさい。合わなかったみたい」（${labels(keys)}が下がった。体を痛めた（全治${weeks}週）。伸びしろが少し減った）`,
+          ? `目を覚ますと、体の奥から信じられないほどの力がわいてくる。「…ふふ、大成功ね」（才能が大きく開花した！${labels(keys)}が大きく上がった。${skills.length ? `特殊能力「${skills.map(skillName).join('」「')}」を身につけた！` : ''}蓮見の評価が上がった）`
+          : `目を覚ますと、体が鉛のように重い。「…ごめんなさい。合わなかったみたい」（${labels(keys)}が大きく下がった。体を痛めた（全治${weeks}週）。伸びしろが大きく減った）`,
         ops,
       },
-      { label: 'やめておく', result: '「賢明ね。…気が変わったら、また来なさい」', ops: [] },
+      { label: 'やめておく', result: '「賢明ね。…このことは、誰にも内緒よ」', ops: [] },
     ],
   }
 }
 
 /** ★2以上のイベント（★1なら null。呼んだ側で★1のイベントを出す） */
 export function levelEvent(save: SaveData, rng: Rng, person: Person, f: Player): EventInstance | null {
-  // 蓮見先生：評価★2以上で、まれに秘密の施術
-  if (person === 'hasumi' && evalStars(successOf(save)?.eval.hasumi ?? 0) >= 2 && rng.chance(0.08)) {
-    const secret = hasumiSecret(save, rng, f)
-    if (secret) return secret
-  }
   const lv = pickLevel(save, rng, person)
   if (lv <= 1) return null
   const make = EVENTS[person][lv - 2]

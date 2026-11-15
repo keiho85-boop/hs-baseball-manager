@@ -111,6 +111,17 @@ export interface Condition {
   motivation: number // やる気 0-100
   injury: Injury | null
   armIssue: ArmIssue | null
+  /**
+   * 選手育成モード：疲れた状態で練習して抱えた不安（投手は肩・肘、野手は肘・膝）。
+   * 不安のまま疲れて練習すると、確率で故障（ケガ）になる。試合には影響しない
+   */
+  worry?: Worry | null
+}
+
+export interface Worry {
+  part: 'shoulder' | 'elbow' | 'knee'
+  /** 体力70以上で過ごした週（2週で消える） */
+  calmWeeks: number
 }
 
 export interface BattingStats {
@@ -301,6 +312,8 @@ export interface SaveData {
   scout?: ScoutState
   /** 守備適性を今の決まりに直したか */
   aptRule2?: boolean
+  /** 暦を「7月5週・2月4週」に変えたあとのデータか */
+  calendar2?: boolean
   /** ストーリー（ストーリーありで始めたときだけ） */
   story?: StoryState
   /** 週の初めに出す出来事（季節の行事・レアイベントなど）。先頭から順に出す */
@@ -377,6 +390,8 @@ export type EffectOp =
   | { op: 'injury'; playerId: string; name: string; weeks: number }
   /** 部員を加える（新入部員・転校生）。能力はそのときに作る */
   | { op: 'recruit'; grade: number; boost: number; motivation: number; note: string }
+  /** 選手育成モード：転校生（固定キャラ・神代）が入部する */
+  | { op: 'transfer'; motivation: number }
   /** 期間つきの補正 */
   | { op: 'modifier'; modifier: Modifier }
   /** 印を付ける */
@@ -399,6 +414,10 @@ export interface EventInstance {
   relatedPlayerIds?: string[]
   lines: string[]
   choices: EventChoice[]
+  /** 背景（選手育成モードの行事・合宿など。無ければ背景なし） */
+  bg?: string
+  /** 立ち絵で出す人物（左から順） */
+  cast?: { char: string; face?: string }[]
 }
 
 /** マスに止まったあと、まだ週を終えていない状態（中断しても再開できるよう保存する） */

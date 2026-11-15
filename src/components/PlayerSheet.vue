@@ -31,6 +31,7 @@ const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
           <div class="muted">見立て：{{ p.estimate }} ／ 調子：{{ FORM[p.condition.form] }} ／ 体力{{ Math.round(p.condition.stamina) }}</div>
           <div v-if="p.condition.injury" class="bad">ケガ：{{ p.condition.injury.name }}（あと{{ p.condition.injury.weeksLeft }}週）</div>
           <div v-if="p.condition.armIssue" class="bad">{{ p.condition.armIssue.part === 'shoulder' ? '肩' : '肘' }}の不安あり</div>
+          <div v-if="p.condition.worry" class="bad">{{ { shoulder: '肩', elbow: '肘', knee: '膝' }[p.condition.worry.part] }}の不安あり（休ませると消える）</div>
         </div>
         <button class="plain close" aria-label="閉じる" @click="emit('close')">✕</button>
       </div>

@@ -9,7 +9,8 @@ import { SKILLS, conflicts } from './skills'
 import type { EffectOp, EventInstance, Player, Position, SaveData, SquareType } from './types'
 import { addEval, successOf } from './success/state'
 import type { EvalKey } from './success/types'
-import { attachEvent, attachedAt, successRandomEvent, withFocusEval } from './success/board'
+import { attachEvent, attachedAt, withFocusEval } from './success/board'
+import { joinTransfer } from './success/clubs'
 
 export const ABILITY_LABEL: Record<string, string> = {
   'batting.contact': 'ミート',
@@ -497,7 +498,7 @@ function teamMeetingEvent(rng: Rng, list: Player[], st = false): EventInstance {
 // ---------------------------------------------------------------- 合宿（ストーリーあり）
 
 /** 合宿：蓮見先生の見回り（水着にパーカー姿で浜辺に来る）。体力の回復か、泳ぎで足腰を鍛えるか */
-function nurseBeachEvent(rng: Rng, list: Player[]): EventInstance {
+export function nurseBeachEvent(rng: Rng, list: Player[]): EventInstance {
   const swimmers = rng.shuffle([...list]).slice(0, 4)
   const swimOps: EffectOp[] = [{ op: 'condition', playerId: 'all', key: 'stamina', delta: -5 }]
   for (const p of swimmers) {
@@ -529,7 +530,7 @@ function nurseBeachEvent(rng: Rng, list: Player[]): EventInstance {
 }
 
 /** 合宿の合間の海水浴：浜辺を走り回って足腰が鍛えられる（走力・投手のスタミナ・ケガのしにくさ）。ランダムで弾道も上がる */
-function beachEvent(rng: Rng, list: Player[]): EventInstance {
+export function beachEvent(rng: Rng, list: Player[]): EventInstance {
   const ops: EffectOp[] = [
     { op: 'condition', playerId: 'all', key: 'motivation', delta: 8 },
     { op: 'condition', playerId: 'all', key: 'stamina', delta: -6 },
@@ -568,7 +569,7 @@ function beachEvent(rng: Rng, list: Player[]): EventInstance {
 }
 
 /** まれに：同じ浜で合宿・海水浴をしていた龍ヶ峰学園と、遊びの延長でビーチバレー対決。勝っても負けても能力が上がる */
-function beachVolleyEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance {
+export function beachVolleyEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance {
   const own = save.schools[save.playerSchoolId]!
   const win = rng.chance(0.45)
   const picked = rng.shuffle([...list]).slice(0, 4)
@@ -655,7 +656,7 @@ export function buildEvent(save: SaveData, rng: Rng, square: SquareType, positio
   if (successOf(save)) {
     const person = position !== undefined ? attachedAt(save, position) : null
     if (person) return attachEvent(save, rng, person)
-    if (square === 'event' && !((save.sugoroku?.campWeeks ?? 0) > 0) && rng.chance(0.45)) return successRandomEvent(save, rng)
+    // イベントマス：共通の8種（日常の小さな出来事は、通常週のイベントに移した）
     if (square === 'event') return withFocusEval(save, buildEventBase(save, rng, square, list))
   }
   return buildEventBase(save, rng, square, list)
@@ -678,8 +679,8 @@ function buildEventBase(save: SaveData, rng: Rng, square: SquareType, list: Play
     if (r < 0.4) return beachEvent(rng, list)
     if (r < 0.6) return nurseBeachEvent(rng, list)
   }
-  // ストーリーあり：まれに保健室の蓮見先生
-  if (story(save) && rng.chance(0.06)) return nurseEvent(rng, list)
+  // ストーリーあり（チーム育成モード）：まれに保健室の蓮見先生。選手育成モードでは、毎週の抽選の秘密の施術になった
+  if (story(save) && !successOf(save) && rng.chance(0.06)) return nurseEvent(rng, list)
   // 選手育成モード：スランプと居残り練習は、育成選手の出来事にする（休む選択肢で体力が回復する）
   const fp = successOf(save) ? list.find((p) => p.id === successOf(save)!.focusId) : undefined
   const mine = fp ? [fp] : list
@@ -725,8 +726,18 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
         p.condition.injury = { name: '足の故障', weeksLeft: op.delta }
         continue
       }
+      // 秘密の施術など：経験点や上限を通さず、能力をそのまま上げ下げする
+      if (op.key.startsWith('direct:')) {
+        const key = op.key.slice(7)
+        const [g, k] = key.split('.') as [string, string]
+        const obj = (p as unknown as Record<string, Record<string, number>>)[g]
+        if (obj && typeof obj[k] === 'number') obj[k] = key === 'pitching.velocity' ? clamp(obj[k] + op.delta, 95, 163) : clamp(obj[k] + op.delta, 1, 99)
+        continue
+      }
       // 才能の上限（＋5）までしか上がらない
       raiseAbility(p, op.key, op.delta)
+    } else if (op.op === 'transfer') {
+      joinTransfer(save, new Rng(save.rngState), op.motivation)
     } else if (op.op === 'skill') {
       const p = save.players[op.playerId]
       if (!p) continue
@@ -777,6 +788,7 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
         if (p) {
           p.condition.injury = null
           p.condition.armIssue = null
+          p.condition.worry = null
         }
         continue
       }

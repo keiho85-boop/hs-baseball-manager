@@ -168,7 +168,7 @@ async function goRecruit(club: ClubId, target?: number): Promise<void> {
     if (!r) return
     play(r.result.success ? 'cheer' : 'miss')
     await afterGrowth()
-    await ui.alert(r.result.lines.join('\n'), r.result.title)
+    await ui.alert(r.result.lines.join('\n'), r.result.title, r.result.talked ? { bg: r.result.talked.bg, chars: [r.result.talked.char] } : undefined)
     if (rehearsal) guideStore.notify('recruited')
     if (first) await game.setStoryFlag('firstRecruit', 'done')
     const important = r.week.messages.filter((m) => IMPORTANT.some((k) => m.includes(k)) && !m.includes('治った'))
@@ -647,6 +647,7 @@ watch(
         :own-id="game.save!.playerSchoolId"
         :pending="pendingGame ? { round: pendingGame.round, opponentId: pendingGame.opponentId } : null"
         :busy="game.busy"
+        :no-bracket="!!success"
         @start="startTournament"
         @next="nextTournamentWeek"
         @bracket="bracketOpen = true"
@@ -692,19 +693,11 @@ watch(
 
       <!-- 練習試合・チームの様子・出来事（詳しくはポップアップで） -->
       <div v-if="success && !ended" class="actions icons">
-        <!-- 部員が9人いないうちは試合に出られない（棄権）ので、組み合わせではなく勧誘を出す -->
+        <!-- 選手育成モードは組み合わせを出さない。勝ち残っている大会中は勧誘できない -->
         <button
-          v-if="tournament && aliveInTournament && !forfeitNow"
-          class="ib"
-          @click="bracketOpen = true"
-        >
-          <img :src="`${BASE}ui/ui_trophy.webp`" alt="" /><span>組み合わせ</span>
-        </button>
-        <button
-          v-else
           class="ib"
           data-tut="recruit-btn"
-          :disabled="!!game.match || !sg || game.busy || moving || !!sg?.pending || autoWeek"
+          :disabled="!!game.match || !sg || game.busy || moving || !!sg?.pending || autoWeek || !!(tournament && aliveInTournament && !forfeitNow)"
           @click="recruitOpen = true"
         >
           <img :src="`${BASE}ui/ui_recruit.webp`" alt="" /><span>勧誘</span>

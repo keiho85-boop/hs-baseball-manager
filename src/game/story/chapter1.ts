@@ -3,7 +3,7 @@
 // 物語はナギ（中身は鬼頭鉄郎）の視点で進む。固定ストーリー30本と、固定キャラの加入イベント6本。
 
 import { Rng, clamp } from '../rng'
-import { SEASON_WEEKS, POSITION_NAME, weekToDate } from '../constants'
+import { SEASON_WEEKS, POSITION_NAME, weekToDate, wk } from '../constants'
 import { findTournament, ownAlive, progress } from '../tournament'
 import { decideFocusDraft } from '../scout'
 import { fullName, raiseAbility, shiftForm } from '../player'
@@ -14,7 +14,7 @@ import { activeOwn, ownOut, pendingGame, week, year } from './query'
 import { setFocusPosition } from './setup'
 import type { CharId, Face, NarrStep, BgStep, Scene, SayStep, Step, StoryContext, TitleStep } from './types'
 import { addAchievement, addCostume } from './rewards'
-import { addEval, canConfess, evalStars, focusPlayer, rosterCount } from '../success/state'
+import { addEval, campThisYear, canConfess, evalStars, focusPlayer, rosterCount } from '../success/state'
 import { addFriendsOfDaichi } from '../success/clubs'
 import { savePlayer, unlockScenario } from '../success/archive'
 import type { EvalKey, FixedId } from '../success/types'
@@ -49,6 +49,8 @@ const NAMES: Record<CharId, string> = {
   shinonome: '東雲',
   miki: '三木',
   pro_scout: 'スカウト',
+  tenkosei: '神代',
+  ob_pro: '桐生',
 }
 
 function say(char: CharId, face: Face, text: string): SayStep {
@@ -148,6 +150,49 @@ function weekOf(month: number, weekOfMonth: number): number {
     if (d.month === month && d.weekOfMonth === weekOfMonth) return w
   }
   return 1
+}
+
+/**
+ * 夏祭り（8月5週。1・2年目）。2年目は告白②の機会。1年目は告白なしで、浴衣の蓮見先生の抽選だけ
+ */
+function natsumatsuri(y: 1 | 2): Scene {
+  const salt = y === 2 ? 7 : 17
+  return {
+    id: y === 2 ? 'c1_natsumatsuri' : 'c1_natsumatsuri_1',
+    title: '夏祭り',
+    chapter: 1,
+    when: (c) => Y(c) === y && W(c) >= wk(8, 5),
+    steps: (c) => [
+      bg('bg_summer_festival_night'),
+      n(campThisYear(c.save) ? '合宿と全国大会を終えた週末。商店街の奥、白球稲荷の夏祭り' : '夏休みの終わりの週末。商店街の奥、白球稲荷の夏祭り'),
+      daichiSay('smile', '射的、勝負な。負けたほうがかき氷おごり'),
+      fv('乗った。…ナギも見てろよ'),
+      n('二人は全弾を外し、仲良く二人分のかき氷をナギにおごることになった'),
+      think('勝負の意味が分からん…', 'surprise'),
+      ...(luck(c, salt, 0.25)
+        ? [
+            n('人混みの向こうから、浴衣姿の女性が手を振っている'),
+            say('hasumi_yukata', 'smile', 'あら、野球部のみなさん。お祭り、楽しんでる？'),
+            fv('は、蓮見先生！？'),
+            say('hasumi_yukata', 'tease', 'ふふ、夜更かしはほどほどにね。…明日の練習、寝坊したら保健室で説教よ？'),
+          ]
+        : []),
+      ...(y === 2 ? [n('花火が上がる。大地が、ちらりとナギの横顔を見た'), ...confessSteps(c, 2)] : [n('花火が上がる。三人で、しばらく黙って空を見上げた')]),
+    ],
+    onEnd: (c) => {
+      const out: string[] = []
+      const f = focus(c)
+      if (f) {
+        f.condition.stamina = clamp(f.condition.stamina + 20, 0, 100)
+        out.push(`${f.surname}の体力が回復した。`)
+      }
+      if (luck(c, salt, 0.25)) {
+        for (const p of regulars(c.save)) p.condition.stamina = clamp(p.condition.stamina + 10, 0, 100)
+        out.push('部員全員の体力が回復した。', ...evals(c, [['hasumi', 3]]))
+      }
+      return [...out, ...(y === 2 ? confessEnd(c, 2) : [])]
+    },
+  }
 }
 
 // ---------------------------------------------------------------- 大地の告白（チャンスは3回）
@@ -530,7 +575,7 @@ export const CHAPTER1: Scene[] = [
       startGuide(c, 'order')
       startGuide(c, 'funds')
       // 1年目の春の大会は、エントリーが入学前に締め切られている（夏から出られる）
-      const head = Y(c) === 1 && W(c) <= 7 ? '練習試合と、夏の大会から出られるようになった！' : '練習試合と大会に出られるようになった！'
+      const head = Y(c) === 1 && W(c) <= wk(5, 2) ? '練習試合と、夏の大会から出られるようになった！' : '練習試合と大会に出られるようになった！'
       return [head, 'OB会から差し入れが届いた（部費 +20万円）。', '源造が、練習のマスに顔を出すようになった。', ...evals(c, [['genzo', 5], ['team', 3]])]
     },
   },
@@ -538,7 +583,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_ryugamine',
     title: '龍ヶ峰',
     chapter: 1,
-    when: (c) => Y(c) === 1 && W(c) >= 15,
+    when: (c) => Y(c) === 1 && W(c) >= wk(6, 3),
     steps: (c) => [
       bg('bg_stadium_day'),
       ...(rosterCount(c.save) >= 9 && flag(c, 'join9')
@@ -563,7 +608,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_sofu',
     title: '祖父の病室',
     chapter: 1,
-    when: (c) => Y(c) === 1 && W(c) >= 24,
+    when: (c) => Y(c) === 1 && W(c) >= wk(9, 2),
     steps: () => [
       bg('bg_hospital_room'),
       n('秋。検査で入院した祖父を、ナギは一人で見舞った'),
@@ -582,7 +627,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_fuyu',
     title: '冬の帰り道',
     chapter: 1,
-    when: (c) => Y(c) === 1 && W(c) >= 36,
+    when: (c) => Y(c) === 1 && W(c) >= wk(12, 1),
     steps: (c) => [
       bg('bg_street_winter_night'),
       n('年の瀬の商店街。飾りの明かりの下を、ナギと大地が並んで歩く'),
@@ -618,7 +663,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_hariai',
     title: '張り合い',
     chapter: 1,
-    when: (c) => Y(c) === 2 && W(c) >= 5,
+    when: (c) => Y(c) === 2 && W(c) >= wk(5, 1),
     steps: () => [
       bg('bg_stadium_day'),
       n('春の県大会。スタンドで、日傘を差した少女がスコアブックを広げている'),
@@ -635,7 +680,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_shuzai',
     title: '取材',
     chapter: 1,
-    when: (c) => Y(c) === 2 && W(c) >= 10,
+    when: (c) => Y(c) === 2 && W(c) >= wk(6, 1),
     steps: () => [
       bg('bg_newspaper_room'),
       n('新聞部の部室。地元新聞の記者も同席している'),
@@ -674,7 +719,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_ryu_renshu',
     title: '王者からの申し込み',
     chapter: 1,
-    when: (c) => Y(c) === 2 && W(c) >= 6 && rosterCount(c.save) >= 9,
+    when: (c) => Y(c) === 2 && W(c) >= wk(5, 2) && rosterCount(c.save) >= 9,
     steps: () => [
       bg('bg_clubroom_day'),
       makabe('surprise', 'た、大変だ！　龍ヶ峰から、練習試合の申し込みが来た！'),
@@ -713,11 +758,11 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_gasshuku_junbi',
     title: '合宿の準備',
     chapter: 1,
-    when: (c) => Y(c) === 2 && W(c) >= 14,
+    when: (c) => Y(c) === 2 && W(c) === wk(7, 2) && campThisYear(c.save),
     steps: () => [
       bg('bg_clubroom_day'),
       makabe('troubled', '夏の合宿、引率は僕一人で大丈夫かな。ケガ人が出たら…'),
-      hasumi('smile', 'あら、わたしが行くって言ったでしょう？　去年も行ったじゃない'),
+      hasumi('smile', 'あら、わたしが行くって言ったでしょう？　全国大会の前に、ケガ人なんて出させないわ'),
       makabe('surprise', '蓮見先生！　…いつからそこに'),
       hasumi('tease', 'ずっといたわよ？　…ふふ、真壁先生って、からかいがいがあるわね'),
       think('この先生、本当に年を取っているのか…？', 'serious'),
@@ -811,52 +856,13 @@ export const CHAPTER1: Scene[] = [
       nagi('normal', '去年は、その「あと一歩」すらありませんでした。距離は確実に縮んでいます'),
     ],
   },
-  {
-    id: 'c1_natsumatsuri',
-    title: '夏祭り',
-    chapter: 1,
-    when: (c) => {
-      if (Y(c) !== 2 || W(c) < 18) return false
-      const nat = findTournament(c.save, 2, 'summerNational')
-      return W(c) >= SEASON_WEEKS.thirdYearRetire || !nat || !ownAlive(c.save, nat)
-    },
-    steps: (c) => [
-      bg('bg_summer_festival_night'),
-      n('合宿を終えた週末。商店街の奥、白球稲荷の夏祭り'),
-      daichiSay('smile', '射的、勝負な。負けたほうがかき氷おごり'),
-      fv('乗った。…ナギも見てろよ'),
-      n('二人は全弾を外し、仲良く二人分のかき氷をナギにおごることになった'),
-      think('勝負の意味が分からん…', 'surprise'),
-      ...(luck(c, 7, 0.25)
-        ? [
-            n('人混みの向こうから、浴衣姿の女性が手を振っている'),
-            say('hasumi_yukata', 'smile', 'あら、野球部のみなさん。お祭り、楽しんでる？'),
-            fv('は、蓮見先生！？'),
-            say('hasumi_yukata', 'tease', 'ふふ、夜更かしはほどほどにね。…明日の練習、寝坊したら保健室で説教よ？'),
-          ]
-        : []),
-      n('花火が上がる。大地が、ちらりとナギの横顔を見た'),
-      ...confessSteps(c, 2),
-    ],
-    onEnd: (c) => {
-      const out: string[] = []
-      const f = focus(c)
-      if (f) {
-        f.condition.stamina = clamp(f.condition.stamina + 20, 0, 100)
-        out.push(`${f.surname}の体力が回復した。`)
-      }
-      if (luck(c, 7, 0.25)) {
-        for (const p of regulars(c.save)) p.condition.stamina = clamp(p.condition.stamina + 10, 0, 100)
-        out.push('部員全員の体力が回復した。', ...evals(c, [['hasumi', 3]]))
-      }
-      return [...out, ...confessEnd(c, 2)]
-    },
-  },
+  natsumatsuri(1),
+  natsumatsuri(2),
   {
     id: 'c1_mae_no_kantoku',
     title: '前の監督',
     chapter: 1,
-    when: (c) => Y(c) === 2 && W(c) >= 23,
+    when: (c) => Y(c) === 2 && W(c) >= wk(9, 1),
     steps: () => [
       bg('bg_sports_shop'),
       n('夕方。商店街のスポーツ用品店で、ナギが練習球を選んでいる'),
@@ -873,7 +879,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_y2_end',
     title: '2年目の締めくくり',
     chapter: 1,
-    when: (c) => Y(c) === 2 && W(c) >= 50,
+    when: (c) => Y(c) === 2 && W(c) >= wk(3, 2),
     steps: (c) => [
       bg('bg_ground_sunset'),
       n('春休み。夕暮れのグラウンド'),
@@ -911,7 +917,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_haru_scout',
     title: '春の大会のスカウト',
     chapter: 1,
-    when: (c) => Y(c) === 3 && W(c) >= 5,
+    when: (c) => Y(c) === 3 && W(c) >= wk(4, 3),
     steps: (c) => [
       bg('bg_stadium_stands'),
       n('春の県大会。バックネット裏に、スピードガンを構えた男がいる'),
@@ -935,7 +941,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_soudan',
     title: '大地への相談',
     chapter: 1,
-    when: (c) => Y(c) === 3 && W(c) >= 9,
+    when: (c) => Y(c) === 3 && W(c) >= wk(5, 5),
     steps: (c) => [
       bg('bg_clubroom_night'),
       n('練習のあと。ナギは、ひとり部室で練習計画を見つめていた'),
@@ -960,7 +966,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_kouhai',
     title: '後輩の指導',
     chapter: 1,
-    when: (c) => Y(c) === 3 && W(c) >= 11,
+    when: (c) => Y(c) === 3 && W(c) >= wk(6, 2),
     steps: () => [
       bg('bg_ground_day'),
       n('{フォーカス}が、1年生に基本を教えている'),
@@ -1003,7 +1009,7 @@ export const CHAPTER1: Scene[] = [
     id: 'c1_shi_no_omokage',
     title: '師の面影',
     chapter: 1,
-    when: (c) => Y(c) === 3 && W(c) >= 12 && W(c) <= 16 && (flag(c, 'metRival_3') || W(c) >= 14),
+    when: (c) => Y(c) === 3 && W(c) >= wk(6, 4) && W(c) <= wk(7, 2) && (flag(c, 'metRival_3') || W(c) >= wk(7, 1)),
     steps: () => [
       bg('bg_stadium_stands'),
       n('試合のあと、球場のスタンドの通路。久我が一人で待っていた'),
@@ -1057,7 +1063,7 @@ export const CHAPTER1: Scene[] = [
     when: (c) => Y(c) === 3 && (c.save.sugoroku?.campWeeks ?? 0) > 0,
     steps: () => [
       bg('bg_ground_day'),
-      n('最後の夏の大会を前にした合宿。合宿所のグラウンドから、日が暮れても誰も出ようとしない'),
+      n('全国大会を前にした、最後の合宿。合宿所のグラウンドから、日が暮れても誰も出ようとしない'),
       hasumi('smile', 'はい、休憩。…あなたたち、3年間でずいぶん大きくなったわね'),
       makabe('smile', '僕も、少しは監督らしくなったかな'),
       hasumi('tease', '寝ぐせは相変わらずよ、真壁先生'),
@@ -1242,3 +1248,19 @@ function rivalResult(c: StoryContext): 'win' | 'lose' | null {
   return null
 }
 
+/** 章の節目になる大事な場面（暗転やタイトルをゆっくり見せる） */
+const BIG_SCENES = new Set([
+  'c1_ano_yoru',
+  'c1_mezame',
+  'c1_9nin',
+  'c1_fuyu',
+  'c1_natsumatsuri',
+  'c1_ouja_ato',
+  'c1_shi_no_omokage',
+  'c1_kessen_zenya',
+  'c1_zenkoku',
+  'c1_todokanakatta',
+  'c1_draft',
+  'c1_sotsugyou',
+])
+for (const sc of CHAPTER1) if (BIG_SCENES.has(sc.id)) sc.weight = 'big'

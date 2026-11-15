@@ -4,14 +4,16 @@
 // 結果は作る時点で決めておく（乱数を先に使うので、やり直しても同じ結果になる）。
 
 import { Rng } from './rng'
-import { SEASON_WEEKS } from './constants'
-import { findTournament, type Tournament, type TournamentKind } from './tournament'
+import { SEASON_WEEKS, wk } from './constants'
+import { findTournament, kindNow, ownAlive, type Tournament, type TournamentKind } from './tournament'
 import { playerRating } from './player'
-import { ABILITY_LABEL, eid, learnable, mainKeys, players, skillName, story } from './events'
+import { ABILITY_LABEL, beachEvent, beachVolleyEvent, eid, learnable, mainKeys, nurseBeachEvent, players, skillName, story } from './events'
 import { SKILLS } from './skills'
 import { absWeek } from './modifiers'
 import type { EffectOp, EventInstance, Player, SaveData, Speaker } from './types'
-import { CAMP_PLACES, campStartWeek, focusPlayer, mustForfeit, rosterCount, successOf } from './success/state'
+import { CAMP_PLACES, campStartWeek, campThisYear, focusPlayer, mustForfeit, rosterCount, successOf } from './success/state'
+import { WEEK_EVENT_RATE, weekEvent } from './success/weekEvents'
+import { hasumiSecret } from './success/personEvents'
 
 // ---------------------------------------------------------------- 話し手
 
@@ -239,7 +241,7 @@ function hatsumodeEvent(save: SaveData, rng: Rng): EventInstance {
   const glow = rng.chance(0.03)
   const y = save.calendar.year + 1
   const ops: EffectOp[] = [{ op: 'condition', playerId: 'all', key: 'motivation', delta: 3 }]
-  if (glow) ops.push({ op: 'modifier', modifier: { key: 'form', from: absWeek(save, y, 15), until: absWeek(save, y, 21), label: '光るお守り' } })
+  if (glow) ops.push({ op: 'modifier', modifier: { key: 'form', from: absWeek(save, y, wk(6, 4)), until: absWeek(save, y, wk(8, 4)), label: '光るお守り' } })
   return {
     id: eid('hatsumode'),
     title: '初詣',
@@ -474,13 +476,66 @@ function campCurryEvent(save: SaveData): EventInstance {
   }
 }
 
+type CampKind = 'swing' | 'study' | 'mvp' | 'ghost' | 'limit' | 'pro' | 'river'
+type CampWeekKind = CampKind | 'volley' | 'beach' | 'nurse'
+
+/**
+ * 選手育成モードの合宿：練習をした週に起きる出来事（1回の合宿で、同じものは1度まで）。
+ * 効果の大きいものほど起きにくい
+ */
+const CAMP_WEEK_EVENTS: { kind: CampWeekKind; weight: number; bg: string }[] = [
+  { kind: 'ghost', weight: 16, bg: 'bg_camp_room_night' },
+  { kind: 'nurse', weight: 14, bg: 'bg_beach_day' },
+  { kind: 'beach', weight: 12, bg: 'bg_beach_day' },
+  { kind: 'study', weight: 12, bg: 'bg_camp_hall_rain' },
+  { kind: 'swing', weight: 10, bg: 'bg_camp_yard_night' },
+  { kind: 'mvp', weight: 8, bg: 'bg_camp_ground_day' },
+  { kind: 'river', weight: 6, bg: 'bg_riverside_field_day' },
+  { kind: 'limit', weight: 5, bg: 'bg_camp_ground_sunset' },
+  { kind: 'volley', weight: 4, bg: 'bg_beach_day' },
+  { kind: 'pro', weight: 3, bg: 'bg_camp_ground_day' },
+]
+/** 合宿で練習をした週に、出来事が起きる確率 */
+const CAMP_WEEK_EVENT_RATE = 0.75
+
+function campWeekEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance | null {
+  const f = flags(save)
+  const y = save.calendar.year
+  const pool = CAMP_WEEK_EVENTS.filter((e) => f[`camp_${y}_${e.kind}`] === undefined && (e.kind !== 'volley' || !!save.story?.rivalId))
+  if (pool.length === 0) return null
+  const pick = rng.weighted(pool.map((e) => ({ value: e, weight: e.weight })))
+  f[`camp_${y}_${pick.kind}`] = true
+  let ev: EventInstance | null
+  if (pick.kind === 'volley') ev = beachVolleyEvent(save, rng, list)
+  else if (pick.kind === 'beach') ev = beachEvent(rng, list)
+  else if (pick.kind === 'nurse') ev = nurseBeachEvent(rng, list)
+  else ev = campRareEvent(save, rng, list, pick.kind)
+  if (!ev) return null
+  const fp = focusPlayer(save)
+  const who = (id?: string) => (id && fp && id === fp.id ? 'focus' : 'mob_cap')
+  const cast: Record<CampWeekKind, { char: string; face?: string }[]> = {
+    volley: [{ char: 'reika_beach' }, { char: 'nagi_beach', face: 'smile' }],
+    beach: [{ char: 'nagi_beach', face: 'smile' }],
+    nurse: [{ char: 'hasumi_beach', face: 'smile' }],
+    swing: [{ char: who(ev.relatedPlayerIds?.[0]), face: 'serious' }],
+    study: [{ char: 'nagi', face: 'serious' }],
+    mvp: [{ char: 'nagi', face: 'smile' }, { char: 'daichi', face: 'smile' }],
+    ghost: [{ char: 'daichi', face: 'surprise' }, { char: 'nagi', face: 'surprise' }],
+    limit: [{ char: who(ev.relatedPlayerIds?.[0]), face: 'serious' }],
+    pro: [{ char: 'ob_pro', face: 'smile' }],
+    river: [{ char: 'nagi', face: 'serious' }, { char: 'daichi', face: 'serious' }],
+  }
+  if (pick.kind === 'pro' && !save.alumni.some((a) => a.career === 'pro')) ev.speaker = { kind: 'ob', name: '桐生（OB・プロ野球選手）', portrait: 'ob_pro' }
+  return { ...ev, bg: pick.bg, cast: cast[pick.kind] }
+}
+
 /** 合宿のレアイベント（1回の合宿で最大1つ） */
-function campRareEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance | null {
+function campRareEvent(save: SaveData, rng: Rng, list: Player[], forced?: CampKind): EventInstance | null {
   const tired = list.filter((p) => p.condition.stamina < 35 && !p.storyCast)
   const pros = save.alumni.filter((a) => a.career === 'pro')
   const kinds = ['swing', 'study', 'mvp', 'ghost', ...(tired.length ? ['limit'] : []), ...(pros.length ? ['pro'] : [])]
   // 川向こうの球場は5%
-  const kind = rng.chance(0.05) ? 'river' : rng.pick(kinds)
+  const kind = forced ?? (rng.chance(0.05) ? 'river' : rng.pick(kinds))
   if (kind === 'swing') {
     const p = rng.pick(list.filter((x) => x.mainPosition !== 'P').length ? list.filter((x) => x.mainPosition !== 'P') : list)
     return {
@@ -520,7 +575,7 @@ function campRareEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance 
         {
           label: 'みっちりやろう',
           result: '作戦の意図が、部員全員に染み込んだ。（秋季大会が終わるまで、作戦が決まりやすい）',
-          ops: [{ op: 'modifier', modifier: { key: 'tactic', until: absWeek(save, save.calendar.year, 30), label: '大雨の座学' } }],
+          ops: [{ op: 'modifier', modifier: { key: 'tactic', until: absWeek(save, save.calendar.year, wk(10, 4)), label: '大雨の座学' } }],
         },
       ],
     }
@@ -562,7 +617,7 @@ function campRareEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance 
     }
   }
   if (kind === 'limit') {
-    const p = rng.pick(tired)
+    const p = tired.length ? rng.pick(tired) : rng.pick(list)
     const awaken = rng.chance(0.5)
     const skill = awaken ? learnable(rng, p) : null
     return {
@@ -593,9 +648,11 @@ function campRareEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance 
     }
   }
   if (kind === 'pro') {
-    const ob = rng.pick(pros)
-    const key = STRENGTH_KEY[ob.strengths[0] ?? ''] ?? 'batting.contact'
-    const cands = rng.shuffle([...list]).slice(0, 3)
+    // 選手育成モード：昔のOBのプロ野球選手・桐生が来る（チーム育成モードは、育てたOBのプロ選手）
+    const ob = pros.length ? rng.pick(pros) : { surname: '桐生', strengths: [] as string[] }
+    const fp = focusPlayer(save)
+    const key = pros.length ? (STRENGTH_KEY[ob.strengths[0] ?? ''] ?? 'batting.contact') : fp ? rng.pick(mainKeys(fp)) : 'batting.contact'
+    const cands = fp && !pros.length ? [fp, ...rng.shuffle(list.filter((p) => p.id !== fp.id)).slice(0, 2)] : rng.shuffle([...list]).slice(0, 3)
     return {
       id: eid('camp-pro'),
       title: '合宿：OBのプロ選手',
@@ -663,6 +720,32 @@ function oldGloveEvent(save: SaveData, list: Player[]): EventInstance | null {
 /** 転校生（4〜9月、1年に2%） */
 function transferEvent(save: SaveData, rng: Rng): EventInstance {
   const later = rng.chance(0.5)
+  if (successOf(save)) {
+    // 選手育成モード：転校生は固定キャラの神代（2年生・三塁手）
+    return {
+      id: eid('transfer'),
+      title: '転校生',
+      speaker: mgr(save),
+      bg: 'bg_classroom_day',
+      cast: [{ char: 'tenkosei', face: 'normal' }, { char: 'nagi', face: 'normal' }],
+      lines: [
+        '2年生のクラスに、転校生が来たそうです。名前は神代くん。前の学校では、強豪校の三塁手だったとか。',
+        'でも、野球はもうやめたって…。何か、理由があるみたいです。',
+      ],
+      choices: [
+        {
+          label: '理由を聞きに行く',
+          result: '「…もう一度、ちゃんと野球がしたい」神代は、ボールを握ると決めた。（神代が入部した！）',
+          ops: [{ op: 'transfer', motivation: 85 }],
+        },
+        {
+          label: '無理には誘わない',
+          result: later ? '数週間後、神代は自分からグラウンドにやって来た。「…ここなら、やれる気がする」（神代が入部した！）' : '神代は、結局野球部には来なかった。',
+          ops: later ? [{ op: 'transfer', motivation: 60 }] : [],
+        },
+      ],
+    }
+  }
   return {
     id: eid('transfer'),
     title: '転校生',
@@ -798,8 +881,24 @@ function ownFinished(save: SaveData, t: Tournament): { done: boolean; wins: numb
   return { done: appeared && (lost || t.finished), wins, bigLoss, forfeit }
 }
 
+/** 蓮見先生の秘密の施術：毎週の抽選の確率（ゲーム中1回まで） */
+const SECRET_RATE = 0.004
+
+/** 自校が勝ち残っている大会の週か */
+function tournamentWeekNow(save: SaveData): boolean {
+  const kind = kindNow(save)
+  if (!kind) return false
+  const t = findTournament(save, save.calendar.year, kind)
+  return !!t && ownAlive(save, t)
+}
+
+/** 選手育成モード：イベントに背景と立ち絵を付ける */
+function withScene(ev: EventInstance | null, bg: string, cast: { char: string; face?: string }[]): EventInstance | null {
+  return ev ? { ...ev, bg, cast } : null
+}
+
 /** 週を進めた後に呼ぶ：今週の行事やレアイベントを積む */
-export function queueWeeklyEvents(save: SaveData, rng: Rng): void {
+export function queueWeeklyEvents(save: SaveData, rng: Rng, ctx: { campPractice?: boolean } = {}): void {
   const list = members(save)
   if (list.length === 0) return
   const q = (save.eventQueue ??= [])
@@ -809,29 +908,31 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng): void {
   const y = save.calendar.year
   const w = save.calendar.week
   const st = save.story?.enabled ? save.story : null
+  // この週に積む前の数（通常週かどうかの判定に使う）
+  const queuedBefore = q.length
   // ストーリーの第1章の最終年度の卒業式は、章の場面で描く
   const storyFinale = !!st && st.chapter === 1 && y === 3
 
   // 年中行事
   const success = !!successOf(save)
-  if (w === 2 && y >= 2 && !success && onceThisYear(save, 'recruit')) push(recruitEvent(save, rng))
-  if ((w === 13 || w === 38) && rng.chance(0.7) && onceThisYear(save, `test${w}`)) push(testEvent(save, rng, list))
-  if (w === 24 && onceThisYear(save, 'sports')) push(sportsDayEvent(save, rng, list))
-  if (w === 25 && rng.chance(0.3) && onceThisYear(save, 'typhoon')) push(typhoonEvent(save))
-  if (w === 29 && onceThisYear(save, 'festival')) push(festivalEvent(save, rng, list))
-  if (w === 32) {
+  if (w === wk(4, 2) && y >= 2 && !success && onceThisYear(save, 'recruit')) push(recruitEvent(save, rng))
+  if ((w === wk(6, 3) || w === wk(12, 3)) && rng.chance(0.7) && onceThisYear(save, `test${w}`)) push(testEvent(save, rng, list))
+  if (w === wk(9, 2) && onceThisYear(save, 'sports')) push(withScene(sportsDayEvent(save, rng, list), 'bg_sports_day', [{ char: 'daichi', face: 'smile' }]))
+  if (w === wk(9, 3) && rng.chance(0.3) && onceThisYear(save, 'typhoon')) push(typhoonEvent(save))
+  if (w === wk(10, 2) && onceThisYear(save, 'festival')) push(withScene(festivalEvent(save, rng, list), 'bg_school_festival_day', [{ char: 'nagi', face: 'smile' }, { char: 'daichi', face: 'smile' }]))
+  if (w === wk(11, 2)) {
     const second = list.filter((p) => p.grade === 2)
     if (second.length && onceThisYear(save, 'trip')) push(schoolTripEvent(save, rng, second))
   }
-  if (w === 39 && onceThisYear(save, 'christmas')) push(christmasEvent(save))
-  if (w === 40 && onceThisYear(save, 'hatsumode')) push(success ? omikujiEvent(save, rng) : hatsumodeEvent(save, rng))
-  if (w === 41 && onceThisYear(save, 'obgame')) push(obGameEvent(save, rng))
-  if (w === 43) {
+  if (w === wk(12, 4) && onceThisYear(save, 'christmas')) push(withScene(christmasEvent(save), 'bg_clubroom_christmas', [{ char: 'nagi', face: 'smile' }, { char: 'daichi', face: 'smile' }, { char: 'genzo', face: 'smile' }]))
+  if (w === wk(1, 1) && onceThisYear(save, 'hatsumode')) push(success ? withScene(omikujiEvent(save, rng), 'bg_shrine_newyear', [{ char: 'nagi', face: 'smile' }]) : hatsumodeEvent(save, rng))
+  if (w === wk(1, 2) && onceThisYear(save, 'obgame')) push(obGameEvent(save, rng))
+  if (w === wk(1, 4)) {
     const autumn = findTournament(save, y, 'autumnPref')
     const final = autumn?.rounds[autumn.rounds.length - 1]?.[0]
     if (autumn && final && (final.a === save.playerSchoolId || final.b === save.playerSchoolId) && onceThisYear(save, 'selection')) push(selectionEvent(save, autumn))
   }
-  if (w === 46 && onceThisYear(save, 'valentine')) push(valentineEvent(save))
+  if (w === wk(2, 3) && onceThisYear(save, 'valentine')) push(valentineEvent(save))
   if (w === SEASON_WEEKS.graduation && !storyFinale && onceThisYear(save, 'graduation')) {
     push(graduationEvent(save, Object.values(save.players).filter((p) => p.schoolId === save.playerSchoolId && p.grade === 3 && !p.helper)))
   }
@@ -841,17 +942,23 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng): void {
     push(retireDayEvent(save, rng, retired, list.filter((p) => p.grade <= 2)))
   }
 
-  // 選手育成モード：合宿の2週前に、行き先を選ぶ
-  if (success && w === campStartWeek(save) - 2 && rosterCount(save) >= 9 && onceThisYear(save, 'campchoice')) push(campChoiceEvent(save))
+  // 選手育成モード：全国大会に出るときだけ、合宿の前の週に行き先を選ぶ
+  if (success && w === campStartWeek(save) - 1 && campThisYear(save) && onceThisYear(save, 'campchoice')) push(campChoiceEvent(save))
 
   // 合宿
   const camp = (save.sugoroku?.campWeeks ?? 0) > 0
-  if (camp && onceThisYear(save, 'curry')) push(campCurryEvent(save))
-  if (camp && rng.chance(0.3) && onceThisYear(save, 'campRare')) push(campRareEvent(save, rng, list))
+  if (camp && onceThisYear(save, 'curry')) push(withScene(campCurryEvent(save), 'bg_camp_hall_rain', [{ char: 'nagi', face: 'smile' }]))
+  if (success) {
+    // 選手育成モード：合宿で練習をした週に、合宿の出来事を抽選
+    if (ctx.campPractice && rng.chance(CAMP_WEEK_EVENT_RATE)) push(campWeekEvent(save, rng, list))
+  } else if (camp && rng.chance(0.3) && onceThisYear(save, 'campRare')) push(campRareEvent(save, rng, list))
 
-  // その他のレアイベント
-  if (rng.chance(0.05 / 52) && onceEver(save, 'glove')) push(oldGloveEvent(save, list))
-  if (w <= 26 && rng.chance(0.02 / 26) && onceThisYear(save, 'transfer')) push(transferEvent(save, rng))
+  // 毎週の抽選のレアイベント（古道具屋のグラブ・転校生・蓮見先生の秘密の施術）
+  if (rng.chance(0.05 / 52) && onceEver(save, 'glove')) push(withScene(oldGloveEvent(save, list), 'bg_antique_shop_day', []))
+  if (success) {
+    if (w <= wk(9, 4) && rng.chance(0.02 / 26) && !successOf(save)!.joinedTransfer && onceEver(save, 'transfer')) push(transferEvent(save, rng))
+    if (st?.seen.includes('c1_hokenshitsu') && rng.chance(SECRET_RATE) && onceEver(save, 'hasumiSecret')) push(hasumiSecret(save, rng))
+  } else if (w <= wk(9, 4) && rng.chance(0.02 / 26) && onceThisYear(save, 'transfer')) push(transferEvent(save, rng))
 
   // ドラフトで指名された教え子
   for (const p of Object.values(save.players)) {
@@ -874,8 +981,11 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng): void {
 
   // ストーリー：大会の前の週に、源造の差し入れ
   // 棄権が決まっている大会（1年目の春・部員が足りないとき）の前には出さない
-  const snackKind: TournamentKind | null = w === 4 ? 'springPref' : w === 14 ? 'summerPref' : w === 27 ? 'autumnPref' : null
+  const snackKind: TournamentKind | null = w === wk(4, 2) ? 'springPref' : w === wk(6, 3) ? 'summerPref' : w === wk(10, 1) ? 'autumnPref' : null
   if (st && st.chapter === 1 && snackKind && !mustForfeit(save, snackKind) && (st.seen.includes('c1_shoutenkai') || st.seen.includes('c1_9nin')) && onceThisYear(save, `snack${w}`)) push(genzoSnackEvent())
+
+  // 選手育成モード：決まった行事・大会・合宿のない週（通常週）は、約7割で通常週のイベント
+  if (success && q.length === queuedBefore && !camp && !ctx.campPractice && !tournamentWeekNow(save) && rng.chance(WEEK_EVENT_RATE)) push(weekEvent(save, rng))
 
   // 積みすぎない（たまっているときは、新しいもの3つだけ残す）
   if (q.length > 3) q.splice(0, q.length - 3)

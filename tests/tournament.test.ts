@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Rng } from '../src/game/rng'
+import { wk } from '../src/game/constants'
 import { createNewGame } from '../src/game/world'
 import { advanceWeek } from '../src/game/season'
 import { ensureDetailed, findTournament, pendingOwnGame, recordOwnResult, roundName } from '../src/game/tournament'
@@ -36,7 +37,7 @@ describe('大会', () => {
 
   it('自校の試合は結果を記録するまで止まり、勝てば次の相手が決まる', () => {
     const save = world(5)
-    while (save.calendar.week < 15) advanceWeek(save)
+    while (save.calendar.week < wk(6, 4)) advanceWeek(save)
     const t = findTournament(save, 1, 'summerPref')!
     const p1 = pendingOwnGame(save)
     expect(p1).not.toBeNull()
@@ -64,7 +65,7 @@ describe('大会', () => {
         save.rngState = rng.getState()
       }
     }
-    while (save.calendar.week < 22) {
+    while (save.calendar.week < wk(8, 5)) {
       winAll()
       advanceWeek(save, { kind: 'tournament' })
     }

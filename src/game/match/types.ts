@@ -135,6 +135,8 @@ export interface MatchOptions {
   tutorial?: boolean
   /** プレイヤーの学校の作戦（バント・盗塁・エンドラン）の成功率の上乗せ（座学の効果など） */
   tacticBonus?: number
+  /** 選手育成モード：体力（練習の疲れ）を試合に影響させない */
+  ignoreCondition?: boolean
 }
 
 export interface MatchState {

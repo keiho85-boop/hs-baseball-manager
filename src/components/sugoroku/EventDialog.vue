@@ -7,8 +7,8 @@ import FaceIcon from '../FaceIcon.vue'
 import GameIcon from '../GameIcon.vue'
 import type { IconName } from '../icons'
 import PlayerSheet from '../PlayerSheet.vue'
-import { hasPortrait, portraitUrl } from '@/game/story/art'
-import type { CharId } from '@/game/story/types'
+import { bgUrl, hasPortrait, portraitUrl } from '@/game/story/art'
+import type { CharId, Face } from '@/game/story/types'
 
 const props = defineProps<{ event: EventInstance }>()
 const emit = defineEmits<{ done: [choice: number] }>()
@@ -38,6 +38,13 @@ const portrait = computed(() => {
   if (s.kind === 'player' || !s.portrait || !game.save?.story?.enabled || !hasPortrait(s.portrait as CharId)) return null
   return portraitUrl(s.portrait as CharId, 'smile')
 })
+/** 背景と立ち絵（選手育成モードの行事・合宿などの場面） */
+const bgStyle = computed(() => (props.event.bg && game.save?.story?.enabled ? { backgroundImage: `linear-gradient(180deg, rgba(10, 25, 45, 0.05), rgba(10, 25, 45, 0.45)), url(${bgUrl(props.event.bg)})` } : undefined))
+const castUrls = computed(() =>
+  game.save?.story?.enabled
+    ? (props.event.cast ?? []).filter((c) => hasPortrait(c.char as CharId)).map((c) => portraitUrl(c.char as CharId, c.face as Face | undefined))
+    : [],
+)
 const avatar = computed<{ icon: IconName; color: string }>(() => {
   const k = props.event.speaker.kind
   if (k === 'manager') return { icon: 'clipboard', color: '#ff8fb1' }
@@ -86,8 +93,11 @@ onMounted(() => typeOut(text.value))
 </script>
 
 <template>
-  <div class="ev-backdrop">
+  <div class="ev-backdrop" :class="{ scene: !!bgStyle }" :style="bgStyle">
     <div class="title-bar">{{ event.title }}</div>
+    <div v-if="castUrls.length" class="cast" :class="`n${castUrls.length}`">
+      <img v-for="(u, i) in castUrls" :key="i" :src="u" alt="" :style="{ animationDelay: `${0.15 + i * 0.12}s` }" />
+    </div>
     <div class="ev">
       <div class="speaker">
         <FaceIcon v-if="player" :face="player.face" :size="74" />
@@ -132,6 +142,58 @@ onMounted(() => typeOut(text.value))
   flex-direction: column;
   justify-content: flex-end;
   padding: 16px 12px calc(16px + var(--safe-bottom));
+}
+.ev-backdrop.scene {
+  background-size: cover;
+  background-position: center;
+  animation: scene-in 0.6s ease-out;
+}
+.ev-backdrop.scene .title-bar {
+  margin-top: 10px;
+}
+.cast {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  margin: 8px 0 -10px;
+  pointer-events: none;
+}
+.cast img {
+  max-height: 52vh;
+  max-width: 78%;
+  object-fit: contain;
+  object-position: bottom;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.25));
+  animation: cast-in 0.5s ease-out both;
+}
+.cast.n2 img {
+  max-width: 50%;
+}
+.cast.n2 img + img {
+  margin-left: -8%;
+}
+.cast.n3 img {
+  max-width: 38%;
+}
+@keyframes scene-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes cast-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .title-bar {
   align-self: center;

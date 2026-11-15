@@ -34,6 +34,11 @@ export function rollAttach(save: SaveData, rng: Rng): void {
   const s = successOf(save)
   const sg = save.sugoroku
   if (!s || !sg || s.ended) return
+  // 合宿中は、練習マスに人物は付かない
+  if (sg.campWeeks > 0) {
+    sg.attach = {}
+    return
+  }
   const flags = save.story!.flags
   const slots = rng.shuffle(sg.board.map((sq, i) => ({ sq, i })).filter((x) => PRACTICE.includes(x.sq)).map((x) => x.i))
   const people: Person[] = ['scout']

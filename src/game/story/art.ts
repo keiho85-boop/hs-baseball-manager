@@ -143,6 +143,8 @@ const ART: Record<CharId, CharArt> = {
   shinonome: fixedArt('shinonome_hs_council_bust_', '#37474f'),
   miki: fixedArt('miki_hs_newspaper_bust_', '#795548'),
   pro_scout: fixedArt('pro_scout_40s_bust_', '#455a64'),
+  tenkosei: fixedArt('tenkosei_hs_uniform_bust_', '#3949ab'),
+  ob_pro: fixedArt('ob_pro_20s_bust_', '#c62828'),
 }
 
 /** 固定キャラの絵の割り当て（通常・笑顔・真剣・驚き） */
@@ -250,6 +252,20 @@ export const BG_FALLBACK: Record<string, string> = {
   bg_street_winter_night: 'bg_street_sunset',
   bg_stadium_stands: 'bg_stadium_day',
   bg_clubroom_tv: 'bg_clubroom_day',
+  // 行事・合宿・レアイベントの背景（11月15日に追加。絵ができるまでは近い背景で代用）
+  bg_school_festival_day: 'bg_classroom_day',
+  bg_sports_day: 'bg_ground_day',
+  bg_clubroom_christmas: 'bg_clubroom_night',
+  bg_shrine_newyear: 'bg_street_winter_night',
+  bg_antique_shop_day: 'bg_street_sunset',
+  bg_secret_room: 'bg_infirmary_day',
+  bg_beach_day: 'bg_ground_day',
+  bg_camp_yard_night: 'bg_hotel_night',
+  bg_camp_hall_rain: 'bg_classroom_day',
+  bg_camp_ground_day: 'bg_ground_day',
+  bg_camp_ground_sunset: 'bg_ground_sunset',
+  bg_camp_room_night: 'bg_hotel_night',
+  bg_riverside_field_day: 'bg_ground_day',
 }
 
 /** 実際に表示する背景の名前（絵がなければ代わりの絵） */

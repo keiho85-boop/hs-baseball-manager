@@ -37,6 +37,19 @@ export const CLUBS: ClubInfo[] = [
   { id: 'shinbun', name: '新聞部', fixed: 'shinbun', strength: [15, 35], mobs: 1 },
 ]
 
+/** 部活の背景（固定キャラに話しかけたときに出す） */
+const CLUB_BG: Record<ClubId, string> = {
+  kitaku: 'bg_classroom_day',
+  rikujo: 'bg_track_field',
+  sumo: 'bg_sumo_room',
+  soccer: 'bg_soccer_field',
+  tennis: 'bg_tennis_court',
+  takkyu: 'bg_gym_table_tennis',
+  shogi: 'bg_shogi_room',
+  seitokai: 'bg_student_council',
+  shinbun: 'bg_newspaper_room',
+}
+
 /** 加入の判定に使う、部の状況 */
 export interface JoinContext {
   /** 部の評判（0〜100） */
@@ -162,6 +175,29 @@ function addMember(save: SaveData, rng: Rng, opt: { grade: number; position: Pos
   return p
 }
 
+/** 選手育成モードの転校生（固定キャラ）：2年生の三塁手・神代 迅。強豪校から来て、野球を続けるか迷っていた */
+export const TRANSFER = { surname: '神代', givenName: '迅', position: '3B' as Position, char: 'tenkosei' }
+
+export function joinTransfer(save: SaveData, rng: Rng, motivation: number): Player | null {
+  const s = successOf(save)
+  if (!s || s.joinedTransfer) return null
+  const p = addMember(save, rng, { grade: 2, position: TRANSFER.position, strength: 62, surname: TRANSFER.surname, givenName: TRANSFER.givenName })
+  const b = p.batting as unknown as Record<string, number>
+  const f = p.fielding as unknown as Record<string, number>
+  p.storyCast = 'fixed:tenkosei'
+  p.hidden.potential = Math.max(p.hidden.potential, 75)
+  set(b, 'contact', 60 + rng.int(0, 6))
+  set(b, 'power', 58 + rng.int(0, 6))
+  set(b, 'eye', 55)
+  set(f, 'arm', 68 + rng.int(0, 5))
+  set(f, 'range', 60)
+  set(f, 'catching', 62)
+  p.condition.motivation = motivation
+  s.joinedTransfer = p.id
+  save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `転校生の${TRANSFER.surname}${TRANSFER.givenName}が入部した。` })
+  return p
+}
+
 function set(obj: Record<string, number>, key: string, v: number, max = 99): void {
   obj[key] = clamp(Math.round(v), 1, max)
 }
@@ -229,6 +265,8 @@ export interface RecruitResult {
   success: boolean
   /** 加入した固定キャラ */
   fixed?: FixedId
+  /** 話しかけた固定キャラ（背景と立ち絵を出すのに使う） */
+  talked?: { char: string; bg: string }
 }
 
 /** 勧誘に行く（1週分を使う）。結果の文を返す。週を進めるのは呼び出した側 */
@@ -337,7 +375,8 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
   const ev = evals.filter((x): x is string => !!x)
   if (ev.length) lines.push(`（${ev.join('。')}）`)
   save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `勧誘（${club.name}）：${success ? '成功' : '失敗'}` })
-  return { title: success ? '勧誘成功！' : '勧誘', lines, success, fixed }
+  const talked = fixedHere ? { char: FIXED[fixedHere.id].char, bg: CLUB_BG[clubId] } : undefined
+  return { title: success ? '勧誘成功！' : '勧誘', lines, success, fixed, talked }
 }
 
 /** 公式戦で、一度でも勝ったことがあるか */

@@ -14,6 +14,8 @@ const props = defineProps<{
   /** この週に戦う、まだ終わっていない試合 */
   pending: { round: number; opponentId: string } | null
   busy: boolean
+  /** 組み合わせ表へのリンクを出さない（選手育成モード） */
+  noBracket?: boolean
 }>()
 defineEmits<{ start: []; next: []; bracket: []; order: [] }>()
 
@@ -60,7 +62,7 @@ const nextRoundLabel = computed(() => (alive.value && props.t.current < props.t.
   <div class="tp" :class="{ national }">
     <div class="tp-head">
       <span class="tp-name"><GameIcon name="trophy" :size="16" /> {{ t.name }}</span>
-      <button class="plain link" @click="$emit('bracket')">組み合わせ表</button>
+      <button v-if="!noBracket" class="plain link" @click="$emit('bracket')">組み合わせ表</button>
     </div>
 
     <template v-if="pending && opp">

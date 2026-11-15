@@ -164,6 +164,8 @@ export const GROWTH_NAME = { early: '早熟', normal: '普通', late: '晩成' }
 
 /** ランクの区切り（下限値） */
 export const RANKS: { rank: string; min: number }[] = [
+  { rank: 'SSS', min: 99 },
+  { rank: 'SS', min: 95 },
   { rank: 'S', min: 90 },
   { rank: 'A', min: 80 },
   { rank: 'B', min: 70 },
@@ -184,7 +186,8 @@ export function velocityScore(kmh: number): number {
 }
 
 /** 4月第1週を1とした週番号から、月と第何週かを求める */
-const WEEKS_IN_MONTH = [4, 5, 4, 4, 5, 4, 4, 5, 4, 4, 5, 4] // 4月〜翌3月
+// 7月は5週（県大会・合宿・全国大会を収めるため）、2月は4週。1年は52週
+const WEEKS_IN_MONTH = [4, 5, 4, 5, 5, 4, 4, 5, 4, 4, 4, 4] // 4月〜翌3月
 const MONTHS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
 
 export function weekToDate(week: number): { month: number; weekOfMonth: number } {
@@ -197,6 +200,27 @@ export function weekToDate(week: number): { month: number; weekOfMonth: number }
   return { month: 3, weekOfMonth: 4 }
 }
 
+/** 「〇月第〇週」の週番号（4月第1週＝1） */
+export function wk(month: number, weekOfMonth: number): number {
+  let w = 0
+  for (let i = 0; i < 12; i++) {
+    if (MONTHS[i] === month) return w + Math.min(weekOfMonth, WEEKS_IN_MONTH[i]!)
+    w += WEEKS_IN_MONTH[i]!
+  }
+  return 1
+}
+
+/** 以前の暦（7月4週・2月5週）の週番号を、今の暦の週番号に直す（セーブデータの変換用） */
+export function weekFromOldCalendar(old: number): number {
+  const OLD = [4, 5, 4, 4, 5, 4, 4, 5, 4, 4, 5, 4]
+  let w = old
+  for (let i = 0; i < 12; i++) {
+    if (w <= OLD[i]!) return wk(MONTHS[i]!, w)
+    w -= OLD[i]!
+  }
+  return 52
+}
+
 export function formatWeek(year: number, week: number): string {
   const d = weekToDate(week)
   return `${year}年目 ${d.month}月 第${d.weekOfMonth}週`
@@ -205,9 +229,9 @@ export function formatWeek(year: number, week: number): string {
 /** 1年間の主な節目（週番号） */
 export const SEASON_WEEKS = {
   /** 3年生が引退する週（夏の全国大会が終わった直後） */
-  thirdYearRetire: 22, // 8月第5週
+  thirdYearRetire: wk(8, 5),
   /** 卒業式 */
-  graduation: 51, // 3月第3週
+  graduation: wk(3, 3),
 } as const
 
 /** 守備適性のまとまり（外野は左・中・右を分けない） */

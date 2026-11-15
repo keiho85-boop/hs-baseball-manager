@@ -51,7 +51,7 @@ export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial
     ctx,
     ownHome ? oppInput : ownInput,
     ownHome ? ownInput : oppInput,
-    defaultOptions({ luck: 'normal', userSchoolId: own.id, tacticBonus, ...partial }),
+    defaultOptions({ luck: 'normal', userSchoolId: own.id, tacticBonus, ignoreCondition: !!save.story?.success, ...partial }),
     newId(save, 'm'),
   )
 }

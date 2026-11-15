@@ -354,7 +354,7 @@ function resume(): void {
 const focusId = computed(() => (game.save ? (successOf(game.save)?.focusId ?? null) : null))
 const focusP = computed<Player | null>(() => (focusId.value ? (players.value[focusId.value] ?? null) : null))
 
-// 育成選手の投手が、疲れや肩・肘の不安で先発を外れたときは、試合の初めに知らせる
+// 育成選手がケガで試合に出られないときは、試合の初めに知らせる
 const restNoticeFor = ref<string | null>(null)
 watch(
   () => [m.value?.id, m.value?.events.length] as const,
@@ -364,9 +364,9 @@ watch(
     const t = ownTeam.value
     if (!mm || !p || !t || mm.events.length > 0 || restNoticeFor.value === mm.id) return
     restNoticeFor.value = mm.id
-    if (p.mainPosition !== 'P' || t.pitcherId === p.id || t.lineup.some((b) => b.playerId === p.id)) return
-    const why = p.condition.armIssue ? '肩・肘に不安があるため' : '疲れが溜まっているため'
-    ui.notify({ title: '今日はベンチスタート', message: `${p.surname}は${why}、今日は先発を外れた（ベンチに入っている）`, tone: 'info' })
+    if (t.pitcherId === p.id || t.lineup.some((b) => b.playerId === p.id)) return
+    if (!p.condition.injury) return
+    ui.notify({ title: '今日は欠場', message: `${p.surname}はケガ（${p.condition.injury.name}）のため、今日の試合には出られない`, tone: 'info' })
   },
   { immediate: true },
 )

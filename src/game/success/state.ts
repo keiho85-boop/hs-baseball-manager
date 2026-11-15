@@ -2,7 +2,7 @@
 // 構想書18節：フォーカス選手・周りからの評価・部の評判・スカウトの評価とドラフト
 
 import { Rng, clamp } from '../rng'
-import { rankOf } from '../constants'
+import { rankOf, wk } from '../constants'
 import { fullName, playerRating } from '../player'
 import type { MatchState } from '../match/types'
 import type { Player, SaveData } from '../types'
@@ -37,7 +37,8 @@ export const CONFESS_LINE = 65
 export const CONFESS_LINES = [54, 60, CONFESS_LINE] as const
 
 /** 自動で進む週（年末と春休み）。1年を約40ターンにする */
-export const AUTO_WEEKS = [38, 39, 51, 52]
+/** 自主練習で自動に進む週（なし。すべての週で通常の練習をする） */
+export const AUTO_WEEKS: number[] = []
 
 export function newSuccessState(): SuccessState {
   return {
@@ -81,9 +82,16 @@ export function campLevel(save: SaveData): number {
   if (!c || c.year !== save.calendar.year) return 0
   return Math.max(0, Math.min(CAMP_PLACES.length - 1, c.level))
 }
-/** 夏合宿が始まる週（3年目は夏の大会の前） */
-export function campStartWeek(save: SaveData): number {
-  return save.calendar.year === 3 ? 12 : 18
+/** 夏合宿が始まる週（7月3週。夏の県大会のあと） */
+export function campStartWeek(_save?: SaveData): number {
+  return wk(7, 3)
+}
+/** 選手育成モードの合宿の長さ（7月3週〜8月1週） */
+export const CAMP_WEEKS = 4
+/** 今年の夏合宿があるか（選手育成モード：夏の県大会で優勝して、全国大会に出るときだけ） */
+export function campThisYear(save: SaveData): boolean {
+  const t = (save.tournaments ?? []).find((x) => x.year === save.calendar.year && x.kind === 'summerPref')
+  return !!t && t.finished && t.championId === save.playerSchoolId && rosterCount(save) >= 9
 }
 export function campPlaceName(save: SaveData): string {
   return CAMP_PLACES[campLevel(save)]!.name

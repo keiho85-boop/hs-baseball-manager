@@ -38,6 +38,10 @@ export type CharId =
   | 'kobayakawa'
   | 'senju'
   | 'shinonome'
+  /** 転校生（固定キャラ・三塁手） */
+  | 'tenkosei'
+  /** 合宿に来るOBのプロ野球選手 */
+  | 'ob_pro'
   | 'miki'
   /** プロのスカウト */
   | 'pro_scout'
@@ -135,4 +139,6 @@ export interface Scene {
   steps: (ctx: StoryContext) => Step[]
   /** 見終わったときの効果。戻り値は画面に出す知らせ */
   onEnd?: (ctx: StoryContext) => string[] | void
+  /** 場面の重み（big：章の節目になる大事な場面。暗転・タイトル・文字の出方をゆっくりにする） */
+  weight?: 'normal' | 'big'
 }

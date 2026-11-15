@@ -81,6 +81,22 @@ small {
   color: #fff;
   text-shadow: 0 1px 0 #9a5a00, 0 0 4px rgba(150, 90, 0, 0.6);
 }
+.r-SS,
+.r-SSS {
+  --edge: #6a1b9a;
+  --face: linear-gradient(135deg, #ffe9ff 0%, #d39bff 35%, #8e5cf7 65%, #ffd1f7 100%);
+}
+.r-SSS {
+  --edge: #2b1a6b;
+  --face: linear-gradient(135deg, #fff6a8 0%, #ff9be2 25%, #9b8cff 50%, #7fe3ff 75%, #fff6a8 100%);
+}
+.r-SS b,
+.r-SSS b {
+  color: #fff;
+  font-size: calc(var(--f) * 0.72);
+  letter-spacing: -1px;
+  text-shadow: 0 1px 0 #3d1466, 0 0 4px rgba(80, 20, 140, 0.6);
+}
 .r-A { --edge: #a3242a; --face: linear-gradient(180deg, #ff6b70, #e0353b); }
 .r-B { --edge: #b5520f; --face: linear-gradient(180deg, #ffa363, #fb7420); }
 .r-C { --edge: #1e7a29; --face: linear-gradient(180deg, #68cf6c, #2f9e3a); }

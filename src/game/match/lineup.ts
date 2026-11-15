@@ -19,10 +19,10 @@ export function canPitch(p: Player): boolean {
 }
 
 /** 先発投手としての評価（疲れ・球数・肩肘の不安を考える） */
-export function starterScore(p: Player): number {
+export function starterScore(p: Player, ignoreCondition = false): number {
   if (!canPitch(p)) return -999
   let s = pitcherRating(p) + (p.mainPosition === 'P' ? 8 : -12)
-  s -= Math.max(0, 70 - p.condition.stamina) * 0.6
+  if (!ignoreCondition) s -= Math.max(0, 70 - p.condition.stamina) * 0.6
   s -= p.weeklyPitches * 0.06
   if (p.condition.armIssue) s -= 25
   return s
@@ -44,9 +44,9 @@ export function autoLineup(players: Player[], wantDH: boolean, mustPlay?: Player
   // DHは投手＋打者9人の10人が必要。足りなければDHなしで組む
   const useDH = wantDH && pool.length >= 10
   const must = mustPlay && pool.some((p) => p.id === mustPlay.id) && available(mustPlay) ? mustPlay : null
-  // 育成選手が投手なら先発させる（疲れきっているときと、肩・肘に不安があるときは休ませる）
-  const mustStart = must && must.mainPosition === 'P' && canPitch(must) && must.condition.stamina >= 20 && !must.condition.armIssue
-  const pitcherList = [...pool].filter(canPitch).sort((a, b) => starterScore(b) - starterScore(a))
+  // 育成選手が投手なら、いつも先発（選手育成モードでは、練習の疲れは試合に影響しない。ケガのときは出られない）
+  const mustStart = must && must.mainPosition === 'P' && canPitch(must)
+  const pitcherList = [...pool].filter(canPitch).sort((a, b) => starterScore(b, !!mustPlay) - starterScore(a, !!mustPlay))
   const starter = mustStart ? must : (pitcherList.find((p) => !must || must.mainPosition === 'P' || p.id !== must.id) ?? pool[0]!)
 
   const used = new Set<string>([starter.id])

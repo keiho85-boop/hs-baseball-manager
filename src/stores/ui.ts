@@ -10,6 +10,8 @@ export interface DialogRequest {
   cancelLabel: string | null
   danger: boolean
   resolve: (ok: boolean) => void
+  /** 背景と立ち絵を出す（固定キャラの勧誘など） */
+  scene?: { bg: string; chars: string[] }
 }
 
 /** 画面中央に少しのあいだ出す知らせ */
@@ -57,9 +59,9 @@ export const useUiStore = defineStore('ui', () => {
     })
   }
 
-  function alert(message: string, title = 'お知らせ'): Promise<boolean> {
+  function alert(message: string, title = 'お知らせ', scene?: { bg: string; chars: string[] }): Promise<boolean> {
     return new Promise((resolve) => {
-      dialog.value = { title, message, okLabel: 'OK', cancelLabel: null, danger: false, resolve }
+      dialog.value = { title, message, okLabel: 'OK', cancelLabel: null, danger: false, resolve, scene }
     })
   }
 

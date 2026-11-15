@@ -6,7 +6,7 @@
 // ・他県の県大会は組み合わせ表を残さず、全国大会の出場校を決めるときにまとめて計算する
 
 import { Rng, clamp } from './rng'
-import { PREFECTURES, prefName } from './constants'
+import { PREFECTURES, prefName, wk } from './constants'
 import { newId, populateSchool } from './world'
 import type { SaveData, School } from './types'
 
@@ -51,12 +51,24 @@ interface Spec {
   summer: boolean
 }
 
+const two = (a: number, b: number): number[] => [a, a, b, b]
+
+/** 県大会は16校・4戦（1・2回戦の週、準決勝・決勝の週）。全国大会は6戦で3週 */
 export const TOURNAMENT_SPECS: Record<TournamentKind, Spec> = {
-  springPref: { season: '春', national: false, weeks: [5, 5, 6, 6, 7], weight: 0.6, summer: false },
-  summerPref: { season: '夏', national: false, weeks: [15, 15, 16, 16, 17], weight: 1, summer: true },
-  summerNational: { season: '夏', national: true, weeks: [19, 19, 20, 20, 21, 21], weight: 1, summer: true },
-  autumnPref: { season: '秋', national: false, weeks: [28, 28, 29, 29, 30], weight: 0.8, summer: false },
-  springNational: { season: '春', national: true, weeks: [50, 50, 51, 51, 52, 52], weight: 0.9, summer: false },
+  springPref: { season: '春', national: false, weeks: two(wk(4, 3), wk(4, 4)), weight: 0.6, summer: false },
+  summerPref: { season: '夏', national: false, weeks: two(wk(6, 4), wk(7, 1)), weight: 1, summer: true },
+  summerNational: { season: '夏', national: true, weeks: [wk(8, 2), wk(8, 2), wk(8, 3), wk(8, 3), wk(8, 4), wk(8, 4)], weight: 1, summer: true },
+  autumnPref: { season: '秋', national: false, weeks: two(wk(10, 3), wk(10, 4)), weight: 0.8, summer: false },
+  springNational: { season: '春', national: true, weeks: [wk(3, 2), wk(3, 2), wk(3, 3), wk(3, 3), wk(3, 4), wk(3, 4)], weight: 0.9, summer: false },
+}
+
+/** 県大会に出る学校の数 */
+export const PREF_ENTRANTS = 16
+
+/** その年の大会の週（選手育成モード1年目の春だけ、5月1〜2週） */
+export function weeksOf(kind: TournamentKind, year: number, story: boolean): number[] {
+  if (kind === 'springPref' && story && year === 1) return two(wk(5, 1), wk(5, 2))
+  return TOURNAMENT_SPECS[kind].weeks
 }
 
 const ORDER: TournamentKind[] = ['springPref', 'summerPref', 'summerNational', 'autumnPref', 'springNational']
@@ -92,21 +104,28 @@ export function roundName(t: Tournament, r: number): string {
 }
 
 /** 開催期間中の大会の種類（週から決める） */
-export function kindAtWeek(week: number): TournamentKind | null {
+export function kindAtWeek(week: number, year = 2, story = false): TournamentKind | null {
   for (const k of ORDER) {
-    const w = TOURNAMENT_SPECS[k].weeks
+    const w = weeksOf(k, year, story)
     if (week >= w[0]! && week <= w[w.length - 1]!) return k
   }
   return null
 }
 
+/** セーブデータの今の週に開催中の大会の種類 */
+export function kindNow(save: SaveData): TournamentKind | null {
+  return kindAtWeek(save.calendar.week, save.calendar.year, !!save.story?.enabled)
+}
+
 /** 次に始まる大会と、始まるまでの週数（自校が出られる大会だけ） */
 export function nextTournament(save: SaveData): { kind: TournamentKind; name: string; weeks: number } | null {
   const week = save.calendar.week
+  const story = !!save.story?.enabled
   for (let add = 0; add < 60; add++) {
     const w = ((week - 1 + add) % 52) + 1
+    const year = save.calendar.year + (week - 1 + add >= 52 ? 1 : 0)
     for (const k of ORDER) {
-      if (TOURNAMENT_SPECS[k].weeks[0] !== w) continue
+      if (weeksOf(k, year, story)[0] !== w) continue
       if (TOURNAMENT_SPECS[k].national) continue
       return { kind: k, name: tournamentName(k, save.prefCode), weeks: add }
     }
@@ -231,6 +250,14 @@ function prefSchools(save: SaveData, code: number): string[] {
     .map((s) => s.id)
 }
 
+/** 県大会に出る16校：自校と（ストーリーの）ライバル校は必ず、残りは強い順 */
+function prefEntrants(save: SaveData): string[] {
+  const all = prefSchools(save, save.prefCode)
+  const must = [save.playerSchoolId, save.story?.rivalId].filter((x): x is string => !!x && all.includes(x))
+  const rest = all.filter((id) => !must.includes(id)).sort((a, b) => (save.schools[b]?.overall ?? 0) - (save.schools[a]?.overall ?? 0))
+  return [...must, ...rest].slice(0, PREF_ENTRANTS)
+}
+
 // ---------------------------------------------------------------- 大会の作成と進行
 
 export function findTournament(save: SaveData, year: number, kind: TournamentKind): Tournament | null {
@@ -240,7 +267,7 @@ export function findTournament(save: SaveData, year: number, kind: TournamentKin
 /** 開催期間中なのに大会がまだなければ作る（週が変わったときと、データを読み込んだときに呼ぶ） */
 export function ensureTournament(save: SaveData, rng: Rng): Tournament | null {
   const week = save.calendar.week
-  const kind = kindAtWeek(week)
+  const kind = kindNow(save)
   if (!kind) return null
   const year = save.calendar.year
   const existing = findTournament(save, year, kind)
@@ -248,7 +275,7 @@ export function ensureTournament(save: SaveData, rng: Rng): Tournament | null {
   const spec = TOURNAMENT_SPECS[kind]
   let entrants: string[]
   if (!spec.national) {
-    entrants = prefSchools(save, save.prefCode)
+    entrants = prefEntrants(save)
   } else {
     // 各都道府県の代表校：自県は県大会の優勝校、他県はここでまとめて計算する
     const prefKind: TournamentKind = kind === 'summerNational' ? 'summerPref' : 'autumnPref'
@@ -271,7 +298,7 @@ export function ensureTournament(save: SaveData, rng: Rng): Tournament | null {
     prefCode: spec.national ? null : save.prefCode,
     name: tournamentName(kind, save.prefCode),
     rounds: buildBracket(rng, save, entrants),
-    weeks: spec.weeks,
+    weeks: weeksOf(kind, year, !!save.story?.enabled),
     current: 0,
     finished: false,
     championId: null,
@@ -287,7 +314,7 @@ export function ensureTournament(save: SaveData, rng: Rng): Tournament | null {
 
 /** いま行われている大会 */
 export function currentTournament(save: SaveData): Tournament | null {
-  const kind = kindAtWeek(save.calendar.week)
+  const kind = kindNow(save)
   return kind ? findTournament(save, save.calendar.year, kind) : null
 }
 

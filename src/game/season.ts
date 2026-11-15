@@ -2,16 +2,16 @@
 
 import { Rng, clamp } from './rng'
 import { MIN_ROSTER, SEASON_WEEKS, WEEKS_PER_YEAR, weekToDate } from './constants'
-import { applyOwnWeek, refreshBoard } from './sugoroku'
+import { applyOwnWeek, rebuildBoard, refreshBoard } from './sugoroku'
 import { estimateTalent, fullName, generatePlayer, growWeekly, newStats, playerRating, strengthsOf } from './player'
 import { computeOverall, newId, schoolStrength } from './world'
 import { armRestNeeded } from './match/results'
 import type { AlumniRecord, Player, SaveData, School, WeekPlan } from './types'
 import { DRAFT_WEEK, SCOUT_DECISION_WEEK, SCOUT_MONTHLY, addScoutPoints, decideProspects, enrollProspects, ensureScout, runDraft } from './scout'
-import { currentTournament, ensureTournament, findTournament, kindAtWeek, monthlyFunds, ownAlive, progress } from './tournament'
+import { currentTournament, ensureTournament, findTournament, kindNow, monthlyFunds, ownAlive, progress } from './tournament'
 import { hasModifier, pruneModifiers } from './modifiers'
 import { queueWeeklyEvents } from './calendarEvents'
-import { campPlaceName, campStartWeek, rosterCount, successFreshmen, successOf } from './success/state'
+import { CAMP_WEEKS, campPlaceName, campStartWeek, campThisYear, rosterCount, successFreshmen, successOf } from './success/state'
 import { autoJoin, rollClubs } from './success/clubs'
 import { rollAttach } from './success/board'
 
@@ -47,20 +47,20 @@ function members(save: SaveData, school: School): Player[] {
 function seasonalEvents(save: SaveData, rng: Rng, list: Player[], messages: string[]): void {
   const week = save.calendar.week
   const national = findTournament(save, save.calendar.year, 'summerNational')
-  // サクセス：合宿は県大会と全国大会の間の2週間（1年目でも人数がそろっていれば行う。全国に出ていても行う）
+  // 選手育成モード：合宿は夏の全国大会に出るときだけ。7月3週から4週間（全国大会の直前まで）
   if (successOf(save)) {
-    // 3年目は夏の大会の前（6月）に合宿をする（大会のあとは、もう練習がないため）
-    const campWeek = campStartWeek(save)
-    if (week === campWeek && save.sugoroku && rosterCount(save) >= MIN_ROSTER) {
-      save.sugoroku.campWeeks = 2
-      log(save, `${campPlaceName(save)}での夏合宿が始まった！（2週間、練習の効果と疲れが大きくなる）`, messages)
+    if (week === campStartWeek(save) - 1 && save.sugoroku && campThisYear(save) && save.sugoroku.campWeeks === 0) {
+      // 次の週から合宿：合宿の盤面（練習と休養のマスだけ）に替える
+      // この週の終わりに1つ減るので、1つ多く入れておく（7月3週〜8月1週の4週間が合宿になる）
+      save.sugoroku.campWeeks = CAMP_WEEKS + 1
+      log(save, `${campPlaceName(save)}での夏合宿が始まった！（${CAMP_WEEKS}週間、練習の効果と疲れが大きくなる）`, messages)
     }
     void list
+    void national
     return
   }
-  if (week === 19 && save.sugoroku && national && ownAlive(save, national)) {
-    log(save, '全国大会に出場中のため、今年の夏合宿は行わない。', messages)
-  } else if (week === 19 && save.sugoroku) {
+  // チーム育成モード：夏の県大会のあとに2週間
+  if (week === campStartWeek(save) && save.sugoroku) {
     save.sugoroku.campWeeks = 2
     log(save, '夏合宿が始まった！（2週間、練習の効果と疲れが大きくなる）', messages)
   }
@@ -100,6 +100,7 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   let newYear = false
   let backupPrompt = false
   const own = save.schools[save.playerSchoolId]!
+  const campBefore = (save.sugoroku?.campWeeks ?? 0) > 0
 
   // 1. 練習による成長と、体調の回復
   for (const school of Object.values(save.schools)) {
@@ -121,7 +122,7 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   }
   seasonalEvents(save, rng, members(save, own), messages)
   // お守りの効果など：夏の大会の間、自校の選手の調子が上がる
-  if (hasModifier(save, 'form') && (kindAtWeek(save.calendar.week) === 'summerPref' || kindAtWeek(save.calendar.week) === 'summerNational')) {
+  if (hasModifier(save, 'form') && (kindNow(save) === 'summerPref' || kindNow(save) === 'summerNational')) {
     for (const p of members(save, own)) p.condition.form = clamp(p.condition.form + 1, 1, 5)
   }
   if (save.sugoroku) {
@@ -182,10 +183,17 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   const nowT = currentTournament(save)
   if (nowT) messages.push(...progress(save, rng, nowT))
   // 9. 月が変わったら、すごろくの盤面を作り直す
-  if (save.sugoroku && refreshBoard(save, rng)) messages.push(`${weekToDate(save.calendar.week).month}月になり、練習の盤面が新しくなった。`)
+  const campAfter = (save.sugoroku?.campWeeks ?? 0) > 0
+  if (save.sugoroku && successOf(save) && campBefore !== campAfter) {
+    // 選手育成モードの合宿の始まりと終わり：盤面を合宿用（練習と休養のマスだけ）と、ふだんの盤面で入れ替える
+    rebuildBoard(save, rng)
+    messages.push(campAfter ? '合宿の盤面になった。（練習と休養のマスだけ）' : '合宿が終わり、いつもの練習の盤面に戻った。')
+  } else if (save.sugoroku && refreshBoard(save, rng)) messages.push(`${weekToDate(save.calendar.week).month}月になり、練習の盤面が新しくなった。`)
   // 10. 期限の切れた補正を片付け、今週の行事やレアイベントを積む（すごろくで遊ぶときだけ）
   pruneModifiers(save)
-  if (save.sugoroku) queueWeeklyEvents(save, rng)
+  // 合宿で練習をした週か（合宿の出来事の抽選に使う）
+  const campPractice = campBefore && plan?.kind === 'square' && plan.square !== 'rest'
+  if (save.sugoroku) queueWeeklyEvents(save, rng, { campPractice })
   // 11. サクセス：今週、各部活にいる人と、練習マスに付く人物を決める
   if (success) {
     rollClubs(save, rng)
@@ -227,6 +235,14 @@ function weeklyCondition(rng: Rng, p: Player, ownMessages: string[] | null, medi
     if (c.armIssue.restWeeks >= armRestNeeded(c.armIssue.severity)) {
       if (ownMessages) ownMessages.push(`${fullName(p)}の${c.armIssue.part === 'shoulder' ? '肩' : '肘'}の不安がなくなった。`)
       c.armIssue = null
+    }
+  }
+  // 選手育成モードの不安：体力70以上で2週過ごすと消える
+  if (c.worry) {
+    c.worry.calmWeeks = c.stamina >= 70 ? c.worry.calmWeeks + 1 : 0
+    if (c.worry.calmWeeks >= 2) {
+      if (ownMessages) ownMessages.push(`${fullName(p)}の${c.worry.part === 'shoulder' ? '肩' : c.worry.part === 'elbow' ? '肘' : '膝'}の不安がなくなった。`)
+      c.worry = null
     }
   }
   // 1週間の球数は毎週リセット

@@ -157,10 +157,15 @@ export function buildBoard(rng: Rng, month: number): SquareType[] {
  * 投手：球威4・制球4・変化球2・体力3・守備1　野手：打撃4・長打2・走塁3・守備4・体力1
  * どちらも実戦・特訓・休養2・イベント2。季節で一部の練習マスが雨・行事・体力に替わる
  */
-export function buildFocusBoard(rng: Rng, month: number, pitcher: boolean): SquareType[] {
+export function buildFocusBoard(rng: Rng, month: number, pitcher: boolean, camp = false): SquareType[] {
   const practice: SquareType[] = pitcher
     ? ['velo', 'velo', 'velo', 'velo', 'control', 'control', 'control', 'control', 'breaking', 'breaking', 'fitness', 'fitness', 'fitness', 'fielding']
     : ['batting', 'batting', 'batting', 'batting', 'power', 'power', 'running', 'running', 'running', 'fielding', 'fielding', 'fielding', 'fielding', 'fitness']
+  // 合宿中は練習マスと休養マスだけ（イベント・特訓・実戦・行事・雨はない）
+  if (camp) {
+    const extra: SquareType[] = pitcher ? ['velo', 'control', 'breaking', 'fitness'] : ['batting', 'power', 'running', 'fielding']
+    return rng.shuffle([...practice, ...extra, 'rest', 'rest'])
+  }
   const n = practice.length
   const squares: SquareType[] = [...practice, 'practical', 'special', 'rest', 'rest', 'event', 'event']
   if (month === 6) {
@@ -174,7 +179,7 @@ export function buildFocusBoard(rng: Rng, month: number, pitcher: boolean): Squa
 
 /** その遊び方の盤面（選手育成モードは育成選手に合わせた盤面） */
 function boardFor(save: SaveData, rng: Rng, month: number): SquareType[] {
-  if (successOf(save)) return buildFocusBoard(rng, month, focusPlayer(save)?.mainPosition === 'P')
+  if (successOf(save)) return buildFocusBoard(rng, month, focusPlayer(save)?.mainPosition === 'P', (save.sugoroku?.campWeeks ?? 0) > 0)
   return buildBoard(rng, month)
 }
 
@@ -203,6 +208,14 @@ export function ensureSugoroku(save: SaveData): SugorokuState {
     save.rngState = rng.getState()
   }
   return save.sugoroku
+}
+
+/** 盤面をいますぐ作り直す（選手育成モードの合宿の始まりと終わり） */
+export function rebuildBoard(save: SaveData, rng: Rng): void {
+  const s = ensureSugoroku(save)
+  s.board = boardFor(save, rng, weekToDate(save.calendar.week).month)
+  s.boardMonth = weekToDate(save.calendar.week).month
+  s.position = 0
 }
 
 /** 月が変わっていたら盤面を作り直す（週を進めた後に呼ぶ） */
@@ -249,6 +262,8 @@ function practiceLoad(rng: Rng, save: SaveData, p: Player, cost: number, injuryM
   c.stamina = clamp(Math.round(c.stamina - cost), 0, 100)
   // ストーリーの主要人物（日向大地）はケガをしない
   if (cost <= 0 || c.injury || p.storyCast === 'daichi') return
+  // 選手育成モード：疲れた状態で練習すると不安を抱え、不安のまま疲れて練習すると故障する
+  if (successOf(save) && worryCheck(rng, save, p, messages)) return
   const tired = c.stamina < 20 ? 0.07 : c.stamina < 40 ? 0.022 : 0.002
   // 選手育成モードのチームメイトは、ケガをしにくい（ケガの知らせが多くなりすぎないように。育成選手はそのまま）
   const mate = successOf(save) && p.storyCast !== 'focus' ? 0.25 : 1
@@ -259,6 +274,54 @@ function practiceLoad(rng: Rng, save: SaveData, p: Player, cost: number, injuryM
     c.injury = { name: kind.name, weeksLeft: weeks }
     messages.push(`${fullName(p)}が練習中に${kind.name}…（全治${weeks}週）`)
   }
+}
+
+/** 不安を抱える確率（体力40未満・20未満）と、不安から故障する確率 */
+export const WORRY_RATE = { tired: 0.04, exhausted: 0.1 } as const
+export const BREAK_RATE = { tired: 0.2, exhausted: 0.35 } as const
+const PART_NAME = { shoulder: '肩', elbow: '肘', knee: '膝' } as const
+
+/**
+ * 選手育成モードの不安と故障（練習のあとに判定）。故障したら true。
+ * 投手は肩・肘、野手は肘・膝。チームメイトは育成選手の4分の1の確率
+ */
+function worryCheck(rng: Rng, save: SaveData, p: Player, messages: string[]): boolean {
+  const c = p.condition
+  if (c.stamina >= 40) return false
+  const exhausted = c.stamina < 20
+  const mate = p.storyCast === 'focus' ? 1 : 0.25
+  const body = 1.5 - p.common.durability / 100
+  if (!c.worry) {
+    if (!rng.chance((exhausted ? WORRY_RATE.exhausted : WORRY_RATE.tired) * mate * body)) return false
+    const part = p.mainPosition === 'P' ? (rng.chance(0.5) ? 'shoulder' : 'elbow') : rng.chance(0.5) ? 'elbow' : 'knee'
+    c.worry = { part, calmWeeks: 0 }
+    messages.push(`${fullName(p)}が${PART_NAME[part]}に違和感を訴えている…（${PART_NAME[part]}の不安。休ませれば消える）`)
+    return false
+  }
+  c.worry.calmWeeks = 0
+  if (!rng.chance((exhausted ? BREAK_RATE.exhausted : BREAK_RATE.tired) * mate * body)) return false
+  // 故障：長く休むことになり、その部位に関わる能力が下がる
+  const part = c.worry.part
+  const weeks = rng.int(6, 12)
+  c.worry = null
+  c.injury = { name: `${PART_NAME[part]}の故障`, weeksLeft: weeks }
+  const down = (key: string, lo: number, hi: number): void => {
+    const [g, k] = key.split('.') as [keyof Player, string]
+    const obj = p[g] as unknown as Record<string, number>
+    obj[k] = Math.max(key === 'pitching.velocity' ? 95 : 1, obj[k]! - rng.int(lo, hi))
+  }
+  if (part === 'knee') {
+    down('running.speed', 3, 6)
+    down('fielding.range', 3, 6)
+  } else if (p.mainPosition === 'P') {
+    down('pitching.velocity', 2, 4)
+    down('pitching.control', 3, 6)
+  } else {
+    down('fielding.arm', 3, 6)
+    down('fielding.throwing', 3, 6)
+  }
+  messages.push(`${fullName(p)}の${PART_NAME[part]}の不安が悪化し、故障してしまった…（全治${weeks}週。能力が下がった）`)
+  return true
 }
 
 /** 特殊能力を覚える／弱点を克服する */

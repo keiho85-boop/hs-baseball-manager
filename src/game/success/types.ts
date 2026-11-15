@@ -41,6 +41,8 @@ export interface SuccessState {
   talks: Partial<Record<FixedId, number>>
   /** 加入した固定キャラ（選手番号） */
   joined: Partial<Record<FixedId, string>>
+  /** 転校生（神代）が入部していれば、その選手のID */
+  joinedTransfer?: string
   /** 勧誘が続けて失敗した回数 */
   failStreak: number
   /** 続けて勧誘に行った週の数（練習をしないと、大地とチームメイトの評価が下がる） */

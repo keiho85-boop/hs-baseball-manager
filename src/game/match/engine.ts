@@ -676,7 +676,8 @@ function addPitch(s: MatchState, pitcherId: string, p: Player, full: boolean): v
   const box = s.pitching[pitcherId]!
   box.pitches += 1
   // スタミナが尽きるまでの球数
-  const pool = (42 + p.pitching.stamina * 1.15) * (0.6 + (0.4 * p.condition.stamina) / 100)
+  const cond = s.options.ignoreCondition ? 1 : 0.6 + (0.4 * p.condition.stamina) / 100
+  const pool = (42 + p.pitching.stamina * 1.15) * cond
   let rate = 1 / 35
   if (s.options.summer) rate *= has(p, 'summer_child') ? 0.8 : has(p, 'heat_weak') ? 1.25 : 1
   if (full) rate *= 1.8

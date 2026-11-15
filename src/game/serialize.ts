@@ -1,6 +1,6 @@
 // セーブデータの書き出し・読み込み用の変換（IndexedDBに依存しない部分）
 
-import { SAVE_VERSION, prefName } from './constants'
+import { SAVE_VERSION, prefName, weekFromOldCalendar } from './constants'
 import type { Player, Position, SaveData, SaveSummary } from './types'
 
 /** 改ざん・破損を見つけるための簡易チェックサム（FNV-1a） */
@@ -54,6 +54,20 @@ export function migrate(data: SaveData): SaveData {
   if (!data.aptRule2) {
     for (const p of Object.values(data.players ?? {})) normalizeAptitude(p)
     data.aptRule2 = true
+  }
+  // 暦を変えた（7月を5週、2月を4週に）：週番号を新しい暦に直す
+  if (!data.calendar2) {
+    data.calendar.week = weekFromOldCalendar(data.calendar.week)
+    for (const t of data.tournaments ?? []) t.weeks = t.weeks.map(weekFromOldCalendar)
+    const conv = (abs: number): number => {
+      const y = Math.floor((abs - 1) / 52)
+      return y * 52 + weekFromOldCalendar(abs - y * 52)
+    }
+    for (const m of data.modifiers ?? []) {
+      m.until = conv(m.until)
+      if (m.from !== undefined) m.from = conv(m.from)
+    }
+    data.calendar2 = true
   }
   return data
 }

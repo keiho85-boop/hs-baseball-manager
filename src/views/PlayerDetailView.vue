@@ -218,6 +218,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
         <div v-if="p.condition.armIssue" class="bad-text">
           {{ p.condition.armIssue.part === 'shoulder' ? '肩の不安' : '肘の不安' }}あり
         </div>
+        <div v-if="p.condition.worry" class="bad-text">{{ { shoulder: '肩', elbow: '肘', knee: '膝' }[p.condition.worry.part] }}の不安あり（休ませると消える）</div>
       </div>
     </div>
 

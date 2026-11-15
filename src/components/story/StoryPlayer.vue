@@ -23,12 +23,16 @@ interface Cut {
   sub: string
 }
 
-/** 暗転・明転の時間（ミリ秒） */
-const FADE_MS = 340
-/** 場面タイトルを出しておく時間 */
-const SCENE_CUT_MS = 1700
-/** タイトルコールを出しておく時間（タップでも進む） */
-const TITLE_CUT_MS = 2400
+/**
+ * 場面の切り替わりの間（ミリ秒）。ふつうの場面と、章の節目になる大事な場面で強弱をつける。
+ * fade：暗転・明転　sceneCut：場面タイトル　titleCut：タイトルコール　hold：タップで閉じられるまでの最短
+ * reveal：背景が明るくなってから文字が出るまで　type：1文字の速さ
+ */
+const PACE = {
+  normal: { fade: 520, sceneCut: 2200, titleCut: 2600, hold: 900, reveal: 380, type: 32 },
+  big: { fade: 950, sceneCut: 3000, titleCut: 3400, hold: 1400, reveal: 750, type: 40 },
+} as const
+const pace = computed(() => PACE[game.story?.scene.weight ?? 'normal'])
 
 /** 流す台本（選択肢を選ぶと、その続きが差し込まれる） */
 const queue = ref<Step[]>([])
@@ -97,7 +101,7 @@ function typeText(text: string): void {
     i += 1
     shown.value = text.slice(0, i)
     if (i >= text.length) stopTyping()
-  }, 28)
+  }, pace.value.type)
 }
 
 /** 立ち絵を置く：主人公は左、それ以外は右 */
@@ -124,14 +128,15 @@ async function changeBg(name: string | null, cgName: string | null | undefined, 
   shown.value = ''
   if (!dark.value) {
     dark.value = true
-    await wait(FADE_MS)
+    await wait(pace.value.fade)
     if (my !== run) return false
   }
   applyBg(name, cgName)
-  await wait(80)
+  // 暗いまま一呼吸おいてから、新しい場所を見せる
+  await wait(180)
   if (my !== run) return false
   dark.value = false
-  await wait(FADE_MS)
+  await wait(pace.value.fade + pace.value.reveal)
   if (my !== run) return false
   locked.value = false
   return true
@@ -143,9 +148,14 @@ function showCut(c: Cut, ms: number, then: () => void): void {
   stopTyping()
   shown.value = ''
   cut.value = c
+  cutShownAt = Date.now()
   cutTimer = window.setTimeout(() => closeCut(then), ms)
   pendingAfterCut = then
 }
+/** タイトルを出した時刻（出してすぐのタップでは閉じない） */
+let cutShownAt = 0
+/** 台詞を出し終えた時刻（出し終えてすぐのタップで、次の行に進みすぎない） */
+let lineDoneAt = 0
 let pendingAfterCut: (() => void) | null = null
 
 function closeCut(then?: () => void): void {
@@ -173,7 +183,7 @@ async function enter(): Promise<void> {
       continue
     }
     if (s.kind === 'title') {
-      showCut({ kind: 'title', text: s.text, sub: s.sub ?? '' }, TITLE_CUT_MS, () => {
+      showCut({ kind: 'title', text: s.text, sub: s.sub ?? '' }, pace.value.titleCut, () => {
         index.value += 1
         void enter()
       })
@@ -183,7 +193,7 @@ async function enter(): Promise<void> {
     if (dark.value) {
       locked.value = true
       dark.value = false
-      await wait(FADE_MS)
+      await wait(pace.value.fade + pace.value.reveal)
       if (my !== run) return
       locked.value = false
     }
@@ -202,6 +212,8 @@ async function enter(): Promise<void> {
 function advance(): void {
   if (finishing.value || locked.value) return
   if (cut.value) {
+    // タイトルは、少し見せてからでないと閉じない（前の画面からの連打で読み飛ばさないように）
+    if (Date.now() - cutShownAt < pace.value.hold) return
     closeCut()
     return
   }
@@ -211,8 +223,10 @@ function advance(): void {
     const s = current.value
     if (s?.kind === 'say') shown.value = s.think ? `（${s.text}）` : s.text
     else if (s?.kind === 'narr') shown.value = s.text
+    lineDoneAt = Date.now()
     return
   }
+  if (Date.now() - lineDoneAt < 250) return
   index.value += 1
   void enter()
 }
@@ -260,7 +274,7 @@ async function finish(): Promise<void> {
   cut.value = null
   // 暗転してから閉じる
   dark.value = true
-  await wait(FADE_MS)
+  await wait(pace.value.fade)
   const title = game.story?.scene.title ?? ''
   await game.finishStory(picks, (messages) => {
     if (messages.length) ui.notify({ title, message: messages.join('\n'), tone: 'good', duration: 2600 + messages.length * 900 })
@@ -295,7 +309,7 @@ function start(): void {
   const sub = game.save ? sceneSub(game.save, st.scene) : ''
   sceneLabel.value = st.scene.title
   // 暗転したまま、中央に場面のタイトル
-  showCut({ kind: 'scene', text: st.scene.title, sub }, SCENE_CUT_MS, () => void enter())
+  showCut({ kind: 'scene', text: st.scene.title, sub }, pace.value.sceneCut, () => void enter())
 }
 
 watch(
@@ -372,7 +386,7 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
     </div>
 
     <!-- 暗転 -->
-    <div class="curtain" :class="{ on: dark }" />
+    <div class="curtain" :class="{ on: dark }" :style="{ transitionDuration: `${pace.fade}ms` }" />
     <!-- タイトルコールの間は、背景を暗くする -->
     <div class="dim-layer" :class="{ on: cut?.kind === 'title' && !dark }" />
 

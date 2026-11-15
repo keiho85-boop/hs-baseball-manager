@@ -34,7 +34,8 @@ export function applyMatchResults(save: SaveData, s: MatchState, rng: Rng): Matc
       t.strikeouts = (t.strikeouts ?? 0) + b.k
       t.steals += b.sb
     }
-    p.condition.stamina = clamp(p.condition.stamina - 8, 0, 100)
+    // 選手育成モード：試合では体力は減らない
+    if (!successOf(save)) p.condition.stamina = clamp(p.condition.stamina - 8, 0, 100)
   }
 
   // 投手成績と、肩・肘の不安
@@ -54,10 +55,10 @@ export function applyMatchResults(save: SaveData, s: MatchState, rng: Rng): Matc
       if (s.losingPitcherId === id) t.losses += 1
     }
     p.weeklyPitches += pb.pitches
+    // 選手育成モード：試合では体力は減らず、投げすぎによる肩・肘の不安もない（不安は練習の疲れから）
+    if (successOf(save)) continue
     p.condition.stamina = clamp(Math.round(p.condition.stamina - pb.pitches * 0.45 - pb.fatigue * 15), 0, 100)
-    // 選手育成モード：肩・肘の不安は育成選手だけ
-    const focusOnly = successOf(save)
-    const msg = focusOnly && focusOnly.focusId !== p.id ? null : armCheck(p, pb.pitches, pb.fatigue, factor, rng)
+    const msg = armCheck(p, pb.pitches, pb.fatigue, factor, rng)
     if (msg && p.schoolId === ownId) messages.push(msg)
   }
   // レアイベント【覚醒の一打】：公式戦の打席で、まれに打球音が変わる（1打席0.5%）

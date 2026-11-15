@@ -114,6 +114,8 @@ const rank = computed(() => rankOf(props.gauge ?? props.value))
   pointer-events: none;
 }
 .r-S { color: #e99a00; }
+.r-SS { color: #8e5cf7; }
+.r-SSS { color: #c2185b; }
 .r-A { color: #e5484d; }
 .r-B { color: #ff7a2e; }
 .r-C { color: #2f9e3a; }
@@ -122,6 +124,8 @@ const rank = computed(() => rankOf(props.gauge ?? props.value))
 .r-F { color: #6c7a8e; }
 .r-G { color: #a2acbb; }
 .f-S { background: linear-gradient(90deg, #ffe27a, #f5a300); }
+.f-SS { background: linear-gradient(90deg, #d39bff, #8e5cf7); }
+.f-SSS { background: linear-gradient(90deg, #ff9be2, #9b8cff, #7fe3ff); }
 .f-A { background: linear-gradient(90deg, #ff8a8e, #e0353b); }
 .f-B { background: linear-gradient(90deg, #ffbb8a, #fb7420); }
 .f-C { background: linear-gradient(90deg, #8ddd8f, #2f9e3a); }
