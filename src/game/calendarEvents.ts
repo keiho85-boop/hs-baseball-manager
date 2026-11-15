@@ -154,7 +154,7 @@ function typhoonEvent(save: SaveData): EventInstance {
     id: eid('typhoon'),
     title: '台風',
     speaker: mgr(save),
-    lines: ['台風が近づいていて、今日はグラウンドが使えません。', story(save) ? '部室で、去年の試合の映像を見ましょうか？' : 'どうしましょうか、監督。'],
+    lines: ['台風が近づいていて、今日はグラウンドが使えません。', story(save) ? (save.calendar.year === 1 ? '部室で、プロの試合の映像を見ましょうか？' : '部室で、去年の試合の映像を見ましょうか？') : 'どうしましょうか、監督。'],
     choices: [
       {
         label: '室内で座学をする',
@@ -570,7 +570,7 @@ function campRareEvent(save: SaveData, rng: Rng, list: Player[], forced?: CampKi
       id: eid('camp-study'),
       title: '合宿：大雨の座学',
       speaker: mgr(save),
-      lines: ['合宿の二日目は大雨です。', '全員で、去年の決勝の映像を見ましょう。一球ごとに、狙いを考えるんです。'],
+      lines: ['今日は朝から大雨です。', save.calendar.year === 1 ? '全員で、プロの試合の映像を見ましょう。一球ごとに、狙いを考えるんです。' : '全員で、去年の決勝の映像を見ましょう。一球ごとに、狙いを考えるんです。'],
       choices: [
         {
           label: 'みっちりやろう',

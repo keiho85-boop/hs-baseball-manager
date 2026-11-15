@@ -12,6 +12,8 @@ import { focusPlayer, successOf } from './state'
 export const WEEK_EVENT_RATE = 0.7
 /** 同じイベントが1年に起きる回数の上限 */
 const PER_YEAR = 2
+/** 同じ通常週イベントは、前に起きてからこの週数のあいだは起きない */
+const GAP_WEEKS = 12
 
 const NAGI = { kind: 'manager', name: 'ナギ', portrait: 'nagi' } as const
 const DAICHI = { kind: 'coach', name: '日向大地', portrait: 'daichi' } as const
@@ -344,9 +346,12 @@ export function weekEvent(save: SaveData, rng: Rng): EventInstance | null {
   const flags = save.story!.flags
   const y = save.calendar.year
   const count = (id: string): number => Number(flags[`wev_${y}_${id}`] ?? 0)
-  const pool = EVENTS.filter((e) => count(e.id) < PER_YEAR)
+  const now = (y - 1) * 52 + save.calendar.week
+  const last = (id: string): number => Number(flags[`wev_last_${id}`] ?? -999)
+  const pool = EVENTS.filter((e) => count(e.id) < PER_YEAR && now - last(e.id) >= GAP_WEEKS)
   if (pool.length === 0) return null
   const pick = rng.weighted(pool.map((e) => ({ value: e, weight: e.weight })))
   flags[`wev_${y}_${pick.id}`] = count(pick.id) + 1
+  flags[`wev_last_${pick.id}`] = now
   return pick.make(f, rng)
 }

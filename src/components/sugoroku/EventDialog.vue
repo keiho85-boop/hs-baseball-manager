@@ -1,13 +1,12 @@
 <script setup lang="ts">
 // イベントの会話ウィンドウ（顔＋名前＋セリフ＋選択肢）
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import type { EventInstance } from '@/game/types'
 import FaceIcon from '../FaceIcon.vue'
 import GameIcon from '../GameIcon.vue'
 import type { IconName } from '../icons'
-import PlayerSheet from '../PlayerSheet.vue'
-import { bgUrl, hasPortrait, portraitUrl } from '@/game/story/art'
+import { bgUrl, facingOf, hasPortrait, portraitUrl } from '@/game/story/art'
 import type { CharId, Face } from '@/game/story/types'
 
 const props = defineProps<{ event: EventInstance }>()
@@ -15,13 +14,6 @@ const emit = defineEmits<{ done: [choice: number] }>()
 const game = useGameStore()
 
 const step = ref(0)
-const viewing = ref<string | null>(null)
-
-/** 能力を確認できる選手（古いセーブでは話し手の選手） */
-const related = computed(() => {
-  const ids = props.event.relatedPlayerIds ?? (props.event.speaker.kind === 'player' ? [props.event.speaker.playerId] : [])
-  return ids.map((id) => game.player(id)).filter((p): p is NonNullable<typeof p> => !!p)
-})
 const shown = ref('')
 const chosen = ref<number | null>(null)
 let typing: ReturnType<typeof setInterval> | undefined
@@ -40,11 +32,20 @@ const portrait = computed(() => {
 })
 /** 背景と立ち絵（選手育成モードの行事・合宿などの場面） */
 const bgStyle = computed(() => (props.event.bg && game.save?.story?.enabled ? { backgroundImage: `linear-gradient(180deg, rgba(10, 25, 45, 0.05), rgba(10, 25, 45, 0.45)), url(${bgUrl(props.event.bg)})` } : undefined))
-const castUrls = computed(() =>
-  game.save?.story?.enabled
-    ? (props.event.cast ?? []).filter((c) => hasPortrait(c.char as CharId)).map((c) => portraitUrl(c.char as CharId, c.face as Face | undefined))
-    : [],
-)
+/**
+ * 立ち絵。並んだ位置に合わせて、真ん中を向くように左右を反転する
+ * （左に立つ人は右向き、右に立つ人は左向き。1人のときと3人の真ん中はそのまま）
+ */
+const cast = computed(() => {
+  if (!game.save?.story?.enabled) return []
+  const list = (props.event.cast ?? []).filter((c) => hasPortrait(c.char as CharId))
+  return list.map((c, i) => {
+    const side = list.length === 1 || (list.length === 3 && i === 1) ? 'center' : i === 0 ? 'left' : 'right'
+    const f = facingOf(c.char as CharId)
+    const flip = (side === 'left' && f === 'left') || (side === 'right' && f === 'right')
+    return { url: portraitUrl(c.char as CharId, c.face as Face | undefined), flip }
+  })
+})
 const avatar = computed<{ icon: IconName; color: string }>(() => {
   const k = props.event.speaker.kind
   if (k === 'manager') return { icon: 'clipboard', color: '#ff8fb1' }
@@ -67,6 +68,15 @@ function typeOut(full: string): void {
     if (i >= full.length) clearInterval(typing)
   }, 28)
 }
+
+/** 吹き出しの大きさは一定。長い文は、流れるように下へ送る */
+const lineEl = ref<HTMLElement | null>(null)
+watch(shown, () => {
+  void nextTick(() => {
+    const el = lineEl.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
+})
 
 function next(): void {
   if (shown.value.length < text.value.length) {
@@ -95,87 +105,120 @@ onMounted(() => typeOut(text.value))
 <template>
   <div class="ev-backdrop" :class="{ scene: !!bgStyle }" :style="bgStyle">
     <div class="title-bar">{{ event.title }}</div>
-    <div v-if="castUrls.length" class="cast" :class="`n${castUrls.length}`">
-      <img v-for="(u, i) in castUrls" :key="i" :src="u" alt="" :style="{ animationDelay: `${0.15 + i * 0.12}s` }" />
+    <!-- 立ち絵：吹き出しの後ろの決まった位置に立つ（吹き出しや選択肢が変わっても動かない） -->
+    <div v-if="cast.length" class="cast" :class="`n${cast.length}`">
+      <img
+        v-for="(c, i) in cast"
+        :key="i"
+        :src="c.url"
+        alt=""
+        :class="{ flip: c.flip }"
+        :style="{ animationDelay: `${0.15 + i * 0.12}s` }"
+      />
     </div>
     <div class="ev">
-      <div class="speaker">
-        <FaceIcon v-if="player" :face="player.face" :size="74" />
-        <img v-else-if="portrait" class="portrait" :src="portrait" alt="" />
-        <div v-else-if="event.speaker.kind !== 'narration'" class="avatar" :style="{ background: avatar.color }">
-          <GameIcon :name="avatar.icon" :size="38" />
-        </div>
-      </div>
-      <div class="window" @click="next">
-        <div v-if="speakerName" class="name">{{ speakerName }}</div>
-        <p class="line">{{ shown }}<span v-if="!atChoices && shown.length >= text.length" class="caret">▼</span></p>
-      </div>
-      <div v-if="related.length" class="related">
-        <button v-for="rp in related" :key="rp.id" class="secondary look" @click.stop="viewing = rp.id">
-          <GameIcon name="search" :size="14" /> {{ rp.surname }}の能力を見る
-        </button>
-      </div>
       <div v-if="atChoices" class="choices">
         <button v-for="(c, i) in event.choices" :key="i" class="choice" @click="choose(i)">{{ c.label }}</button>
       </div>
+      <!-- 立ち絵がないときだけ、話し手の顔を吹き出しの外に出す -->
+      <div v-if="!cast.length && event.speaker.kind !== 'narration'" class="speaker">
+        <FaceIcon v-if="player" :face="player.face" :size="56" />
+        <img v-else-if="portrait" class="portrait" :src="portrait" alt="" />
+        <div v-else class="avatar" :style="{ background: avatar.color }">
+          <GameIcon :name="avatar.icon" :size="28" />
+        </div>
+      </div>
+      <div class="window" @click="next">
+        <div class="name" :class="{ empty: !speakerName }">{{ speakerName || '　' }}</div>
+        <p ref="lineEl" class="line">{{ shown }}<span v-if="!atChoices && shown.length >= text.length" class="caret">▼</span></p>
+      </div>
     </div>
-    <PlayerSheet v-if="viewing" :player-id="viewing" @close="viewing = null" />
   </div>
 </template>
 
 <style scoped>
-.portrait {
-  width: 74px;
-  height: 74px;
-  border-radius: 50%;
-  object-fit: cover;
-  object-position: 50% 8%;
-  background: linear-gradient(180deg, #fff3e6, #ffd9b8);
-  box-shadow: 0 0 0 3px #fff, 0 3px 0 3px rgba(0, 0, 0, 0.18);
-}
 .ev-backdrop {
+  --win-h: 138px;
+  --win-bottom: calc(16px + var(--safe-bottom));
   position: fixed;
   inset: 0;
   z-index: 75;
   background: linear-gradient(180deg, rgba(10, 25, 45, 0.25), rgba(10, 25, 45, 0.6));
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  padding: 16px 12px calc(16px + var(--safe-bottom));
+  padding: 16px 12px var(--win-bottom);
 }
 .ev-backdrop.scene {
   background-size: cover;
   background-position: center;
   animation: scene-in 0.6s ease-out;
 }
+.title-bar {
+  align-self: center;
+  margin-top: 22vh;
+  position: relative;
+  z-index: 3;
+  background: linear-gradient(180deg, #ff7fb5, #ff4f97);
+  color: #fff;
+  font-weight: 900;
+  font-size: 20px;
+  padding: 6px 26px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px #fff, 0 5px 0 3px #c2185b;
+  animation: pop-in 0.35s ease-out;
+}
 .ev-backdrop.scene .title-bar {
   margin-top: 10px;
 }
+/* 立ち絵は、吹き出しの上の端より少し下に足元をそろえ、高さを決めて描く */
 .cast {
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--win-bottom) + var(--win-h) - 36px);
+  height: min(56vh, 100vw, 560px);
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  margin: 8px 0 -10px;
   pointer-events: none;
+  z-index: 1;
 }
 .cast img {
-  max-height: 52vh;
+  height: 100%;
   max-width: 78%;
   object-fit: contain;
   object-position: bottom;
   filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.25));
   animation: cast-in 0.5s ease-out both;
 }
+.cast img.flip {
+  transform: scaleX(-1);
+  animation-name: cast-in-flip;
+}
+.cast.n1 img {
+  max-width: 100%;
+}
+/* 2人・3人のときは、高さをそろえて内側で少し重ねる（はみ出した肩は画面の外へ） */
+.cast.n2,
+.cast.n3 {
+  overflow: hidden;
+}
+.cast.n2 img,
+.cast.n3 img {
+  flex: 0 0 auto;
+  max-width: none;
+}
 .cast.n2 img {
-  max-width: 50%;
+  height: 82%;
 }
 .cast.n2 img + img {
-  margin-left: -8%;
+  margin-left: -22%;
 }
 .cast.n3 img {
-  max-width: 38%;
+  height: 66%;
+}
+.cast.n3 img + img {
+  margin-left: -16%;
 }
 @keyframes scene-in {
   from {
@@ -195,35 +238,46 @@ onMounted(() => typeOut(text.value))
     transform: none;
   }
 }
-.title-bar {
-  align-self: center;
-  margin-bottom: auto;
-  margin-top: 30vh;
-  background: linear-gradient(180deg, #ff7fb5, #ff4f97);
-  color: #fff;
-  font-weight: 900;
-  font-size: 20px;
-  padding: 6px 26px;
-  border-radius: 999px;
-  box-shadow: 0 0 0 3px #fff, 0 5px 0 3px #c2185b;
-  animation: pop-in 0.35s ease-out;
+@keyframes cast-in-flip {
+  from {
+    opacity: 0;
+    transform: scaleX(-1) translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(-1);
+  }
 }
+/* 吹き出し・顔・選択肢は、画面の下から積む（吹き出しの位置と大きさは変わらない） */
 .ev {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: var(--win-bottom);
   max-width: 640px;
-  width: 100%;
   margin: 0 auto;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
   animation: float-up 0.3s ease-out;
 }
 .speaker {
-  margin-left: 12px;
-  margin-bottom: -16px;
-  position: relative;
-  z-index: 2;
+  margin: 0 0 8px 4px;
   width: fit-content;
 }
+.portrait {
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 8%;
+  background: linear-gradient(180deg, #fff3e6, #ffd9b8);
+  box-shadow: 0 0 0 3px #fff, 0 3px 0 3px rgba(0, 0, 0, 0.18);
+}
 .avatar {
-  width: 74px;
-  height: 74px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   color: #fff;
   display: flex;
@@ -232,14 +286,17 @@ onMounted(() => typeOut(text.value))
   box-shadow: 0 0 0 3px #fff, 0 3px 0 3px rgba(0, 0, 0, 0.15);
 }
 .window {
+  height: var(--win-h);
+  box-sizing: border-box;
   background: rgba(255, 255, 255, 0.97);
   border-radius: 18px;
-  padding: 22px 16px 14px;
-  min-height: 120px;
+  padding: 12px 16px 10px;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 0 0 3px #ffd0e4, 0 0 0 6px #fff, 0 12px 24px rgba(0, 0, 0, 0.25);
 }
 .name {
-  display: inline-block;
+  align-self: flex-start;
   font-weight: 900;
   color: #fff;
   background: var(--navy);
@@ -248,33 +305,33 @@ onMounted(() => typeOut(text.value))
   font-size: 13px;
   margin-bottom: 6px;
 }
+.name.empty {
+  visibility: hidden;
+}
 .line {
   margin: 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
   font-size: 16px;
   font-weight: 700;
   line-height: 1.7;
-  min-height: 3.4em;
+}
+.line::-webkit-scrollbar {
+  display: none;
 }
 .caret {
   color: var(--sky);
   margin-left: 4px;
   animation: blink 0.8s steps(2) infinite;
 }
-.related {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-.look {
-  padding: 7px 12px;
-  font-size: 13px;
-}
 .choices {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 12px;
+  margin-bottom: 14px;
 }
 .choice {
   background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 55%), linear-gradient(180deg, #ffffff, #fff0f6);

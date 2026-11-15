@@ -563,7 +563,7 @@ watch(
   () => {
     void game.rev
     const pg = pendingGame.value
-    if (!success.value || !pg || !game.save || !mustForfeit(game.save, pg.t.kind) || game.busy || game.match || game.story) return null
+    if (!success.value || !pg || !game.save || !mustForfeit(game.save, pg.t.kind) || game.busy || game.match || game.story || game.storyHold > 0 || ui.dialog || ui.notice) return null
     return `${game.save?.calendar.year}-${game.save?.calendar.week}-${pg.round}`
   },
   async (key) => {
@@ -697,7 +697,7 @@ watch(
         <button
           class="ib"
           data-tut="recruit-btn"
-          :disabled="!!game.match || !sg || game.busy || moving || !!sg?.pending || autoWeek || !!(tournament && aliveInTournament && !forfeitNow)"
+          :disabled="!!game.match || !sg || game.busy || moving || !!sg?.pending || autoWeek || (sg?.campWeeks ?? 0) > 0 || !!(tournament && aliveInTournament && !forfeitNow)"
           @click="recruitOpen = true"
         >
           <img :src="`${BASE}ui/ui_recruit.webp`" alt="" /><span>勧誘</span>

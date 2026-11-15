@@ -191,8 +191,9 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   } else if (save.sugoroku && refreshBoard(save, rng)) messages.push(`${weekToDate(save.calendar.week).month}月になり、練習の盤面が新しくなった。`)
   // 10. 期限の切れた補正を片付け、今週の行事やレアイベントを積む（すごろくで遊ぶときだけ）
   pruneModifiers(save)
-  // 合宿で練習をした週か（合宿の出来事の抽選に使う）
-  const campPractice = campBefore && plan?.kind === 'square' && plan.square !== 'rest'
+  // 合宿で練習をした週か（合宿の出来事の抽選に使う）。
+  // 出来事は次の週の初めに出るので、合宿の最後の週の練習では抽選しない（合宿が終わってから合宿の話が出ないように）
+  const campPractice = campBefore && campAfter && plan?.kind === 'square' && plan.square !== 'rest'
   if (save.sugoroku) queueWeeklyEvents(save, rng, { campPractice })
   // 11. サクセス：今週、各部活にいる人と、練習マスに付く人物を決める
   if (success) {
@@ -308,7 +309,7 @@ function graduate(save: SaveData, rng: Rng, messages: string[]): void {
     const leavingIds = new Set(leaving.map((p) => p.id))
     school.playerIds = school.playerIds.filter((id) => !leavingIds.has(id))
   }
-  log(save, `卒業式。${ownCount}人の3年生が巣立っていった。`, messages)
+  if (ownCount > 0) log(save, `卒業式。${ownCount}人の3年生が巣立っていった。`, messages)
 }
 
 /** 新年度：進級、新入部員の入部、他校の強さの変動 */

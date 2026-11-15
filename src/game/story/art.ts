@@ -322,6 +322,11 @@ const FACING: Partial<Record<CharId, 'left' | 'right'>> = {
   okochi: 'left',
   amou: 'left',
   kuon: 'left',
+  genzo: 'left',
+  nagi_beach: 'right',
+  reika_beach: 'left',
+  tenkosei: 'left',
+  ob_pro: 'right',
 }
 export function facingOf(char: CharId): 'left' | 'right' | 'front' {
   return FACING[resolveChar(char) ?? char] ?? 'front'

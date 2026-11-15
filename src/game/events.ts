@@ -43,7 +43,13 @@ export function mainKeys(p: Player): string[] {
 export function learnable(rng: Rng, p: Player): string | null {
   const isPitcher = p.mainPosition === 'P'
   const options = SKILLS.filter(
-    (s) => s.good && !p.skills.includes(s.id) && (s.target === 'all' || (s.target === 'pitcher') === isPitcher) && !p.skills.some((o) => conflicts(o, s.id)),
+    (s) =>
+      s.good &&
+      !p.skills.includes(s.id) &&
+      (s.target === 'all' || (s.target === 'pitcher') === isPitcher) &&
+      // 捕手として出たときに効く能力は、捕手だけが覚える
+      (s.id !== 'battery_mate' || p.mainPosition === 'C') &&
+      !p.skills.some((o) => conflicts(o, s.id)),
   )
   return options.length ? rng.pick(options).id : null
 }

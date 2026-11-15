@@ -101,7 +101,8 @@ const COLUMNS: Record<'bat' | 'pit', Record<'a1' | 'a2' | 'st', Col[]>> = {
     ],
   },
 }
-const cols = computed(() => (view.value === 'sk' ? [] : COLUMNS[kind.value][view.value]))
+// 選手育成モードは投げすぎの不安がないので、週の球数は出さない
+const cols = computed(() => (view.value === 'sk' ? [] : COLUMNS[kind.value][view.value].filter((c) => !(c.key === 'wk' && noMenu.value))))
 
 function skillsOf(p: Player) {
   return p.skills.map((id) => getSkill(id)).filter((x): x is NonNullable<typeof x> => !!x)

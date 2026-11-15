@@ -43,31 +43,38 @@ export const useUiStore = defineStore('ui', () => {
   /** 最後に版を確認した週（同じ週で何度も確かめない） */
   let checkedKey = ''
 
+  /** 出番を待っているダイアログ（2つ同時に出そうとしても、先のものを消さずに順番に出す） */
+  const waiting: DialogRequest[] = []
+  function open(req: DialogRequest): void {
+    if (dialog.value) waiting.push(req)
+    else dialog.value = req
+  }
+
   function confirm(
     message: string,
     opts: { title?: string; okLabel?: string; cancelLabel?: string; danger?: boolean } = {},
   ): Promise<boolean> {
     return new Promise((resolve) => {
-      dialog.value = {
+      open({
         title: opts.title ?? '確認',
         message,
         okLabel: opts.okLabel ?? 'はい',
         cancelLabel: opts.cancelLabel ?? 'いいえ',
         danger: opts.danger ?? false,
         resolve,
-      }
+      })
     })
   }
 
   function alert(message: string, title = 'お知らせ', scene?: { bg: string; chars: string[] }): Promise<boolean> {
     return new Promise((resolve) => {
-      dialog.value = { title, message, okLabel: 'OK', cancelLabel: null, danger: false, resolve, scene }
+      open({ title, message, okLabel: 'OK', cancelLabel: null, danger: false, resolve, scene })
     })
   }
 
   function closeDialog(ok: boolean): void {
     const d = dialog.value
-    dialog.value = null
+    dialog.value = waiting.shift() ?? null
     d?.resolve(ok)
   }
 
