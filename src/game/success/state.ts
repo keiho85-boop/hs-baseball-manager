@@ -88,10 +88,15 @@ export function campStartWeek(_save?: SaveData): number {
 }
 /** 選手育成モードの合宿の長さ（7月3週〜8月1週） */
 export const CAMP_WEEKS = 4
-/** 今年の夏合宿があるか（選手育成モード：夏の県大会で優勝して、全国大会に出るときだけ） */
+/**
+ * 今年の夏合宿があるか（選手育成モード）。
+ * 1・2年目は部員が9人いれば毎年。3年目は夏の県大会で優勝して、全国大会に出るときだけ
+ */
 export function campThisYear(save: SaveData): boolean {
+  if (rosterCount(save) < 9) return false
+  if (save.calendar.year !== 3) return true
   const t = (save.tournaments ?? []).find((x) => x.year === save.calendar.year && x.kind === 'summerPref')
-  return !!t && t.finished && t.championId === save.playerSchoolId && rosterCount(save) >= 9
+  return !!t && t.finished && t.championId === save.playerSchoolId
 }
 export function campPlaceName(save: SaveData): string {
   return CAMP_PLACES[campLevel(save)]!.name

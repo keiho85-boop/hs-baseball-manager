@@ -47,7 +47,7 @@ function members(save: SaveData, school: School): Player[] {
 function seasonalEvents(save: SaveData, rng: Rng, list: Player[], messages: string[]): void {
   const week = save.calendar.week
   const national = findTournament(save, save.calendar.year, 'summerNational')
-  // 選手育成モード：合宿は夏の全国大会に出るときだけ。7月3週から4週間（全国大会の直前まで）
+  // 選手育成モード：合宿は7月3週から4週間（全国大会の直前まで）。1・2年目は毎年、3年目は全国大会に出るときだけ
   if (successOf(save)) {
     if (week === campStartWeek(save) - 1 && save.sugoroku && campThisYear(save) && save.sugoroku.campWeeks === 0) {
       // 次の週から合宿：合宿の盤面（練習と休養のマスだけ）に替える

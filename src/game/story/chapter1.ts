@@ -164,7 +164,7 @@ function natsumatsuri(y: 1 | 2): Scene {
     when: (c) => Y(c) === y && W(c) >= wk(8, 5),
     steps: (c) => [
       bg('bg_summer_festival_night'),
-      n(campThisYear(c.save) ? '合宿と全国大会を終えた週末。商店街の奥、白球稲荷の夏祭り' : '夏休みの終わりの週末。商店街の奥、白球稲荷の夏祭り'),
+      n(c.st.flags[`national_${y}_summerNational`] !== undefined ? '合宿と全国大会を終えた週末。商店街の奥、白球稲荷の夏祭り' : rosterCount(c.save) >= 9 ? '合宿を終えた、夏休みの終わりの週末。商店街の奥、白球稲荷の夏祭り' : '夏休みの終わりの週末。商店街の奥、白球稲荷の夏祭り'),
       daichiSay('smile', '射的、勝負な。負けたほうがかき氷おごり'),
       fv('乗った。…ナギも見てろよ'),
       n('二人は全弾を外し、仲良く二人分のかき氷をナギにおごることになった'),
@@ -762,7 +762,7 @@ export const CHAPTER1: Scene[] = [
     steps: () => [
       bg('bg_clubroom_day'),
       makabe('troubled', '夏の合宿、引率は僕一人で大丈夫かな。ケガ人が出たら…'),
-      hasumi('smile', 'あら、わたしが行くって言ったでしょう？　全国大会の前に、ケガ人なんて出させないわ'),
+      hasumi('smile', 'あら、わたしが行くって言ったでしょう？　去年も行ったじゃない'),
       makabe('surprise', '蓮見先生！　…いつからそこに'),
       hasumi('tease', 'ずっといたわよ？　…ふふ、真壁先生って、からかいがいがあるわね'),
       think('この先生、本当に年を取っているのか…？', 'serious'),

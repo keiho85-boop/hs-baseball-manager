@@ -942,7 +942,7 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng, ctx: { campPractice?
     push(retireDayEvent(save, rng, retired, list.filter((p) => p.grade <= 2)))
   }
 
-  // 選手育成モード：全国大会に出るときだけ、合宿の前の週に行き先を選ぶ
+  // 選手育成モード：合宿がある年は、合宿の前の週に行き先を選ぶ
   if (success && w === campStartWeek(save) - 1 && campThisYear(save) && onceThisYear(save, 'campchoice')) push(campChoiceEvent(save))
 
   // 合宿
