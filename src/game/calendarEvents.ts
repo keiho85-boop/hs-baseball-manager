@@ -897,13 +897,43 @@ function withScene(ev: EventInstance | null, bg: string, cast: { char: string; f
   return ev ? { ...ev, bg, cast } : null
 }
 
+/**
+ * 選手育成モード：週の初めに出る出来事は、すべて背景つきにする（盤面で踏んだイベントは盤面の上のまま）。
+ * 個別に背景を決めていないものの背景
+ */
+const DEFAULT_BG: Record<string, string> = {
+  テスト期間: 'bg_classroom_day',
+  台風: 'bg_clubroom_tv',
+  修学旅行: 'bg_clubroom_day',
+  OB戦: 'bg_ground_day',
+  春の全国大会の発表: 'bg_clubroom_day',
+  バレンタイン: 'bg_classroom_day',
+  卒業式: 'bg_school_gate_sakura',
+  引退の日: 'bg_ground_sunset',
+  夏合宿の行き先: 'bg_clubroom_day',
+  大会前の差し入れ: 'bg_clubroom_day',
+  日向酒店でラムネ: 'bg_liquor_day',
+  教え子のプロ入り: 'bg_clubroom_tv',
+  大敗の後: 'bg_ground_sunset',
+}
+/** 背景のない出来事に、背景と話し手の立ち絵を付ける */
+function withDefaultScene(save: SaveData, ev: EventInstance): EventInstance {
+  if (ev.bg) return ev
+  const bg = DEFAULT_BG[ev.title]
+  if (!bg) return ev
+  const sp = ev.speaker
+  const fp = focusPlayer(save)
+  const char = sp.kind === 'player' ? (fp && sp.playerId === fp.id ? 'focus' : sp.playerId === save.story?.daichiId ? 'daichi' : 'mob_cap') : sp.kind === 'narration' ? null : (sp.portrait ?? null)
+  return { ...ev, bg, cast: char ? [{ char }] : [] }
+}
+
 /** 週を進めた後に呼ぶ：今週の行事やレアイベントを積む */
 export function queueWeeklyEvents(save: SaveData, rng: Rng, ctx: { campPractice?: boolean } = {}): void {
   const list = members(save)
   if (list.length === 0) return
   const q = (save.eventQueue ??= [])
   const push = (ev: EventInstance | null): void => {
-    if (ev) q.push(ev)
+    if (ev) q.push(successOf(save) ? withDefaultScene(save, ev) : ev)
   }
   const y = save.calendar.year
   const w = save.calendar.week

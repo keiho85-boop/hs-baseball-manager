@@ -4,10 +4,10 @@
 // 構想書18節
 
 import type { Rng } from '../rng'
-import { ABILITY_LABEL, eid, learnable, mainKeys, skillName } from '../events'
+import { ABILITY_LABEL, eid, learnable, learnablePitcher, mainKeys, skillName } from '../events'
 import type { EffectOp, EventInstance, Player, SaveData, SquareType } from '../types'
 import { focusPlayer, successOf } from './state'
-import { levelEvent, PERSON_EVAL } from './personEvents'
+import { levelEvent, PERSON_EVAL, pitcherDelta } from './personEvents'
 
 export type Person = 'scout' | 'nagi' | 'genzo' | 'hasumi' | 'daichi' | 'makabe'
 
@@ -143,8 +143,9 @@ function attachEventBase(save: SaveData, rng: Rng, person: Person): EventInstanc
   if (person === 'daichi') {
     const pitcher = f.mainPosition === 'P'
     const keys = pitcher ? ['pitching.control', 'pitching.kire'] : ['batting.contact', 'batting.eye']
-    const skill = rng.chance(0.06) ? learnable(rng, f) : null
-    const ops = [...grow(f, keys, pitcher ? 2 : 1), ev('daichi', 3)]
+    // 投手のときは投手専用（野手のときより実際の伸びが約1.2倍。投手の特殊能力を覚えることもある）
+    const skill = pitcher ? (rng.chance(0.12) ? learnablePitcher(rng, f) : null) : rng.chance(0.06) ? learnable(rng, f) : null
+    const ops = [...grow(f, keys, pitcher ? pitcherDelta(1) : 1), ev('daichi', 3)]
     if (skill) ops.push({ op: 'skill', playerId: f.id, add: skill })
     return {
       id: eid('daichi'),

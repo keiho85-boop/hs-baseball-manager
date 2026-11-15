@@ -4,7 +4,8 @@
 // ・★1のイベントは board.ts の attachEvent（これまでのもの）を使う
 
 import type { Rng } from '../rng'
-import { ABILITY_LABEL, eid, learnable, mainKeys, skillName } from '../events'
+import { ABILITY_LABEL, eid, learnable, learnablePitcher, mainKeys, skillName } from '../events'
+import { FOCUS_XP_MULT, FOCUS_XP_MULT_P } from '../player'
 import { getSkill } from '../skills'
 import { absWeek } from '../modifiers'
 import type { EffectOp, EventInstance, Player, SaveData } from '../types'
@@ -26,6 +27,21 @@ function ev(key: EvalKey, delta: number): EffectOp {
 function grow(p: Player, keys: string[], delta: number): EffectOp[] {
   // 球速は半分（下がるときも半分）
   return keys.map((key) => ({ op: 'ability' as const, playerId: p.id, key, delta: key === 'pitching.velocity' ? Math.sign(delta) * Math.max(1, Math.round(Math.abs(delta) / 2)) : delta }))
+}
+/**
+ * 大地の投手専用イベントの伸び。育成選手が野手のときの同じ段階のイベントより、実際の伸びが約1.2倍になるようにする
+ * （投手は経験点の倍率が低いので、そのぶんを戻してから1.2倍）
+ */
+export const DAICHI_PITCHER_BOOST = 1.2
+export function pitcherDelta(fielderDelta: number): number {
+  return fielderDelta * DAICHI_PITCHER_BOOST * (FOCUS_XP_MULT / FOCUS_XP_MULT_P)
+}
+function skillOp(f: Player, skill: string | null): EffectOp[] {
+  return skill ? [{ op: 'skill', playerId: f.id, add: skill }] : []
+}
+function skillText(skills: (string | null)[]): string {
+  const got = skills.filter((x): x is string => !!x)
+  return got.length ? `特殊能力「${got.map(skillName).join('」「')}」を身につけた！` : ''
 }
 function labels(keys: string[]): string {
   return keys.map((k) => ABILITY_LABEL[k] ?? k).join('・')
@@ -200,58 +216,100 @@ const EVENTS: Record<Person, Maker[]> = {
 
   // ---------------------------------------------------------------- 大地
   daichi: [
-    (_save, _rng, f) => {
-      const keys = f.mainPosition === 'P' ? ['pitching.velocity', 'pitching.stamina'] : ['batting.power', 'running.speed']
+    // ★2：投手は「大地との投げ込み」、野手は「大地と素振り対決」
+    (_save, rng, f) => {
+      if (f.mainPosition === 'P') {
+        const keys = ['pitching.velocity', 'pitching.stamina']
+        const skill = rng.chance(0.2) ? learnablePitcher(rng, f) : null
+        return {
+          id: eid('daichi2'),
+          title: '大地との投げ込み',
+          speaker: { ...DAICHI },
+          relatedPlayerIds: [f.id],
+          lines: ['あと50球！　…俺のミットが痛くなるまで投げてみろ', 'ミットの音が、だんだん重くなっていく。'],
+          choices: [{ label: '受けて立つ', result: `（${labels(keys)}が上がった。体力が減った。大地の評価が上がった）${skillText([skill])}`, ops: [...grow(f, keys, pitcherDelta(2)), ...skillOp(f, skill), stamina(f, -8), ev('daichi', 4)] }],
+        }
+      }
+      const keys = ['batting.power', 'running.speed']
       return {
         id: eid('daichi2'),
-        title: f.mainPosition === 'P' ? '大地との投げ込み' : '大地と素振り対決',
+        title: '大地と素振り対決',
         speaker: { ...DAICHI },
         relatedPlayerIds: [f.id],
-        lines: f.mainPosition === 'P' ? ['あと50球！　…俺のミットが痛くなるまで投げてみろ'] : ['どっちが先に500本振れるか、勝負な！'],
+        lines: ['どっちが先に500本振れるか、勝負な！'],
         choices: [{ label: '受けて立つ', result: `（${labels(keys)}が上がった。体力が減った。大地の評価が上がった）`, ops: [...grow(f, keys, 2), stamina(f, -8), ev('daichi', 4)] }],
       }
     },
-    (_save, _rng, f) => ({
-      id: eid('daichi3'),
-      title: '幼馴染の本音',
-      speaker: { ...DAICHI },
-      relatedPlayerIds: [f.id],
-      lines: ['帰り道。大地が、ぽつりと言った。', `なあ${f.surname}。お前がプロに行ったらさ…俺、店番しながらテレビで応援するよ`],
-      choices: [
-        { label: '「お前も一緒に上を目指せよ」', result: '「…へっ、言ったな」（部員全員の調子が上がった。大地の評価が上がった。チームメイトの評価が上がった）', ops: [form('all', 1), ev('daichi', 5), ev('team', 2)] },
-        { label: '「…ありがとな」', result: '二人とも、しばらく黙って歩いた。（大地の評価が上がった）', ops: [ev('daichi', 5), form(f, 1)] },
-      ],
-    }),
-    (_save, _rng, f) => {
-      const pitcher = f.mainPosition === 'P'
-      const keys = pitcher ? ['pitching.control', 'pitching.kire'] : ['batting.contact', 'batting.eye']
+    // ★3：投手は「二人だけのサイン」、野手は「幼馴染の本音」
+    (_save, rng, f) => {
+      if (f.mainPosition === 'P') {
+        const keys = ['pitching.control', 'pitching.pinch']
+        const skill = rng.chance(0.25) ? learnablePitcher(rng, f) : null
+        return {
+          id: eid('daichi3'),
+          title: '二人だけのサイン',
+          speaker: { ...DAICHI },
+          relatedPlayerIds: [f.id],
+          lines: ['帰り道。大地が、指を何本か立てて見せた。', `${f.surname}、これ、俺たちだけのサインな。…ピンチのときほど、俺を見ろ`],
+          choices: [
+            {
+              label: '「お前のミットだけ見て投げる」',
+              result: `「…へっ、言ったな」（${labels(keys)}が上がった。大地の評価が上がった）${skillText([skill])}`,
+              ops: [...grow(f, keys, pitcherDelta(2)), ...skillOp(f, skill), ev('daichi', 5), form(f, 1)],
+            },
+          ],
+        }
+      }
       return {
-        id: eid('daichi4'),
-        title: pitcher ? '大地のリード論' : '大地の配球読み',
+        id: eid('daichi3'),
+        title: '幼馴染の本音',
         speaker: { ...DAICHI },
         relatedPlayerIds: [f.id],
-        lines: pitcher ? ['いいか、困ったら外の低め。俺がそこに構える。…お前は、そこだけ信じて投げろ'] : ['捕手から見るとな、投手ってカウントごとに投げたい球が決まってるんだよ。教えてやる'],
+        lines: ['帰り道。大地が、ぽつりと言った。', `なあ${f.surname}。お前がプロに行ったらさ…俺、店番しながらテレビで応援するよ`],
+        choices: [
+          { label: '「お前も一緒に上を目指せよ」', result: '「…へっ、言ったな」（部員全員の調子が上がった。大地の評価が上がった。チームメイトの評価が上がった）', ops: [form('all', 1), ev('daichi', 5), ev('team', 2)] },
+          { label: '「…ありがとな」', result: '二人とも、しばらく黙って歩いた。（大地の評価が上がった）', ops: [ev('daichi', 5), form(f, 1)] },
+        ],
+      }
+    },
+    // ★4：投手は「大地のリード論」、野手は「大地の配球読み」
+    (_save, rng, f) => {
+      if (f.mainPosition === 'P') {
+        const keys = ['pitching.control', 'pitching.kire']
+        const skill = rng.chance(0.4) ? learnablePitcher(rng, f) : null
+        return {
+          id: eid('daichi4'),
+          title: '大地のリード論',
+          speaker: { ...DAICHI },
+          relatedPlayerIds: [f.id],
+          lines: ['いいか、困ったら外の低め。俺がそこに構える。…お前は、そこだけ信じて投げろ'],
+          choices: [{ label: 'じっくり聞く', result: `（${labels(keys)}が大きく上がった。大地の評価が上がった）${skillText([skill])}`, ops: [...grow(f, keys, pitcherDelta(3)), ...skillOp(f, skill), ev('daichi', 5)] }],
+        }
+      }
+      const keys = ['batting.contact', 'batting.eye']
+      return {
+        id: eid('daichi4'),
+        title: '大地の配球読み',
+        speaker: { ...DAICHI },
+        relatedPlayerIds: [f.id],
+        lines: ['捕手から見るとな、投手ってカウントごとに投げたい球が決まってるんだよ。教えてやる'],
         choices: [{ label: 'じっくり聞く', result: `（${labels(keys)}が大きく上がった。大地の評価が上がった）`, ops: [...grow(f, keys, 3), ev('daichi', 5)] }],
       }
     },
+    // ★5：投手は「最強のバッテリー」（特殊能力を1つ必ず、もう1つは半々）、野手は「最強のコンビ」
     (_save, rng, f) => {
-      const skill = learnable(rng, f)
+      const pitcher = f.mainPosition === 'P'
       const keys = mainKeys(f).slice(0, 3)
-      const ops: EffectOp[] = [...grow(f, keys, 3), ev('daichi', 7), ev('team', 3)]
-      if (skill) ops.push({ op: 'skill', playerId: f.id, add: skill })
+      const skill = pitcher ? learnablePitcher(rng, f) : learnable(rng, f)
+      const skill2 = pitcher && rng.chance(0.5) ? learnablePitcher(rng, { ...f, skills: skill ? [...f.skills, skill] : f.skills }) : null
+      const ops: EffectOp[] = [...grow(f, keys, pitcher ? pitcherDelta(3) : 3), ...skillOp(f, skill), ...skillOp(f, skill2), ev('daichi', 7), ev('team', 3)]
       return {
         id: eid('daichi5'),
-        title: f.mainPosition === 'P' ? '最強のバッテリー' : '最強のコンビ',
+        title: pitcher ? '最強のバッテリー' : '最強のコンビ',
         speaker: { ...DAICHI },
         relatedPlayerIds: [f.id],
         lines: ['夕暮れのグラウンドに、二人きり。言葉はいらなかった。', '…なあ、俺たち、もっと上に行けるよな'],
-        choices: [
-          {
-            label: '「行こう。二人で」',
-            result: `（${labels(keys)}が大きく上がった。大地の評価が大きく上がった）${skill ? `特殊能力「${skillName(skill)}」を身につけた！` : ''}`,
-            ops,
-          },
-        ],
+        choices: [{ label: '「行こう。二人で」', result: `（${labels(keys)}が大きく上がった。大地の評価が大きく上がった）${skillText([skill, skill2])}`, ops }],
       }
     },
   ],

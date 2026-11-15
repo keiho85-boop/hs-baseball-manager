@@ -256,6 +256,16 @@ const INJURIES = [
   { name: '疲労骨折', weeks: [6, 10] },
 ] as const
 
+/**
+ * 選手育成モードのチームメイトの疲れ（調整用）。
+ * 'none'：育成選手と同じ練習をそのまま続ける／'auto'：体力が40を切ったら、その週は自分で休む／'link'：体力を育成選手と同じにする
+ */
+export let MATE_MODE: 'none' | 'auto' | 'link' = 'auto'
+export function setMateMode(m: typeof MATE_MODE): void {
+  MATE_MODE = m
+}
+export const MATE_REST_BELOW = 40
+
 /** 練習で体力が減り、疲れているとケガをしやすい */
 function practiceLoad(rng: Rng, save: SaveData, p: Player, cost: number, injuryMult: number, messages: string[]): void {
   const c = p.condition
@@ -424,6 +434,12 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
       practiceLoad(rng, save, p, 5, 0.4, messages)
       continue
     }
+    // 選手育成モード：疲れたチームメイトは、その週の練習を休んで回復する
+    if (success && MATE_MODE === 'auto' && p.storyCast !== 'focus' && plan.square !== 'rest' && p.condition.stamina < MATE_REST_BELOW) {
+      growWeekly(rng, p, 0.25 * focusGrowthMult(save, p))
+      p.condition.stamina = clamp(p.condition.stamina + REST_GAIN.normal, 0, 100)
+      continue
+    }
     const sq = plan.square
     const card = CARD_MULT[plan.card.effect]
     const info = SQUARES[sq]
@@ -499,6 +515,9 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
     const medical = own ? 1.15 - own.facilities.medical * 0.07 : 1
     practiceLoad(rng, save, p, cost * (cost > 0 ? campMult : 1), injuryMult * (camp ? 1.2 : 1) * medical, messages)
   }
+  // 選手育成モード：チームメイトの体力を、育成選手の体力にそろえる
+  const focus = members.find((m) => m.storyCast === 'focus')
+  if (success && MATE_MODE === 'link' && focus) for (const p of members) if (p !== focus && !p.retired) p.condition.stamina = focus.condition.stamina
 }
 
 /**

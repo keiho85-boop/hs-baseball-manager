@@ -54,6 +54,12 @@ export function learnable(rng: Rng, p: Player): string | null {
   return options.length ? rng.pick(options).id : null
 }
 
+/** 投手だけが覚える良い特殊能力から1つ（大地の投手専用イベントで使う） */
+export function learnablePitcher(rng: Rng, p: Player): string | null {
+  const options = SKILLS.filter((s) => s.good && s.target === 'pitcher' && !p.skills.includes(s.id) && !p.skills.some((o) => conflicts(o, s.id)))
+  return options.length ? rng.pick(options).id : null
+}
+
 export function skillName(id: string): string {
   return SKILLS.find((s) => s.id === id)?.name ?? ''
 }
