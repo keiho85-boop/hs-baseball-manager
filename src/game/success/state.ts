@@ -167,9 +167,11 @@ export function canConfess(save: SaveData, place: 1 | 2 | 3 = 3): boolean {
 export function focusGrowthMult(save: SaveData, p: Player): number {
   const s = successOf(save)
   if (!s) return 1
-  if (s.focusId !== p.id) return teamGrowthMult(save)
+  if (s.focusId !== p.id) return teamGrowthMult(save) * TEAMMATE_GROWTH_MULT
   return p.mainPosition === 'P' ? 1.45 : 1.35
 }
+/** チームメイトの伸びの倍率（調整用。11月15日：育成選手の伸びを抑えたぶん、チームの強さ＝勝率を保つ） */
+export const TEAMMATE_GROWTH_MULT = 1.3
 
 /**
  * 選手育成モード：育成選手以外の部員の伸びの倍率。

@@ -397,9 +397,16 @@ export function xpProgress(p: Player, key: string, value: number): number {
 }
 
 /** 経験点を足して、貯まったぶん能力を上げる。上がった量を返す */
+/**
+ * 育成選手の経験点全体の倍率（投手・野手。調整用）。
+ * 11月15日：自主練の週がなくなり練習の週が増え、合宿も4週間になったぶん、育成結果が以前の水準になるよう抑えた
+ */
+export const FOCUS_XP_MULT = 0.95
+export const FOCUS_XP_MULT_P = 0.67
+
 function addXp(p: Player, key: string, value: number, gain: number, max: number): number {
   const xp = (p.xp ??= {})
-  let total = (xp[key] ?? 0) + gain
+  let total = (xp[key] ?? 0) + gain * (p.mainPosition === 'P' ? FOCUS_XP_MULT_P : FOCUS_XP_MULT)
   let v = value
   while (v < max && total >= xpNeed(p, key, v)) {
     total -= xpNeed(p, key, v)

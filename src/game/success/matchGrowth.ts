@@ -11,6 +11,10 @@ import { successOf } from './state'
 
 const HIT = ['single', 'double', 'triple', 'homerun']
 
+/** 試合での伸びの倍率（投手・野手。調整用） */
+export const PITCHER_MATCH_MULT = 0.78
+export const FIELDER_MATCH_MULT = 1
+
 /** 試合での活躍の点数（評価にも使う） */
 export function focusScore(m: MatchState, id: string): number {
   const b = m.batting[id]
@@ -69,7 +73,8 @@ export function focusMatchGrowth(save: SaveData, m: MatchState, rng: Rng, offici
   const stage = !official ? 0.6 : 1 + (m.options?.tournament?.round ?? 0) * 0.3 + (national ? 0.8 : 0)
   // 活躍の倍率：振るわなければ0.4倍、ふつうで1倍、大活躍で2倍まで
   const perf = clamp(0.7 + score * 0.3, 0.4, 2)
-  const raw = stage * perf
+  // 投手は毎試合先発するので、1試合あたりの伸びを抑える（11月15日：育成結果を以前の水準に合わせた）
+  const raw = stage * perf * (p.mainPosition === 'P' ? PITCHER_MATCH_MULT : FIELDER_MATCH_MULT)
   const points = clamp(Math.floor(raw) + (rng.chance(raw - Math.floor(raw)) ? 1 : 0), 0, 6)
   const pool =
     p.mainPosition === 'P'
