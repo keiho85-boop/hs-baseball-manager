@@ -143,8 +143,10 @@ const ART: Record<CharId, CharArt> = {
   shinonome: fixedArt('shinonome_hs_council_bust_', '#37474f'),
   miki: fixedArt('miki_hs_newspaper_bust_', '#795548'),
   pro_scout: fixedArt('pro_scout_40s_bust_', '#455a64'),
-  tenkosei: fixedArt('tenkosei_hs_uniform_bust_', '#3949ab'),
-  ob_pro: fixedArt('ob_pro_20s_bust_', '#c62828'),
+  // 転校生（神代）：真剣の顔は通常と共用
+  tenkosei: { prefix: 'tenkosei_hs_uniform_bust_', faces: { smile: 'smile', joy: 'smile', surprise: 'surprise', troubled: 'surprise' }, fallback: 'normal', color: '#3949ab', pending: { alt: null } },
+  // OBのプロ選手（桐生）：表情の絵が届くまでは、すべて通常の顔
+  ob_pro: { prefix: 'ob_pro_20s_bust_', faces: {}, fallback: 'normal', color: '#c62828', pending: { alt: null } },
 }
 
 /** 固定キャラの絵の割り当て（通常・笑顔・真剣・驚き） */
@@ -238,6 +240,23 @@ export const BG_READY = new Set<string>([
   'bg_camp_ground_day',
   'bg_camp_ground_sunset',
   'bg_riverside_field_day',
+  // 合宿の行き先ごとの背景（_l1 合宿所、_l2 リゾート、_l3 プロのキャンプ地）
+  'bg_camp_hall_dinner_l1',
+  'bg_camp_hall_rain_l1',
+  'bg_camp_ground_day_l1',
+  'bg_camp_room_night_l1',
+  'bg_camp_ground_sunset_l1',
+  'bg_camp_hall_dinner_l2',
+  'bg_camp_yard_night_l2',
+  'bg_camp_hall_rain_l2',
+  'bg_camp_ground_sunset_l2',
+  'bg_camp_ground_day_l2',
+  'bg_camp_yard_night_l3',
+  'bg_camp_hall_rain_l3',
+  'bg_camp_hall_dinner_l3',
+  'bg_camp_room_night_l3',
+  'bg_camp_ground_day_l3',
+  'bg_camp_ground_sunset_l3',
 ])
 
 /** まだ絵がない背景の代わり（絵ができたら BG_READY に足すだけで差し替わる） */

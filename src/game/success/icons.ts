@@ -18,7 +18,7 @@ export function faceIconName(save: SaveData | null, rev: number, face: FaceParts
     const byPlayer = new Map<string, string>()
     for (const [fid, pid] of Object.entries(joined)) if (pid) byPlayer.set(pid, FIXED[fid as FixedId].char)
     for (const p of Object.values(save.players)) {
-      const icon = p.storyCast === 'daichi' ? 'daichi' : p.storyCast === 'focus' ? 'focus' : (byPlayer.get(p.id) ?? 'mob')
+      const icon = p.storyCast === 'daichi' ? 'daichi' : p.storyCast === 'focus' ? 'focus' : p.storyCast === 'fixed:tenkosei' ? 'tenkosei' : (byPlayer.get(p.id) ?? 'mob')
       cache.set(p.face, icon)
     }
   }
