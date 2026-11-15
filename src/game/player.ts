@@ -399,14 +399,19 @@ export function xpProgress(p: Player, key: string, value: number): number {
 /** 経験点を足して、貯まったぶん能力を上げる。上がった量を返す */
 /**
  * 育成選手の経験点全体の倍率（投手・野手。調整用）。
- * 11月15日：自主練の週がなくなり練習の週が増え、合宿も4週間になったぶん、育成結果が以前の水準になるよう抑えた
+ * 11月15日：投手は最終80〜82、野手は75前後になるように調整（学年ごとの倍率と組み合わせて使う）
  */
-export const FOCUS_XP_MULT = 0.95
-export const FOCUS_XP_MULT_P = 0.67
+export const FOCUS_XP_MULT = 0.46
+export const FOCUS_XP_MULT_P = 0.39
+/**
+ * 学年ごとの伸びの倍率（1年・2年・3年）。前半に早く伸び、後半はゆるやかに（11月15日）。
+ * 1年目の冬に固定キャラ（岩城など）と並ぶくらいまで上がる。最終は投手80〜82、野手75前後（シミュレーションで調整）
+ */
+export const FOCUS_GRADE_MULT = [6.0, 0.6, 0.35]
 
 function addXp(p: Player, key: string, value: number, gain: number, max: number): number {
   const xp = (p.xp ??= {})
-  let total = (xp[key] ?? 0) + gain * (p.mainPosition === 'P' ? FOCUS_XP_MULT_P : FOCUS_XP_MULT)
+  let total = (xp[key] ?? 0) + gain * (p.mainPosition === 'P' ? FOCUS_XP_MULT_P : FOCUS_XP_MULT) * (FOCUS_GRADE_MULT[Math.min(3, Math.max(1, p.grade)) - 1] ?? 1)
   let v = value
   while (v < max && total >= xpNeed(p, key, v)) {
     total -= xpNeed(p, key, v)
