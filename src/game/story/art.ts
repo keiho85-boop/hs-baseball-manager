@@ -159,7 +159,7 @@ function fixedArt(prefix: string, color: string): CharArt {
 }
 
 /** 絵ができた人物（public/chara に置いたら、ここに足すと pending より優先される） */
-export const CHAR_READY = new Set<CharId>(['hasumi', 'hasumi_beach', 'miki', 'shinonome', 'senju', 'kobayakawa', 'kuon', 'amou', 'grandpa_hosp', 'mob_cap', 'nagi_beach', 'reika_beach', 'hasumi_yukata', 'pro_scout', 'iwaki', 'shiomi'])
+export const CHAR_READY = new Set<CharId>(['hasumi', 'hasumi_beach', 'miki', 'shinonome', 'senju', 'kobayakawa', 'kuon', 'amou', 'grandpa_hosp', 'mob_cap', 'nagi_beach', 'reika_beach', 'hasumi_yukata', 'pro_scout', 'iwaki', 'shiomi', 'tenkosei', 'ob_pro'])
 
 /** 実際に絵を出す人物（絵がなければ代わりの人物、代わりもなければ null） */
 function resolveChar(char: CharId): CharId | null {
@@ -223,6 +223,21 @@ export const BG_READY = new Set<string>([
   'bg_track_field',
   'bg_street_winter_night',
   'bg_stadium_stands',
+  // 行事・合宿・レアイベント（11月15日に届いた絵）
+  'bg_school_festival_day',
+  'bg_sports_day',
+  'bg_clubroom_christmas',
+  'bg_shrine_newyear',
+  'bg_antique_shop_day',
+  'bg_beach_day',
+  'bg_secret_room',
+  'bg_camp_yard_night',
+  'bg_camp_hall_dinner',
+  'bg_camp_hall_rain',
+  'bg_camp_room_night',
+  'bg_camp_ground_day',
+  'bg_camp_ground_sunset',
+  'bg_riverside_field_day',
 ])
 
 /** まだ絵がない背景の代わり（絵ができたら BG_READY に足すだけで差し替わる） */
@@ -252,25 +267,16 @@ export const BG_FALLBACK: Record<string, string> = {
   bg_street_winter_night: 'bg_street_sunset',
   bg_stadium_stands: 'bg_stadium_day',
   bg_clubroom_tv: 'bg_clubroom_day',
-  // 行事・合宿・レアイベントの背景（11月15日に追加。絵ができるまでは近い背景で代用）
-  bg_school_festival_day: 'bg_classroom_day',
-  bg_sports_day: 'bg_ground_day',
-  bg_clubroom_christmas: 'bg_clubroom_night',
-  bg_shrine_newyear: 'bg_street_winter_night',
-  bg_antique_shop_day: 'bg_street_sunset',
-  bg_secret_room: 'bg_infirmary_day',
-  bg_beach_day: 'bg_ground_day',
-  bg_camp_yard_night: 'bg_hotel_night',
-  bg_camp_hall_rain: 'bg_classroom_day',
-  bg_camp_ground_day: 'bg_ground_day',
-  bg_camp_ground_sunset: 'bg_ground_sunset',
-  bg_camp_room_night: 'bg_hotel_night',
-  bg_riverside_field_day: 'bg_ground_day',
 }
 
 /** 実際に表示する背景の名前（絵がなければ代わりの絵） */
 export function resolveBg(name: string): string {
-  return BG_READY.has(name) ? name : (BG_FALLBACK[name] ?? name)
+  if (BG_READY.has(name)) return name
+  if (BG_FALLBACK[name]) return BG_FALLBACK[name]
+  // 合宿先ごとの絵（名前の末尾が _l1〜_l3）がまだ無ければ、民宿の絵を使う
+  const m = /^(.+)_l\d$/.exec(name)
+  if (m?.[1]) return resolveBg(m[1])
+  return name
 }
 
 export function bgUrl(name: string): string {

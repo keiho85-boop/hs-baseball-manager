@@ -11,7 +11,7 @@ import { ABILITY_LABEL, beachEvent, beachVolleyEvent, eid, learnable, mainKeys, 
 import { SKILLS } from './skills'
 import { absWeek } from './modifiers'
 import type { EffectOp, EventInstance, Player, SaveData, Speaker } from './types'
-import { CAMP_PLACES, campStartWeek, campThisYear, focusPlayer, mustForfeit, rosterCount, successOf } from './success/state'
+import { CAMP_PLACES, campBg, campStartWeek, campThisYear, focusPlayer, mustForfeit, rosterCount, successOf } from './success/state'
 import { WEEK_EVENT_RATE, weekEvent } from './success/weekEvents'
 import { hasumiSecret } from './success/personEvents'
 
@@ -526,7 +526,7 @@ function campWeekEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance 
     river: [{ char: 'nagi', face: 'serious' }, { char: 'daichi', face: 'serious' }],
   }
   if (pick.kind === 'pro' && !save.alumni.some((a) => a.career === 'pro')) ev.speaker = { kind: 'ob', name: '桐生（OB・プロ野球選手）', portrait: 'ob_pro' }
-  return { ...ev, bg: pick.bg, cast: cast[pick.kind] }
+  return { ...ev, bg: campBg(save, pick.bg), cast: cast[pick.kind] }
 }
 
 /** 合宿のレアイベント（1回の合宿で最大1つ） */
@@ -947,7 +947,7 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng, ctx: { campPractice?
 
   // 合宿
   const camp = (save.sugoroku?.campWeeks ?? 0) > 0
-  if (camp && onceThisYear(save, 'curry')) push(withScene(campCurryEvent(save), 'bg_camp_hall_rain', [{ char: 'nagi', face: 'smile' }]))
+  if (camp && onceThisYear(save, 'curry')) push(withScene(campCurryEvent(save), campBg(save, 'bg_camp_hall_dinner'), [{ char: 'nagi', face: 'smile' }]))
   if (success) {
     // 選手育成モード：合宿で練習をした週に、合宿の出来事を抽選
     if (ctx.campPractice && rng.chance(CAMP_WEEK_EVENT_RATE)) push(campWeekEvent(save, rng, list))

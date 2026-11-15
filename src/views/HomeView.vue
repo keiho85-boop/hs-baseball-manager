@@ -21,7 +21,7 @@ import BracketSheet from '@/components/tournament/BracketSheet.vue'
 import BoardRefresh from '@/components/sugoroku/BoardRefresh.vue'
 import TabIcon from '@/components/TabIcon.vue'
 import { play } from '@/sound'
-import { portraitUrl } from '@/game/story/art'
+import { bgUrl, portraitUrl } from '@/game/story/art'
 import { chapterGoal } from '@/game/story/engine'
 import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 import RecruitSheet from '@/components/success/RecruitSheet.vue'
@@ -29,7 +29,7 @@ import FacilityPanel from '@/components/FacilityPanel.vue'
 import OrderBoard from '@/components/OrderBoard.vue'
 import InfoSheet from '@/components/InfoSheet.vue'
 import type { EvalKey } from '@/game/success/types'
-import { AUTO_WEEKS, campLevel, campPlaceName, EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, evalStars, focusPlayer, mustForfeit, repRank, rosterCount, successOf } from '@/game/success/state'
+import { AUTO_WEEKS, campBg, campPlaceName, EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, evalStars, focusPlayer, mustForfeit, repRank, rosterCount, successOf } from '@/game/success/state'
 import type { ClubId } from '@/game/success/types'
 
 const game = useGameStore()
@@ -243,8 +243,8 @@ const seasonBg = computed(() => {
   const m = weekToDate(game.save?.calendar.week ?? 1).month
   const name = m === 4 ? '04' : m === 5 || m === 6 ? '05' : m === 7 || m === 8 ? '07' : m >= 9 && m <= 11 ? '09' : m === 3 ? '03' : '12'
   const fallback = m >= 9 && m <= 11 ? 'bg_ground_sunset' : 'bg_ground_day'
-  // 合宿中は、合宿先の背景（絵が届くまでは宿の絵）
-  if ((sg.value?.campWeeks ?? 0) > 0 && game.save) return `url(${BASE}bg/bg_camp_${campLevel(game.save)}.webp), url(${BASE}bg/bg_hotel_night.webp)`
+  // 合宿中は、合宿先のグラウンド（行き先の絵がまだ無ければ民宿のグラウンド）
+  if ((sg.value?.campWeeks ?? 0) > 0 && game.save) return `url(${bgUrl(campBg(game.save, 'bg_camp_ground_day'))}), url(${BASE}bg/bg_ground_day.webp)`
   return `url(${BASE}bg/bg_home_${name}.webp), url(${BASE}bg/${fallback}.webp)`
 })
 

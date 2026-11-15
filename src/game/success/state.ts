@@ -82,6 +82,14 @@ export function campLevel(save: SaveData): number {
   if (!c || c.year !== save.calendar.year) return 0
   return Math.max(0, Math.min(CAMP_PLACES.length - 1, c.level))
 }
+/**
+ * 合宿先ごとの背景の名前。宿・グラウンド・広間などは行き先で変わる（bg_camp_*）。
+ * 民宿はそのままの名前、ほかは末尾に _l1〜_l3（絵がまだ無ければ民宿の絵）
+ */
+export function campBg(save: SaveData, base: string): string {
+  const lv = campLevel(save)
+  return base.startsWith('bg_camp_') && lv > 0 ? `${base}_l${lv}` : base
+}
 /** 夏合宿が始まる週（7月3週。夏の県大会のあと） */
 export function campStartWeek(_save?: SaveData): number {
   return wk(7, 3)
