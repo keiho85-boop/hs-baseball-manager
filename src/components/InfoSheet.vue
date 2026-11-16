@@ -1,6 +1,8 @@
 <script setup lang="ts">
 /** 画面に収まらない情報を出すための、下から出るポップアップ */
-defineEmits<{ close: [] }>()
+import { useBack } from '@/back'
+const emit = defineEmits<{ close: [] }>()
+useBack(() => (emit('close'), true))
 </script>
 
 <template>

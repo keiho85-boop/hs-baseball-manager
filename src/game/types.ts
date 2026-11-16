@@ -418,6 +418,8 @@ export interface EventInstance {
   bg?: string
   /** 立ち絵で出す人物（左から順） */
   cast?: { char: string; face?: string }[]
+  /** このイベントのあいだだけ流す曲（レアイベントなど） */
+  bgm?: 'rare'
 }
 
 /** マスに止まったあと、まだ週を終えていない状態（中断しても再開できるよう保存する） */

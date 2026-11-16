@@ -34,6 +34,9 @@ export function ownLineup(save: SaveData): LineupConfig {
   return autoLineup(activeMembers(save, school), saved?.useDH ?? true, focus)
 }
 
+/** 選手育成モードの全国大会の相手の上乗せ（調整用。打撃・投球の能力に足される） */
+export const NATIONAL_FORM = { base: 2, yearly: 2 }
+
 export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial: Partial<MatchOptions> = {}): MatchState {
   const own = save.schools[save.playerSchoolId]!
   const opp = save.schools[opponentId]!
@@ -45,13 +48,16 @@ export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial
   const oppLine = autoLineup(activeMembers(save, opp), ownLine.useDH)
   // 練習試合は自校が後攻か先攻かをランダムに
   const ownHome = rng.chance(0.5)
+  // 選手育成モード：全国大会の相手は、各地の代表にふさわしい手ごわさにする（年を追うごとに強く）
+  const tk = partial.tournament ? save.tournaments?.find((x) => x.id === partial.tournament!.id)?.kind : undefined
+  const oppForm = save.story?.success && (tk === 'summerNational' || tk === 'springNational') ? NATIONAL_FORM.base + (save.calendar.year - 1) * NATIONAL_FORM.yearly : 0
   const ownInput = { schoolId: own.id, name: own.name, lineup: ownLine }
   const oppInput = { schoolId: opp.id, name: opp.name, lineup: oppLine }
   return createMatch(
     ctx,
     ownHome ? oppInput : ownInput,
     ownHome ? ownInput : oppInput,
-    defaultOptions({ luck: 'normal', userSchoolId: own.id, tacticBonus, ignoreCondition: !!save.story?.success, ...partial }),
+    defaultOptions({ luck: 'normal', userSchoolId: own.id, tacticBonus, ignoreCondition: !!save.story?.success, oppForm, ...partial }),
     newId(save, 'm'),
   )
 }

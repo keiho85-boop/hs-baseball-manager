@@ -5,6 +5,9 @@ import { router } from './router'
 import { useUiStore } from './stores/ui'
 import { setupFullscreen } from './fullscreen'
 import { installTapSound } from './sound'
+import { installBgm } from './bgm'
+import { exitApp, installBackButton } from './back'
+import { useGameStore } from './stores/game'
 import { setupAds } from './ads'
 // 太く丸みのある日本語フォント（無料で商用利用できる M PLUS Rounded 1c、SIL Open Font License）
 import '@fontsource/m-plus-rounded-1c/500.css'
@@ -18,6 +21,19 @@ app.use(pinia)
 app.use(router)
 app.mount('#app')
 installTapSound()
+installBgm()
+{
+  const ui = useUiStore(pinia)
+  const game = useGameStore(pinia)
+  void installBackButton(router, {
+    dialogOpen: () => !!ui.dialog,
+    closeDialog: () => ui.closeDialog(!ui.dialog?.cancelLabel),
+    // 物語・イベント・処理の最中は戻るボタンを使わない
+    busy: () => game.busy || !!game.story || !!game.save?.eventQueue?.length,
+    confirmExit: () => ui.confirm('ゲームを終了しますか？\n（進み具合は自動で保存されています）', { title: '終了', okLabel: '終了する', cancelLabel: 'やめる' }),
+    exit: () => void exitApp(),
+  })
+}
 void setupAds()
 // アプリ版は最初から全画面なので、ブラウザの全画面表示は使わない
 if (!__APP_BUILD__) setupFullscreen()

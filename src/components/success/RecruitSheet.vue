@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // 勧誘：行き先の部活と、声をかける相手を選ぶ（その週に各部活にいる人が見える）
+import { useBack } from '@/back'
 import { computed, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { CLUBS, FIXED, strengthLabel } from '@/game/success/clubs'
@@ -10,6 +11,7 @@ import type { Position } from '@/game/types'
 
 const props = defineProps<{ /** 最初の勧誘（必ず行う。やめられない） */ forced?: boolean }>()
 const emit = defineEmits<{ close: []; go: [club: ClubId, target: number] }>()
+useBack(() => (emit('close'), true))
 const game = useGameStore()
 const BASE = import.meta.env.BASE_URL
 

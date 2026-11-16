@@ -31,6 +31,8 @@ export type NoticeInput = Partial<Omit<Notice, 'id' | 'message'>> & { message: s
 
 export const useUiStore = defineStore('ui', () => {
   const dialog = ref<DialogRequest | null>(null)
+  /** いま開いているイベントの曲（レアイベントなど。閉じたら null） */
+  const bgmOverride = ref<'rare' | null>(null)
   const toast = ref<string | null>(null)
   const updateAvailable = ref(false)
   /** 選手詳細で「前の選手・次の選手」に移るための並び（部員一覧で開いたときの順） */
@@ -137,5 +139,5 @@ export const useUiStore = defineStore('ui', () => {
     return updateAvailable.value
   }
 
-  return { dialog, toast, notice, notify, closeNotice, updateAvailable, playerNav, playerTab, confirm, alert, closeDialog, showToast, setUpdater, runUpdate, setRegistration, checkForUpdate }
+  return { dialog, bgmOverride, toast, notice, notify, closeNotice, updateAvailable, playerNav, playerTab, confirm, alert, closeDialog, showToast, setUpdater, runUpdate, setRegistration, checkForUpdate }
 })

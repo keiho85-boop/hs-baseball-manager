@@ -503,8 +503,8 @@ function finishTournament(save: SaveData, t: Tournament): string[] {
 
 /** 総合力だけで管理している学校と対戦するときに、その場で選手を作る */
 /** 選手育成モード：全国大会の相手校の底上げ（総合力）と、1年ごとに強くなる量 */
-const NATIONAL_BASE = 5
-const NATIONAL_YEARLY_GROWTH = 5
+const NATIONAL_BASE = 14
+const NATIONAL_YEARLY_GROWTH = 7
 
 export function ensureDetailed(save: SaveData, rng: Rng, t: Tournament, schoolId: string): void {
   const school = save.schools[schoolId]

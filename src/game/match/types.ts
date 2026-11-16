@@ -137,6 +137,8 @@ export interface MatchOptions {
   tacticBonus?: number
   /** 選手育成モード：体力（練習の疲れ）を試合に影響させない */
   ignoreCondition?: boolean
+  /** 相手チームの「その日の出来」の上乗せ（選手育成モードの全国大会など） */
+  oppForm?: number
 }
 
 export interface MatchState {

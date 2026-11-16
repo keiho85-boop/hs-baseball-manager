@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 操作のチュートリアル：説明する場所だけを明るく残し、ナギの吹き出しで案内する
 // 'target' の手順では、明るい場所を実際に押すと次へ進む（それ以外の場所は押せない）
+import { useBack } from '@/back'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
@@ -27,6 +28,8 @@ let missingTimer: number | null = null
 let scrolledFor = ''
 
 const step = computed(() => guide.step)
+// 説明の最中は戻るボタンを使わない
+useBack(() => !!guide.active)
 
 /** 週の処理・イベント・お知らせ・ストーリーの最中は隠す */
 const blocked = computed(() => {

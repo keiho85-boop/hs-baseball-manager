@@ -882,7 +882,13 @@ function ownFinished(save: SaveData, t: Tournament): { done: boolean; wins: numb
 }
 
 /** 蓮見先生の秘密の施術：毎週の抽選の確率（ゲーム中1回まで） */
-const SECRET_RATE = 0.004
+/**
+ * 毎週抽選するレアイベントの確率（1回のプレイで、それぞれ約8%起きるように。11月16日）
+ * 秘密の施術：保健室の場面のあと約150週／古道具屋のグラブ：約156週／転校生：各年の4〜9月の約78週
+ */
+const SECRET_RATE = 0.00056
+const GLOVE_RATE = 0.00053
+const TRANSFER_RATE = 0.00107
 
 /** 自校が勝ち残っている大会の週か */
 function tournamentWeekNow(save: SaveData): boolean {
@@ -915,6 +921,10 @@ const DEFAULT_BG: Record<string, string> = {
   日向酒店でラムネ: 'bg_liquor_day',
   教え子のプロ入り: 'bg_clubroom_tv',
   大敗の後: 'bg_ground_sunset',
+}
+/** レアイベントの曲で流す */
+function rareBgm(ev: EventInstance | null): EventInstance | null {
+  return ev ? { ...ev, bgm: 'rare' } : null
 }
 /** 背景のない出来事に、背景と話し手の立ち絵を付ける */
 function withDefaultScene(save: SaveData, ev: EventInstance): EventInstance {
@@ -984,10 +994,10 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng, ctx: { campPractice?
   } else if (camp && rng.chance(0.3) && onceThisYear(save, 'campRare')) push(campRareEvent(save, rng, list))
 
   // 毎週の抽選のレアイベント（古道具屋のグラブ・転校生・蓮見先生の秘密の施術）
-  if (rng.chance(0.05 / 52) && onceEver(save, 'glove')) push(withScene(oldGloveEvent(save, list), 'bg_antique_shop_day', []))
+  if (rng.chance(success ? GLOVE_RATE : 0.05 / 52) && onceEver(save, 'glove')) push(rareBgm(withScene(oldGloveEvent(save, list), 'bg_antique_shop_day', [])))
   if (success) {
-    if (w <= wk(9, 4) && rng.chance(0.02 / 26) && !successOf(save)!.joinedTransfer && onceEver(save, 'transfer')) push(transferEvent(save, rng))
-    if (st?.seen.includes('c1_hokenshitsu') && rng.chance(SECRET_RATE) && onceEver(save, 'hasumiSecret')) push(hasumiSecret(save, rng))
+    if (w <= wk(9, 4) && rng.chance(TRANSFER_RATE) && !successOf(save)!.joinedTransfer && onceEver(save, 'transfer')) push(rareBgm(transferEvent(save, rng)))
+    if (st?.seen.includes('c1_hokenshitsu') && rng.chance(SECRET_RATE) && onceEver(save, 'hasumiSecret')) push(rareBgm(hasumiSecret(save, rng)))
   } else if (w <= wk(9, 4) && rng.chance(0.02 / 26) && onceThisYear(save, 'transfer')) push(transferEvent(save, rng))
 
   // ドラフトで指名された教え子

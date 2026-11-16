@@ -132,11 +132,17 @@ export function evalStars(v: number): number {
 }
 
 /** 評価を上げ下げする。戻り値は画面に出す知らせ（変わらなければ null） */
+/**
+ * 評価の上がりやすさ（11月16日）：高いほど上がりにくい。全員を最高にはできず、誰との関係を深めるかで差がつくように
+ * 40までは元のまま、そこから上がるほど小さくなり、90前後で約3分の1
+ */
+export const EVAL_GAIN = { mult: 0.85, from: 40, span: 75, min: 0.2 }
 export function addEval(save: SaveData, key: EvalKey, delta: number): string | null {
   const s = successOf(save)
   if (!s || delta === 0) return null
   const before = s.eval[key]
-  s.eval[key] = clamp(Math.round(before + delta), 0, 100)
+  const d = delta > 0 ? delta * EVAL_GAIN.mult * Math.max(EVAL_GAIN.min, 1 - Math.max(0, before - EVAL_GAIN.from) / EVAL_GAIN.span) : delta
+  s.eval[key] = clamp(Math.round((before + d) * 10) / 10, 0, 100)
   if (s.eval[key] === before) return null
   return `${EVAL_LABEL[key]}の評価が${delta > 0 ? '上がった' : '下がった'}`
 }
@@ -178,8 +184,8 @@ export function focusGrowthMult(save: SaveData, p: Player): number {
   if (s.focusId !== p.id) return teamGrowthMult(save) * TEAMMATE_GROWTH_MULT
   return p.mainPosition === 'P' ? 1.45 : 1.35
 }
-/** チームメイトの伸びの倍率（調整用。11月15日：育成選手の伸びを抑えたぶん、チームの強さ＝勝率を保つ） */
-export const TEAMMATE_GROWTH_MULT = 1.3
+/** チームメイトの伸びの倍率（調整用。11月16日：全国優勝が上手に遊んで5割前後になるように） */
+export const TEAMMATE_GROWTH_MULT = 1.45
 
 /**
  * 選手育成モード：育成選手以外の部員の伸びの倍率。
@@ -227,13 +233,30 @@ export function evalAfterMatch(save: SaveData, m: MatchState, official: boolean,
 }
 
 /** ドラフト：フォーカス選手はスカウトの評価で指名が決まる（能力が低くても、評価が良ければ指名もある） */
+/** ドラフトの調整用の値 */
+export const DRAFT = { sure: 95, scoutBase: 40, scoutDiv: 110, ratingBase: 57, ratingDiv: 22, max: 0.95 }
+
+/** 大会の実績によるドラフトの上乗せ（全国優勝・全国出場・県大会の優勝） */
+export function draftRecordBonus(save: SaveData): number {
+  const own = save.playerSchoolId
+  let bonus = 0
+  for (const t of save.tournaments ?? []) {
+    const entered = t.rounds[0]?.some((g) => g.a === own || g.b === own)
+    if (!entered) continue
+    const national = t.kind === 'summerNational' || t.kind === 'springNational'
+    if (national) bonus = Math.max(bonus, t.finished && t.championId === own ? 0.3 : 0.15)
+    else if (t.finished && t.championId === own) bonus = Math.max(bonus, 0.08)
+  }
+  return bonus
+}
+
 export function focusDraftChance(save: SaveData, p: Player): number {
   const s = successOf(save)
   if (!s) return 0
-  // スカウトの評価が85以上なら、必ず指名される
-  if (s.eval.scout >= 85) return 1
-  // それより下は、スカウトの評価と能力の両方で決まる（どちらかが高ければ望みはある。能力C〜Bでも十分狙える）
-  return clamp((s.eval.scout - 30) / 80 + (playerRating(p) - 62) / 40, 0, 0.92)
+  // スカウトの評価が95以上なら、必ず指名される
+  if (s.eval.scout >= DRAFT.sure) return 1
+  // それより下は、スカウトの評価・能力・大会の実績を合わせて決まる
+  return clamp((s.eval.scout - DRAFT.scoutBase) / DRAFT.scoutDiv + (playerRating(p) - DRAFT.ratingBase) / DRAFT.ratingDiv + draftRecordBonus(save), 0, DRAFT.max)
 }
 
 /** ドラフトの見込み（実際の指名の確率と、足りないもの）。育成選手の画面に出す */
@@ -244,7 +267,7 @@ export function draftOutlook(save: SaveData, p: Player): { label: string; note: 
   // スカウトへのアピール／プロで通用する能力が、それぞれ足りているか
   const appeal = scout >= 60
   const ability = playerRating(p) >= 70
-  if (scout >= 85) return { label: '指名確実', note: 'スカウトの評価は十分。あとは順位を上げるだけ', tone: 'gold' }
+  if (scout >= DRAFT.sure) return { label: '指名確実', note: 'スカウトの評価は十分。あとは順位を上げるだけ', tone: 'gold' }
   if (chance >= 0.7) return { label: '指名の可能性が高い', note: appeal ? '能力をもう一段上げれば、さらに確実に' : 'スカウトの前で活躍すれば、さらに確実に', tone: 'good' }
   if (!appeal && !ability) return { label: 'まだまだ', note: '能力も、スカウトへのアピールも足りない', tone: 'low' }
   if (!appeal) return { label: 'アピールが足りない', note: '力はある。スカウトのマスや公式戦で、名前を売りたい', tone: chance >= 0.4 ? 'mid' : 'low' }

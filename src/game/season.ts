@@ -70,7 +70,7 @@ function seasonalEvents(save: SaveData, rng: Rng, list: Player[], messages: stri
 
 /** 練習の濃さ。設備が整っているほど伸びやすい */
 /** 選手育成モード：龍ヶ峰の部員が、新年度ごとに底上げされる量 */
-const RIVAL_YEARLY_GROWTH = 4
+const RIVAL_YEARLY_GROWTH = 6
 
 function practiceIntensity(school: School): number {
   const f = school.facilities

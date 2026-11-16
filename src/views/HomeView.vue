@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useBack } from '@/back'
 import GameIcon from '@/components/GameIcon.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useGuideStore } from '@/stores/guide'
@@ -36,6 +37,8 @@ const game = useGameStore()
 const ui = useUiStore()
 const router = useRouter()
 const picking = ref(false)
+// 戻るボタン：練習試合の相手選びを閉じる
+useBack(() => (picking.value ? ((picking.value = false), true) : false))
 
 /** 練習試合の相手（同じ都道府県の、選手を個別に持つ学校） */
 const opponents = computed(() => {

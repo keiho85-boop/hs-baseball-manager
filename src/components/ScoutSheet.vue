@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // スカウト：来年入学する県内の中学3年生を視察・勧誘する
+import { useBack } from '@/back'
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
@@ -10,7 +11,8 @@ import { getSkill } from '@/game/skills'
 import GameIcon from './GameIcon.vue'
 import FaceIcon from './FaceIcon.vue'
 
-defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [] }>()
+useBack(() => (emit('close'), true))
 const game = useGameStore()
 const ui = useUiStore()
 // ストーリー：初めてスカウトを開いた（「中学生を見に行く」の場面が流れる）

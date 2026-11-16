@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui'
 import { ref } from 'vue'
 import { fullscreenEnabled, setFullscreenEnabled } from '@/fullscreen'
 import { play, setSoundEnabled, soundEnabled } from '@/sound'
+import { bgmEnabled, setBgmEnabled } from '@/bgm'
 
 const game = useGameStore()
 const ui = useUiStore()
@@ -23,6 +24,11 @@ function toggleSound(): void {
   sound.value = !sound.value
   setSoundEnabled(sound.value)
   if (sound.value) play('hit')
+}
+const bgm = ref(bgmEnabled())
+function toggleBgm(): void {
+  bgm.value = !bgm.value
+  setBgmEnabled(bgm.value)
 }
 function toggleFullscreen(): void {
   fullscreen.value = !fullscreen.value
@@ -61,6 +67,10 @@ async function backToTitle(): Promise<void> {
       <label class="row">
         <input type="checkbox" class="check" :checked="sound" @change="toggleSound" />
         効果音を鳴らす
+      </label>
+      <label class="row">
+        <input type="checkbox" class="check" :checked="bgm" @change="toggleBgm" />
+        BGMを鳴らす
       </label>
       <label class="row">
         <input type="checkbox" class="check" :checked="fullscreen" @change="toggleFullscreen" />

@@ -35,6 +35,12 @@ export interface TeamInput {
 
 // ---------------------------------------------------------------- 準備
 
+/** 選手育成モードの運の幅の倍率（調整用） */
+export let LUCK_NARROW = 0.7
+export function setLuckNarrow(v: number): void {
+  LUCK_NARROW = v
+}
+
 export function defaultOptions(partial: Partial<MatchOptions> = {}): MatchOptions {
   return {
     innings: 9,
@@ -106,13 +112,15 @@ export function createMatch(
     pending: { batting: 'auto', pitching: 'auto', plan: 'auto', shift: 'normal' },
   }
   // その日の調子（運の要素）。高校野球らしく少し大きめのばらつき
-  const sd = options.luck === 'easy' ? 3.5 : options.luck === 'hard' ? 9 : 6
+  // 選手育成モードは運の幅を少し狭める（11月16日）
+  const narrow = options.ignoreCondition ? LUCK_NARROW : 1
+  const sd = (options.luck === 'easy' ? 3.5 : options.luck === 'hard' ? 9 : 6) * narrow
   // チーム全体の「その日の出来」もばらつかせる（番狂わせの元）
-  const teamSd = options.luck === 'easy' ? 2.5 : options.luck === 'hard' ? 8 : 5.5
+  const teamSd = (options.luck === 'easy' ? 2.5 : options.luck === 'hard' ? 8 : 5.5) * narrow
   // 1回表の先攻の枠だけ用意する（後攻の枠は1回裏が始まるときに追加）
   state.away.runsByInning.push(0)
   for (const t of [state.away, state.home]) {
-    const teamForm = ctx.rng.normal(0, teamSd)
+    const teamForm = ctx.rng.normal(0, teamSd) + (t.schoolId !== options.userSchoolId ? (options.oppForm ?? 0) : 0)
     for (const id of [...t.lineup.map((s) => s.playerId), t.pitcherId, ...t.bench]) {
       const p = ctx.players[id]
       if (!p) continue

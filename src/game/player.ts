@@ -399,15 +399,15 @@ export function xpProgress(p: Player, key: string, value: number): number {
 /** 経験点を足して、貯まったぶん能力を上げる。上がった量を返す */
 /**
  * 育成選手の経験点全体の倍率（投手・野手。調整用）。
- * 11月15日：投手は最終80〜82、野手は75前後になるように調整（学年ごとの倍率と組み合わせて使う）
+ * 11月16日：投手は最終80前後、野手は75前後になるように調整（学年ごとの倍率と組み合わせて使う）
  */
-export const FOCUS_XP_MULT = 0.46
-export const FOCUS_XP_MULT_P = 0.39
+export const FOCUS_XP_MULT = 0.62
+export const FOCUS_XP_MULT_P = 0.56
 /**
- * 学年ごとの伸びの倍率（1年・2年・3年）。前半に早く伸び、後半はゆるやかに（11月15日）。
- * 1年目の冬に固定キャラ（岩城など）と並ぶくらいまで上がる。最終は投手80〜82、野手75前後（シミュレーションで調整）
+ * 学年ごとの伸びの倍率（1年・2年・3年）。11月16日：入部時の能力を上げ（総合45前後）、伸びはなだらかに。
+ * 3年間どの時期も練習に意味があるようにした。最終は投手80前後、野手75前後（シミュレーションで調整）
  */
-export const FOCUS_GRADE_MULT = [6.0, 0.6, 0.35]
+export const FOCUS_GRADE_MULT = [1.4, 0.95, 0.8]
 
 function addXp(p: Player, key: string, value: number, gain: number, max: number): number {
   const xp = (p.xp ??= {})

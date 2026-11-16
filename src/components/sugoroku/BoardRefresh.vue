@@ -1,11 +1,13 @@
 <script setup lang="ts">
 // 月が変わって、すごろくの盤面が新しくなったときの控えめな知らせ（画面中央に少しだけ出る）
+import { useBack } from '@/back'
 import { onBeforeUnmount, onMounted } from 'vue'
 import { SQUARES } from '@/game/sugoroku'
 import type { SquareType } from '@/game/types'
 
 defineProps<{ month: number; board: SquareType[] }>()
 const emit = defineEmits<{ close: [] }>()
+useBack(() => (emit('close'), true))
 
 let timer: ReturnType<typeof setTimeout> | undefined
 onMounted(() => {

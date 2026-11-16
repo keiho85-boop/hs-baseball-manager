@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // 組み合わせ表（回戦ごとに切り替えて見る）
+import { useBack } from '@/back'
 import { computed, ref } from 'vue'
 import GameIcon from '@/components/GameIcon.vue'
 import { prefName } from '@/game/constants'
@@ -7,7 +8,8 @@ import { roundName, type Tournament } from '@/game/tournament'
 import type { School } from '@/game/types'
 
 const props = defineProps<{ t: Tournament; schools: Record<string, School>; ownId: string }>()
-defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [] }>()
+useBack(() => (emit('close'), true))
 
 // 最初は、いま行っている回戦（終わっていれば決勝）を開く
 const round = ref(Math.min(props.t.current, props.t.rounds.length - 1))

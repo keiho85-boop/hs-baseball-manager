@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // 選手の能力をその場で確認するシート（イベント中や特訓の選手選びで使う）
+import { useBack } from '@/back'
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { APTITUDE_LABEL, PITCH_NAME, POSITIONS, POSITION_LABEL, POSITION_NAME, velocityScore } from '@/game/constants'
@@ -12,6 +13,7 @@ import GameIcon from './GameIcon.vue'
 
 const props = defineProps<{ playerId: string }>()
 const emit = defineEmits<{ close: [] }>()
+useBack(() => (emit('close'), true))
 const game = useGameStore()
 const p = computed(() => game.player(props.playerId))
 

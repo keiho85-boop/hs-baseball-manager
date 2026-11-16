@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useBack } from '@/back'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
@@ -650,6 +651,18 @@ const nagiSaid = ref<string | null>(null)
 // ---- 選手交代 ----
 const sheet = ref<'pitcher' | 'sub' | 'log' | 'lineup' | null>(null)
 const subTarget = ref<string | null>(null)
+// 戻るボタン：開いているシートを閉じる。なければ中断の確認
+useBack(() => {
+  if (sheet.value) {
+    sheet.value = null
+    subTarget.value = null
+    return true
+  }
+  void ui.confirm('試合を中断して、ホームに戻りますか？\n（試合は保存され、あとで続きから再開できます）', { title: '中断', okLabel: '中断する', cancelLabel: '続ける' }).then((ok) => {
+    if (ok) back()
+  })
+  return true
+})
 
 const benchPitchers = computed(() => {
   const t = ownTeam.value

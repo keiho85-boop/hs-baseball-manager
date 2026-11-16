@@ -99,6 +99,15 @@ export default defineConfig(({ mode }) => {
             },
           },
           {
+            // BGM：鳴らした曲だけ保存する（オフラインでも2回目からは鳴る）
+            urlPattern: ({ url }) => /\/bgm\/[^/]+\.m4a$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'bgm',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+          {
             urlPattern: ({ request }) => request.destination === 'font',
             handler: 'CacheFirst',
             options: {

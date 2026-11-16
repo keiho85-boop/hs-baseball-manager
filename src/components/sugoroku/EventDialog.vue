@@ -1,6 +1,8 @@
 <script setup lang="ts">
 // イベントの会話ウィンドウ（顔＋名前＋セリフ＋選択肢）
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useBack } from '@/back'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useUiStore } from '@/stores/ui'
 import { useGameStore } from '@/stores/game'
 import type { EventInstance } from '@/game/types'
 import FaceIcon from '../FaceIcon.vue'
@@ -99,7 +101,16 @@ function choose(i: number): void {
   typeOut(text.value)
 }
 
-onMounted(() => typeOut(text.value))
+const ui = useUiStore()
+// イベントの最中は戻るボタンを使わない（選ばずに閉じると進行が崩れるため）
+useBack(() => true)
+onMounted(() => {
+  typeOut(text.value)
+  if (props.event.bgm) ui.bgmOverride = props.event.bgm
+})
+onUnmounted(() => {
+  if (props.event.bgm) ui.bgmOverride = null
+})
 </script>
 
 <template>

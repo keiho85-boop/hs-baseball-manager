@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // 練習や試合の週に伸びた選手を、能力表（ランクと数値）つきで見せる
+import { useBack } from '@/back'
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { POSITION_LABEL, rankOf, velocityScore } from '@/game/constants'
@@ -86,6 +87,8 @@ watch(
   (v) => v && play('up'),
 )
 
+// 戻るボタンは OK と同じ
+useBack(() => (game.showGrowth ? (close(), true) : false))
 function close(): void {
   game.showGrowth = false
 }

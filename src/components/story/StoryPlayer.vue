@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // ストーリーの会話画面：背景・立ち絵・名前・台詞を出し、タップで進める
 // 場面の始まりは暗転して中央にタイトル、背景の切り替えは暗転、時間や場所が飛ぶところはタイトルコール
+import { useBack } from '@/back'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
@@ -32,6 +33,8 @@ const PACE = {
   normal: { fade: 520, sceneCut: 2200, titleCut: 2600, hold: 900, reveal: 380, type: 32 },
   big: { fade: 950, sceneCut: 3000, titleCut: 3400, hold: 1400, reveal: 750, type: 40 },
 } as const
+// 物語の最中は戻るボタンを使わない
+useBack(() => !!game.story)
 const pace = computed(() => PACE[game.story?.scene.weight ?? 'normal'])
 
 /** 流す台本（選択肢を選ぶと、その続きが差し込まれる） */
