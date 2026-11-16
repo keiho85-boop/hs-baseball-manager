@@ -111,13 +111,12 @@ function makeDaichiPitcher(d: Player, rng: Rng): void {
 
 /** 育成選手の入部時の強さ（11月16日：前半に勝負になるよう、入部時を高めにして伸びをなだらかに） */
 export const FOCUS_START_STRENGTH = 52
-/** 入部時の能力の上乗せ（役割の主な能力に足す。球速は半分のkm/h） */
+/** 入部時の能力の上乗せ（投手だけ。主な能力に足す。球速は半分のkm/h）。野手は上乗せしない */
 export let FOCUS_START_BOOST = 18
 export function setFocusStart(v: number): void {
   FOCUS_START_BOOST = v
 }
 const START_KEYS_P = ['pitching.control', 'pitching.stamina', 'pitching.kire', 'pitching.quick']
-const START_KEYS_F = ['batting.contact', 'batting.power', 'batting.eye', 'running.speed', 'running.steal', 'running.baserunning', 'fielding.arm', 'fielding.range', 'fielding.catching', 'fielding.throwing']
 
 /** フォーカス選手を作る。才能の当たり外れは小さめ（ごくまれに少し伸びやすい） */
 function makeFocus(save: SaveData, rng: Rng, position: Position, keep?: Player): Player {
@@ -140,8 +139,8 @@ function makeFocus(save: SaveData, rng: Rng, position: Position, keep?: Player):
   // 才能：当たり外れの幅は小さく（ふつうは66前後、まれに少し伸びやすい）。成長の型はふつうに固定（早熟・晩成で差がつきすぎないように）
   f.hidden.potential = rng.chance(0.06) ? rng.int(72, 76) : 66 + rng.int(-2, 2)
   f.hidden.growthType = 'normal'
-  if (FOCUS_START_BOOST > 0) {
-    for (const key of position === 'P' ? START_KEYS_P : START_KEYS_F) {
+  if (FOCUS_START_BOOST > 0 && position === 'P') {
+    for (const key of START_KEYS_P) {
       const [g, k] = key.split('.') as [string, string]
       const obj = (f as unknown as Record<string, Record<string, number>>)[g]!
       obj[k] = clamp(obj[k]! + FOCUS_START_BOOST, 1, 99)

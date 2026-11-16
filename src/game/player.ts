@@ -401,7 +401,7 @@ export function xpProgress(p: Player, key: string, value: number): number {
  * 育成選手の経験点全体の倍率（投手・野手。調整用）。
  * 11月16日：投手は最終80前後、野手は75前後になるように調整（学年ごとの倍率と組み合わせて使う）
  */
-export const FOCUS_XP_MULT = 0.62
+export const FOCUS_XP_MULT = 0.92
 export const FOCUS_XP_MULT_P = 0.56
 /**
  * 学年ごとの伸びの倍率（1年・2年・3年）。11月16日：入部時の能力を上げ（総合45前後）、伸びはなだらかに。
