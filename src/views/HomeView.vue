@@ -47,7 +47,7 @@ const opponents = computed(() => {
   if (!s) return []
   return Object.values(s.schools)
     .filter((x) => x.prefCode === s.prefCode && x.detailed && x.id !== s.playerSchoolId)
-    .sort((a, b) => Number(rivalOffered(b.id)) - Number(rivalOffered(a.id)) || b.overall - a.overall)
+    .sort((a, b) => Number(rivalOffered(b.id)) - Number(rivalOffered(a.id)) || Number(canPractice(b)) - Number(canPractice(a)) || b.overall - a.overall)
 })
 /** 2年目に龍ヶ峰から申し込まれた練習試合（まだしていなければ、評判に関係なく受けられる） */
 function rivalOffered(id: string): boolean {
@@ -1000,13 +1000,15 @@ watch(
   gap: 6px;
 }
 .fs-name b {
+  flex: none;
   font-size: 15px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 3.5em;
+  max-width: 4.2em;
   font-weight: 900;
 }
+
 .fs-stats {
   margin-left: auto;
   display: flex;
@@ -1610,6 +1612,8 @@ watch(
   overflow: hidden;
 }
 .home.fit .page {
+  width: 100%;
+  box-sizing: border-box;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1688,6 +1692,52 @@ watch(
     font-size: 11.5px;
     line-height: 1.35;
     padding: 4px 9px;
+  }
+}
+/* 縦にとても短い画面では、盤面が欠けないように、ナギのひとことを1行にする */
+@media (max-height: 680px) {
+  .home.fit .nagi-face {
+    display: none;
+  }
+  .home.fit .nagi-tip {
+    margin: 4px 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .home.fit .nagi-say {
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .home.fit .nagi-say b {
+    display: inline;
+    margin-right: 6px;
+  }
+  .home.fit .hand-wrap {
+    margin-top: 6px;
+  }
+}
+/* 幅の狭い画面では、名前が切れないように能力の並びを詰める */
+@media (max-width: 400px) {
+  .fs-name {
+    gap: 4px;
+  }
+  .fs-st {
+    min-width: 20px;
+  }
+  .fs-st b {
+    font-size: 13px;
+  }
+  .focus-strip {
+    gap: 5px;
+  }
+  .fs-eval {
+    width: 44px;
   }
 }
 </style>

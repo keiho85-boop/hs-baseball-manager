@@ -60,7 +60,7 @@ const avatar = computed<{ icon: IconName; color: string }>(() => {
 })
 
 const atChoices = computed(() => step.value >= props.event.lines.length && chosen.value === null)
-const text = computed(() => (chosen.value !== null ? props.event.choices[chosen.value]!.result : props.event.lines[step.value] ?? ''))
+const text = computed(() => (chosen.value !== null ? props.event.choices[chosen.value]!.result : props.event.lines[Math.min(step.value, props.event.lines.length - 1)] ?? ''))
 
 function typeOut(full: string): void {
   clearInterval(typing)
