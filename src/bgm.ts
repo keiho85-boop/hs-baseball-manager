@@ -61,7 +61,7 @@ function load(name: BgmName): Promise<AudioBuffer | null> {
       const a = audio()
       if (!a) return null
       try {
-        const res = await fetch(`${import.meta.env.BASE_URL}bgm/${name}.m4a`)
+        const res = await fetch(`${import.meta.env.BASE_URL}bgm/${name}.mp3`)
         if (!res.ok) return null
         return await a.decodeAudioData(await res.arrayBuffer())
       } catch {

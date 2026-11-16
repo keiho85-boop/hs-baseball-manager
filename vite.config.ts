@@ -100,7 +100,7 @@ export default defineConfig(({ mode }) => {
           },
           {
             // BGM：鳴らした曲だけ保存する（オフラインでも2回目からは鳴る）
-            urlPattern: ({ url }) => /\/bgm\/[^/]+\.m4a$/.test(url.pathname),
+            urlPattern: ({ url }) => /\/bgm\/[^/]+\.mp3$/.test(url.pathname),
             handler: 'CacheFirst',
             options: {
               cacheName: 'bgm',

@@ -1,6 +1,6 @@
 """
 転生名将ナギのBGMを作る（すべてこのプログラムで作曲・合成する。外部の音源や曲は使わない）。
-使い方: python3 tools/bgm/compose.py  → public/bgm/*.m4a を書き出す
+使い方: python3 tools/bgm/compose.py  → public/bgm/*.mp3 を書き出す
 """
 import os, subprocess, sys
 import numpy as np
@@ -304,8 +304,8 @@ def save(name, loop):
         w.setsampwidth(2)
         w.setframerate(SR)
         w.writeframes(data.tobytes())
-    dst = os.path.join(OUT, f'{name}.m4a')
-    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', wav, '-c:a', 'aac', '-b:a', '96k', dst], check=True)
+    dst = os.path.join(OUT, f'{name}.mp3')
+    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', wav, '-c:a', 'libmp3lame', '-b:a', '112k', dst], check=True)
     print(name, f'{len(loop) / SR:.1f}s', os.path.getsize(dst) // 1024, 'KB')
 
 
