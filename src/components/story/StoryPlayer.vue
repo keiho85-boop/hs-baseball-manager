@@ -244,6 +244,13 @@ function pick(i: number): void {
   void enter()
 }
 
+/** スキップできる場面か（展開が変わる場面・選択肢のある場面はスキップできない） */
+const canSkip = computed(() => {
+  const st = game.story
+  if (!st || st.scene.noSkip) return false
+  return !st.steps.some((x) => x.kind === 'choice')
+})
+
 /** 次の選択肢か、場面の終わりまで飛ばす */
 function skip(): void {
   if (finishing.value) return
@@ -403,7 +410,7 @@ const bgStyle = computed(() => (bg.value ? { backgroundImage: `url(${bgUrl(bg.va
     </Transition>
 
     <div v-if="sceneLabel && !(cut && cut.kind === 'scene')" class="scene-label">{{ sceneLabel }}</div>
-    <button class="skip" @click.stop="skip">スキップ ▶▶</button>
+    <button v-if="canSkip" class="skip" @click.stop="skip">スキップ ▶▶</button>
   </div>
 </template>
 

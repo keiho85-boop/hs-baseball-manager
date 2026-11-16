@@ -1264,3 +1264,21 @@ const BIG_SCENES = new Set([
   'c1_sotsugyou',
 ])
 for (const sc of CHAPTER1) if (BIG_SCENES.has(sc.id)) sc.weight = 'big'
+
+/**
+ * スキップできない場面：遊ぶたびに展開が変わるもの（抽選・試合の結果・評価で中身が変わる）。
+ * 毎回同じ流れの場面はスキップできる。選択肢のある場面も、スキップできない（StoryPlayer で判定）
+ */
+const NO_SKIP = new Set([
+  'c1_goukaku',
+  'c1_natsumatsuri_1',
+  'c1_natsumatsuri',
+  'c1_ryu_renshu_ato',
+  'c1_ouja_ato',
+  'c1_soudan',
+  'c1_zenkoku',
+  'c1_todokanakatta',
+  'c1_draft',
+  'c1_sotsugyou',
+])
+for (const sc of CHAPTER1) if (NO_SKIP.has(sc.id)) sc.noSkip = true

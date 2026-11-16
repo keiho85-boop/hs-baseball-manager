@@ -682,10 +682,30 @@ function openSheet(kind: 'pitcher' | 'sub' | 'log' | 'lineup', target: string | 
 function closeSheet(): void {
   sheet.value = null
   subTarget.value = null
+  // 作戦指示の場面から代打を選んだときは、もう一度作戦を聞く
+  if (askAfterPinch) {
+    askAfterPinch = false
+    askIfFocus(true)
+  }
   if (reliefWasAuto.value) {
     reliefWasAuto.value = false
     auto.value = true
   }
+}
+/** ナギの作戦指示の場面で、代打を送れるか（攻撃中で、育成選手以外の打者、ベンチに出られる選手がいる） */
+const canPinchNow = computed(() => {
+  const s = m.value
+  const t = ownTeam.value
+  if (!s || !t || !nagiAsk.value || nagiAsk.value.kind !== 'bat') return false
+  if (currentBatterId(s) === focusId.value) return false
+  return t.bench.some((id) => !t.used.includes(id))
+})
+/** 作戦指示の場面から代打を送る：選び終えたら、新しい打者で作戦を聞き直す */
+let askAfterPinch = false
+function pinchFromAsk(): void {
+  nagiAsk.value = null
+  askAfterPinch = true
+  openPinch()
 }
 /** 代打：いまの打者（自校の攻撃中）を交代の相手に選んだ状態で開く */
 function openPinch(): void {
@@ -1070,6 +1090,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
       </div>
       <div class="na-opts" :class="{ grid: nagiAsk.grid }">
         <button v-for="o in nagiAsk.options" :key="o.label" class="na-opt" @click="chooseNagi(o)">{{ o.label }}</button>
+        <button v-if="canPinchNow" class="na-opt pinch" @click="pinchFromAsk">代打を送る</button>
       </div>
     </div>
     <div v-if="nagiSaid" class="nagi-said">
@@ -2151,6 +2172,14 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
   color: var(--ink);
   background: linear-gradient(180deg, #fff 0%, #ffe8b8 100%);
   box-shadow: 0 4px 0 #d99400;
+}
+.na-opt.pinch {
+  background: linear-gradient(180deg, #fff 0%, #d8ecff 100%);
+  box-shadow: 0 4px 0 #3a7bd5;
+  color: #1b4f9c;
+}
+.na-opts.grid .na-opt.pinch {
+  grid-column: 1 / -1;
 }
 .na-opt:active {
   transform: translateY(3px);

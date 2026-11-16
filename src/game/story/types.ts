@@ -141,4 +141,6 @@ export interface Scene {
   onEnd?: (ctx: StoryContext) => string[] | void
   /** 場面の重み（big：章の節目になる大事な場面。暗転・タイトル・文字の出方をゆっくりにする） */
   weight?: 'normal' | 'big'
+  /** スキップできない場面（遊ぶたびに展開が変わるもの・選択肢があるもの） */
+  noSkip?: boolean
 }

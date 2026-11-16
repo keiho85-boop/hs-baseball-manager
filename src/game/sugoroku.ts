@@ -154,27 +154,49 @@ export function buildBoard(rng: Rng, month: number): SquareType[] {
 
 /**
  * 選手育成モードの盤面（育成選手が投手か野手かで、練習マスが変わる）。
- * 投手：球威4・制球4・変化球2・体力3・守備1　野手：打撃4・長打2・走塁3・守備4・体力1
- * どちらも実戦・特訓・休養2・イベント2。季節で一部の練習マスが雨・行事・体力に替わる
+ * 投手：球威4・制球4・変化球2・体力2・守備1　野手：打撃4・長打2・走塁3・守備3・体力1
+ * どちらも実戦・特訓・休養3・イベント2。休養マスどうしは3マス以上離す。季節で一部の練習マスが雨・行事・体力に替わる
  */
 export function buildFocusBoard(rng: Rng, month: number, pitcher: boolean, camp = false): SquareType[] {
   const practice: SquareType[] = pitcher
-    ? ['velo', 'velo', 'velo', 'velo', 'control', 'control', 'control', 'control', 'breaking', 'breaking', 'fitness', 'fitness', 'fitness', 'fielding']
-    : ['batting', 'batting', 'batting', 'batting', 'power', 'power', 'running', 'running', 'running', 'fielding', 'fielding', 'fielding', 'fielding', 'fitness']
+    ? ['velo', 'velo', 'velo', 'velo', 'control', 'control', 'control', 'control', 'breaking', 'breaking', 'fitness', 'fitness', 'fielding']
+    : ['batting', 'batting', 'batting', 'batting', 'power', 'power', 'running', 'running', 'running', 'fielding', 'fielding', 'fielding', 'fitness']
   // 合宿中は練習マスと休養マスだけ（イベント・特訓・実戦・行事・雨はない）
   if (camp) {
     const extra: SquareType[] = pitcher ? ['velo', 'control', 'breaking', 'fitness'] : ['batting', 'power', 'running', 'fielding']
-    return rng.shuffle([...practice, ...extra, 'rest', 'rest'])
+    return withRests(rng, rng.shuffle([...practice, ...extra]))
   }
   const n = practice.length
-  const squares: SquareType[] = [...practice, 'practical', 'special', 'rest', 'rest', 'event', 'event']
+  const squares: SquareType[] = [...practice, 'practical', 'special', 'event', 'event']
   if (month === 6) {
     squares[rng.int(0, n - 1)] = 'rain'
     squares[rng.int(0, n - 1)] = 'rain'
   }
   if (month === 7 || month === 12 || month === 3 || month === 10) squares[rng.int(0, n - 1)] = 'school'
   if (month === 12 || month === 1 || month === 2) squares[rng.int(0, n - 1)] = 'fitness'
-  return rng.shuffle(squares)
+  return withRests(rng, rng.shuffle(squares))
+}
+
+/** 選手育成モードの休養マスの数と、休養マスどうしの間隔（前後2マス以内に、ほかの休養マスを置かない） */
+export const REST_SQUARES = 3
+const REST_MIN_GAP = 3
+
+/** 休養マスを、間隔をあけて盤面に差し込む（盤面は全部で20マス） */
+function withRests(rng: Rng, others: SquareType[]): SquareType[] {
+  const total = others.length + REST_SQUARES
+  // 休養マスどうしの間隔（次の休養マスまでのマス数）を決める。どれも REST_MIN_GAP 以上、合計で1周
+  const gaps = Array.from({ length: REST_SQUARES }, () => REST_MIN_GAP)
+  for (let left = total - REST_MIN_GAP * REST_SQUARES; left > 0; left--) gaps[rng.int(0, REST_SQUARES - 1)]! += 1
+  const restAt = new Set<number>()
+  let pos = rng.int(0, total - 1)
+  for (const g of gaps) {
+    restAt.add(pos % total)
+    pos += g
+  }
+  const out: SquareType[] = []
+  let k = 0
+  for (let i = 0; i < total; i++) out.push(restAt.has(i) ? 'rest' : others[k++]!)
+  return out
 }
 
 /** その遊び方の盤面（選手育成モードは育成選手に合わせた盤面） */

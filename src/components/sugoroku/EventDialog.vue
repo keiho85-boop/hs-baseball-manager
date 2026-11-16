@@ -3,6 +3,8 @@
 import { useBack } from '@/back'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
+import { moodOf, segments } from '@/effectText'
+import { play } from '@/sound'
 import { useGameStore } from '@/stores/game'
 import type { EventInstance } from '@/game/types'
 import FaceIcon from '../FaceIcon.vue'
@@ -99,7 +101,23 @@ function next(): void {
 function choose(i: number): void {
   chosen.value = i
   typeOut(text.value)
+  // 結果の良し悪しで効果音（部費が増えたらチャリン）
+  const mood = moodOf(text.value)
+  if (mood) play(mood)
 }
+
+/** 表示中の文を、良いこと（青）・悪いこと（赤）に色分けする（結果の文だけ） */
+const shownSegs = computed(() => {
+  const segs = chosen.value !== null ? segments(text.value) : [{ text: text.value, tone: null }]
+  const out: { text: string; tone: string | null }[] = []
+  let left = shown.value.length
+  for (const sg of segs) {
+    if (left <= 0) break
+    out.push({ text: sg.text.slice(0, left), tone: sg.tone })
+    left -= sg.text.length
+  }
+  return out
+})
 
 const ui = useUiStore()
 // イベントの最中は戻るボタンを使わない（選ばずに閉じると進行が崩れるため）
@@ -141,7 +159,7 @@ onUnmounted(() => {
       </div>
       <div class="window" @click="next">
         <div class="name" :class="{ empty: !speakerName }">{{ speakerName || '　' }}</div>
-        <p ref="lineEl" class="line">{{ shown }}<span v-if="!atChoices && shown.length >= text.length" class="caret">▼</span></p>
+        <p ref="lineEl" class="line"><span v-for="(sg, i) in shownSegs" :key="i" :class="sg.tone ? `fx-${sg.tone}` : undefined">{{ sg.text }}</span><span v-if="!atChoices && shown.length >= text.length" class="caret">▼</span></p>
       </div>
     </div>
   </div>
@@ -332,6 +350,12 @@ onUnmounted(() => {
 }
 .line::-webkit-scrollbar {
   display: none;
+}
+.fx-good {
+  color: #1565d8;
+}
+.fx-bad {
+  color: #d32f2f;
 }
 .caret {
   color: var(--sky);

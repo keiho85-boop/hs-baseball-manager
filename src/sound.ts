@@ -16,6 +16,9 @@ type SoundName =
   | 'up'
   | 'notice'
   | 'whistle'
+  | 'good'
+  | 'bad'
+  | 'coin'
 
 const KEY = 'hsbm:sound'
 let ctx: AudioContext | null = null
@@ -161,6 +164,22 @@ export function play(name: SoundName): void {
     case 'notice':
       tone(988, 0.1, { type: 'sine', vol: 0.14 })
       tone(1319, 0.16, { type: 'sine', vol: 0.12, delay: 0.09 })
+      break
+    case 'good':
+      // 良いこと：明るく駆け上がる音
+      ;[784, 988, 1175, 1568].forEach((f, i) => tone(f, i === 3 ? 0.28 : 0.1, { type: 'triangle', vol: 0.12, delay: i * 0.06 }))
+      break
+    case 'bad':
+      // 悪いこと：低く沈む音
+      tone(330, 0.22, { type: 'square', vol: 0.06 })
+      tone(247, 0.4, { type: 'square', vol: 0.06, delay: 0.18 })
+      tone(165, 0.45, { type: 'triangle', vol: 0.12, delay: 0.18, slide: 0.8 })
+      break
+    case 'coin':
+      // 部費が増えた：チャリン
+      tone(1976, 0.08, { type: 'square', vol: 0.07 })
+      tone(2637, 0.45, { type: 'square', vol: 0.07, delay: 0.07 })
+      tone(5274, 0.3, { type: 'sine', vol: 0.03, delay: 0.07 })
       break
     case 'whistle':
       // 試合開始のサイレン
