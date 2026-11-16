@@ -708,7 +708,7 @@ watch(
         <button
           class="ib"
           data-tut="practice-match"
-          :disabled="!!game.match || !sg || game.busy || moving || !!sg?.pending || roster < 9 || !!(tournament && (aliveInTournament || tournamentWeek))"
+          :disabled="!!game.match || !sg || game.busy || moving || !!sg?.pending || roster < 9 || (sg?.campWeeks ?? 0) > 0 || !!(tournament && (aliveInTournament || tournamentWeek))"
           @click="picking = true"
         >
           <img :src="`${BASE}ui/ui_practice_match.webp`" alt="" /><span>{{ roster < 9 ? '9人から' : '練習試合' }}</span>

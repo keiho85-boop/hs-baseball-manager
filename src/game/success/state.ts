@@ -234,7 +234,7 @@ export function evalAfterMatch(save: SaveData, m: MatchState, official: boolean,
 
 /** ドラフト：フォーカス選手はスカウトの評価で指名が決まる（能力が低くても、評価が良ければ指名もある） */
 /** ドラフトの調整用の値 */
-export const DRAFT = { sure: 95, scoutBase: 40, scoutDiv: 110, ratingBase: 58, ratingDiv: 22, max: 0.95 }
+export const DRAFT = { sure: 95, scoutBase: 40, scoutDiv: 110, ratingBase: 59, ratingDiv: 22, max: 0.95 }
 
 /** 大会の実績によるドラフトの上乗せ（全国優勝・全国出場・県大会の優勝） */
 export function draftRecordBonus(save: SaveData): number {

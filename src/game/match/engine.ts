@@ -500,7 +500,7 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
   const newPA = s.count.balls === 0 && s.count.strikes === 0
 
   // 打席の初めに、CPU（とおまかせ）の継投を判断する
-  if (newPA && (!isUser(s, field) || s.pending.pitching === 'auto')) {
+  if (newPA && (!isUser(s, field) || (s.pending.pitching === 'auto' && !s.options.manualRelief))) {
     const reliever = shouldChangePitcher(s, ctx)
     if (reliever) {
       const before = field.pitcherId

@@ -55,7 +55,8 @@ const FIELDER_STATS: Partial<Record<SquareType, Readonly<Record<string, number>>
   fielding: { range: 1, catching: 1, arm: 1 },
   fitness: { stamina: 0.5, recovery: 1, durability: 0.8 },
   pitching: { contact: 0.6, eye: 0.6 },
-  velo: { power: 0.9, arm: 0.6 },
+  // 育成選手が投手のときの盤面でも、チームメイトの野手の走力・守備が伸びるように
+  velo: { power: 0.9, arm: 0.6, speed: 0.5 },
   control: { contact: 1, eye: 0.8 },
   breaking: { contact: 0.7, eye: 0.7 },
 }
@@ -65,10 +66,11 @@ const PITCHER_STATS: Partial<Record<SquareType, Readonly<Record<string, number>>
   breaking: { pitches: 1.6, kire: 0.5 },
   pitching: { velocity: 1, control: 1, kire: 1 },
   fitness: { stamina: 1, recovery: 1, durability: 0.8 },
-  fielding: { quick: 1, range: 0.5 },
-  batting: { control: 0.8, kire: 0.5 },
-  power: { velocity: 0.8, stamina: 0.6 },
-  running: { stamina: 0.8, recovery: 0.6 },
+  // 育成選手が野手のときの盤面（投手の練習マスがない）でも、チームメイトの投手が投手の盤面と同じくらい伸びるように（11月16日）
+  fielding: { quick: 1, range: 0.5, kire: 0.4 },
+  batting: { control: 0.9, kire: 0.7, pitches: 0.9 },
+  power: { velocity: 1.3, stamina: 0.6 },
+  running: { stamina: 0.8, recovery: 0.6, velocity: 0.5 },
 }
 /** 能力の名前（マスの説明・特訓の選択肢に出す） */
 const KEY_LABEL: Record<string, string> = {

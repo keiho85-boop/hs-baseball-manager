@@ -343,6 +343,16 @@ function obGameEvent(save: SaveData, rng: Rng): EventInstance {
 function selectionEvent(save: SaveData, autumn: Tournament): EventInstance {
   const own = save.playerSchoolId
   const won = autumn.championId === own
+  // 選手育成モード：秋の大会で優勝したときは、その場で全国出場が決まっている（電話を待つのはおかしい）ので、出発前の決起の場面にする
+  if (won && save.story?.success) {
+    return {
+      id: eid('selection'),
+      title: '春の全国大会に向けて',
+      speaker: mgr(save),
+      lines: ['春の全国大会まで、あと少しです。', '秋に勝ち取った切符です。…全国でも、七海東の野球を見せましょう！'],
+      choices: [{ label: '気合を入れ直す', result: '部員たちの声が、冬のグラウンドに響いた。（全員の調子が大きく上がった）', ops: [{ op: 'condition', playerId: 'all', key: 'motivation', delta: 10 }] }],
+    }
+  }
   return {
     id: eid('selection'),
     title: '春の全国大会の発表',
@@ -498,6 +508,23 @@ const CAMP_WEEK_EVENTS: { kind: CampWeekKind; weight: number; bg: string }[] = [
 /** 合宿で練習をした週に、出来事が起きる確率 */
 const CAMP_WEEK_EVENT_RATE = 0.75
 
+/** 合宿の出来事：育成選手にも効果があるようにする（能力が上がる選択肢・選択肢が1つの出来事に、育成選手の伸びを足す） */
+function focusCampBonus(ev: EventInstance, f: Player, rng: Rng): EventInstance {
+  const single = ev.choices.length === 1
+  const choices = ev.choices.map((c) => {
+    const grows = c.ops.some((o) => o.op === 'ability')
+    const hasFocus = c.ops.some((o) => o.op === 'ability' && o.playerId === f.id)
+    if (hasFocus || (!grows && !single)) return c
+    const keys = rng.shuffle(mainKeys(f)).slice(0, 2)
+    return {
+      ...c,
+      result: `${c.result}（${f.surname}の${keys.map((k) => ABILITY_LABEL[k] ?? k).join('・')}も上がった）`,
+      ops: [...c.ops, ...keys.map((key) => ({ op: 'ability' as const, playerId: f.id, key, delta: key === 'pitching.velocity' ? 1 : 2 }))],
+    }
+  })
+  return { ...ev, choices }
+}
+
 function campWeekEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance | null {
   const f = flags(save)
   const y = save.calendar.year
@@ -525,6 +552,8 @@ function campWeekEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance 
     pro: [{ char: 'ob_pro', face: 'smile' }],
     river: [{ char: 'nagi', face: 'serious' }, { char: 'daichi', face: 'serious' }],
   }
+  // 育成選手に効果のない出来事には、育成選手の伸びを足す（休む・断る選択肢はそのまま）
+  if (fp && pick.kind !== 'mvp' && pick.kind !== 'pro') ev = focusCampBonus(ev, fp, rng)
   if (pick.kind === 'pro' && !save.alumni.some((a) => a.career === 'pro')) ev.speaker = { kind: 'ob', name: '桐生（OB・プロ野球選手）', portrait: 'ob_pro' }
   return { ...ev, bg: campBg(save, pick.bg), cast: cast[pick.kind] }
 }
@@ -536,8 +565,39 @@ function campRareEvent(save: SaveData, rng: Rng, list: Player[], forced?: CampKi
   const kinds = ['swing', 'study', 'mvp', 'ghost', ...(tired.length ? ['limit'] : []), ...(pros.length ? ['pro'] : [])]
   // 川向こうの球場は5%
   const kind = forced ?? (rng.chance(0.05) ? 'river' : rng.pick(kinds))
+  // 選手育成モード：合宿の出来事は、育成選手が主役
+  const fpc = successOf(save) ? focusPlayer(save) : null
+  if (kind === 'swing' && fpc?.mainPosition === 'P') {
+    const p = fpc
+    return {
+      id: eid('camp-swing'),
+      title: '合宿：夜の素振り',
+      speaker: NARR,
+      relatedPlayerIds: [p.id],
+      lines: [`消灯の後、宿舎の裏で${p.surname}が一人でシャドーピッチングをしている。`, 'タオルが空を切る音が、いつまでも続いている。'],
+      choices: [
+        {
+          label: '付き合う',
+          result: `夜遅くまでフォームを確かめた。${p.surname}のコントロールとキレが大きく伸びた！（体力は大きく減った）`,
+          ops: [
+            { op: 'ability', playerId: p.id, key: 'pitching.control', delta: 3 },
+            { op: 'ability', playerId: p.id, key: 'pitching.kire', delta: 3 },
+            { op: 'condition', playerId: p.id, key: 'stamina', delta: -25 },
+          ],
+        },
+        {
+          label: '寝かせる',
+          result: `${p.surname}は素直に布団に入った。（体力が回復し、調子が上がった）`,
+          ops: [
+            { op: 'condition', playerId: p.id, key: 'stamina', delta: 15 },
+            { op: 'condition', playerId: p.id, key: 'motivation', delta: 3 },
+          ],
+        },
+      ],
+    }
+  }
   if (kind === 'swing') {
-    const p = rng.pick(list.filter((x) => x.mainPosition !== 'P').length ? list.filter((x) => x.mainPosition !== 'P') : list)
+    const p = fpc ?? rng.pick(list.filter((x) => x.mainPosition !== 'P').length ? list.filter((x) => x.mainPosition !== 'P') : list)
     return {
       id: eid('camp-swing'),
       title: '合宿：夜の素振り',
@@ -581,7 +641,7 @@ function campRareEvent(save: SaveData, rng: Rng, list: Player[], forced?: CampKi
     }
   }
   if (kind === 'mvp') {
-    const cands = rng.shuffle([...list]).slice(0, 3)
+    const cands = fpc ? [fpc, ...rng.shuffle(list.filter((x) => x.id !== fpc.id)).slice(0, 2)] : rng.shuffle([...list]).slice(0, 3)
     return {
       id: eid('camp-mvp'),
       title: '合宿：紅白戦のMVP',
@@ -617,7 +677,7 @@ function campRareEvent(save: SaveData, rng: Rng, list: Player[], forced?: CampKi
     }
   }
   if (kind === 'limit') {
-    const p = tired.length ? rng.pick(tired) : rng.pick(list)
+    const p = fpc ?? (tired.length ? rng.pick(tired) : rng.pick(list))
     const awaken = rng.chance(0.5)
     const skill = awaken ? learnable(rng, p) : null
     return {
@@ -913,6 +973,7 @@ const DEFAULT_BG: Record<string, string> = {
   修学旅行: 'bg_clubroom_day',
   OB戦: 'bg_ground_day',
   春の全国大会の発表: 'bg_clubroom_day',
+  春の全国大会に向けて: 'bg_ground_day',
   バレンタイン: 'bg_classroom_day',
   卒業式: 'bg_school_gate_sakura',
   引退の日: 'bg_ground_sunset',

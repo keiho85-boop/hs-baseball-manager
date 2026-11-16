@@ -211,6 +211,9 @@ async function step(kind: 'pitch' | 'pa' | 'inning' | 'end'): Promise<void> {
   if (busyStep.value || !m.value || m.value.finished) return
   busyStep.value = true
   const before = m.value.events.length
+  // 選手育成モード：1打席ずつ進めるあいだは、自校の継投は自分で決める（疲れたら聞く）。
+  // 「この回まで」「結果へ」で飛ばすときは、おまかせで代える
+  if (successMode.value) m.value.options.manualRelief = kind === 'pa' || kind === 'pitch'
   try {
     await game.stepMatch(kind)
   } finally {
@@ -295,9 +298,8 @@ function askIfTired(): boolean {
   const id = t.pitcherId
   const box = s.pitching[id]
   const key = `${id}-${s.inning}`
-  // 打たれている（この回3点以上）ときも聞く
-  const opp = battingTeam(s)
-  const inningRuns = opp.runsByInning[opp.runsByInning.length - 1] ?? 0
+  // 打たれている（この投手が、この回に3点以上取られた）ときも聞く
+  const inningRuns = s.events.filter((e) => e.inning === s.inning && e.top === s.top && e.pitcherId === id).reduce((a, e) => a + (e.runs ?? 0), 0)
   if (!box || (box.fatigue < TIRED_ASK && inningRuns < 3) || tiredAsked.has(key) || benchPitchers.value.length === 0) return false
   tiredAsked.add(key)
   auto.value = false

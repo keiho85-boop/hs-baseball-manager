@@ -4,7 +4,8 @@
 export type BgmName = 'home' | 'pref' | 'national' | 'camp' | 'ending' | 'rare'
 
 const KEY = 'hsbm:bgm'
-const VOLUME = 0.42
+/** BGMの音量（効果音が聞こえるように控えめ） */
+const VOLUME = 0.16
 const FADE = 1.2
 /** 曲を作り直したら上げる（保存済みの古い曲を使わないように） */
 const BGM_VERSION = 2

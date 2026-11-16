@@ -139,6 +139,8 @@ export interface MatchOptions {
   ignoreCondition?: boolean
   /** 相手チームの「その日の出来」の上乗せ（選手育成モードの全国大会など） */
   oppForm?: number
+  /** 自校の継投は自分で決める（おまかせでも自動で代えない。選手育成モードで1打席ずつ進めるとき） */
+  manualRelief?: boolean
 }
 
 export interface MatchState {
