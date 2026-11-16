@@ -194,7 +194,9 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
   // 合宿で練習をした週か（合宿の出来事の抽選に使う）。
   // 出来事は次の週の初めに出るので、合宿の最後の週の練習では抽選しない（合宿が終わってから合宿の話が出ないように）
   const campPractice = campBefore && campAfter && plan?.kind === 'square' && plan.square !== 'rest'
-  if (save.sugoroku) queueWeeklyEvents(save, rng, { campPractice })
+  const campRest = campBefore && campAfter && !campPractice
+  const campLastRoll = campBefore && (save.sugoroku?.campWeeks ?? 0) === 1
+  if (save.sugoroku) queueWeeklyEvents(save, rng, { campPractice, campRest, campLastRoll })
   // 11. サクセス：今週、各部活にいる人と、練習マスに付く人物を決める
   if (success) {
     rollClubs(save, rng)

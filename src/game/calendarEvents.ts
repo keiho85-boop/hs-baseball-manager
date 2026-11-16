@@ -507,6 +507,9 @@ const CAMP_WEEK_EVENTS: { kind: CampWeekKind; weight: number; bg: string }[] = [
 ]
 /** 合宿で練習をした週に、出来事が起きる確率 */
 const CAMP_WEEK_EVENT_RATE = 0.75
+/** 合宿で休んだ週に、出来事が起きる確率（休みらしい出来事だけ） */
+const CAMP_REST_EVENT_RATE = 0.5
+const CAMP_REST_KINDS: CampWeekKind[] = ['ghost', 'nurse', 'beach', 'volley', 'study']
 
 /** 合宿の出来事：育成選手にも効果があるようにする（能力が上がる選択肢・選択肢が1つの出来事に、育成選手の伸びを足す） */
 function focusCampBonus(ev: EventInstance, f: Player, rng: Rng): EventInstance {
@@ -525,10 +528,10 @@ function focusCampBonus(ev: EventInstance, f: Player, rng: Rng): EventInstance {
   return { ...ev, choices }
 }
 
-function campWeekEvent(save: SaveData, rng: Rng, list: Player[]): EventInstance | null {
+function campWeekEvent(save: SaveData, rng: Rng, list: Player[], rest = false): EventInstance | null {
   const f = flags(save)
   const y = save.calendar.year
-  const pool = CAMP_WEEK_EVENTS.filter((e) => f[`camp_${y}_${e.kind}`] === undefined && (e.kind !== 'volley' || !!save.story?.rivalId))
+  const pool = CAMP_WEEK_EVENTS.filter((e) => f[`camp_${y}_${e.kind}`] === undefined && (!rest || CAMP_REST_KINDS.includes(e.kind)) && (e.kind !== 'volley' || !!save.story?.rivalId))
   if (pool.length === 0) return null
   const pick = rng.weighted(pool.map((e) => ({ value: e, weight: e.weight })))
   f[`camp_${y}_${pick.kind}`] = true
@@ -999,7 +1002,7 @@ function withDefaultScene(save: SaveData, ev: EventInstance): EventInstance {
 }
 
 /** 週を進めた後に呼ぶ：今週の行事やレアイベントを積む */
-export function queueWeeklyEvents(save: SaveData, rng: Rng, ctx: { campPractice?: boolean } = {}): void {
+export function queueWeeklyEvents(save: SaveData, rng: Rng, ctx: { campPractice?: boolean; campRest?: boolean; campLastRoll?: boolean } = {}): void {
   const list = members(save)
   if (list.length === 0) return
   const q = (save.eventQueue ??= [])
@@ -1051,7 +1054,13 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng, ctx: { campPractice?
   if (camp && onceThisYear(save, 'curry')) push(withScene(campCurryEvent(save), campBg(save, 'bg_camp_hall_dinner'), [{ char: 'nagi', face: 'smile' }]))
   if (success) {
     // 選手育成モード：合宿で練習をした週に、合宿の出来事を抽選
-    if (ctx.campPractice && rng.chance(CAMP_WEEK_EVENT_RATE)) push(campWeekEvent(save, rng, list))
+    // 休んだ週は休みらしい出来事だけ。合宿で1つも起きていなければ、最後の抽選の週は必ず起きる
+    if (ctx.campPractice || ctx.campRest) {
+      const y = save.calendar.year
+      const none = !CAMP_WEEK_EVENTS.some((e) => flags(save)[`camp_${y}_${e.kind}`] !== undefined)
+      const rate = ctx.campRest ? CAMP_REST_EVENT_RATE : CAMP_WEEK_EVENT_RATE
+      if ((none && ctx.campLastRoll) || rng.chance(rate)) push(campWeekEvent(save, rng, list, !!ctx.campRest))
+    }
   } else if (camp && rng.chance(0.3) && onceThisYear(save, 'campRare')) push(campRareEvent(save, rng, list))
 
   // 毎週の抽選のレアイベント（古道具屋のグラブ・転校生・蓮見先生の秘密の施術）
