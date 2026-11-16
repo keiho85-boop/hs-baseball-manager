@@ -268,19 +268,55 @@ const busyStep = ref(false)
 function scheduleAuto(): void {
   clearTimeout(timer)
   // 作戦の結果を見せている間と、操作の説明（ガイド）が出ている間は進めない
-  if (!auto.value || !m.value || m.value.finished || cutin.value || nagiAsk.value || tacticCut.value || guide.showing) return
+  if (!auto.value || !m.value || m.value.finished || cutin.value || nagiAsk.value || tacticCut.value || guide.showing || sheet.value || tiredAsk.value) return
   const base = [0, 1800, 1200, 700][game.save?.settings.gameSpeed ?? 2] ?? 1200
   // 選手育成モード：育成選手が関わらない打席はさっと進める（点が入ったときは結果を見せる）
   const lastRun = (m.value.events[m.value.events.length - 1]?.runs ?? 0) > 0
-  const delay = successMode.value ? (lastRun || flash.value?.focus ? 1700 : 380) : base
+  const delay = successMode.value ? (lastRun || flash.value?.focus ? 1700 : 650) : base
   timer = setTimeout(async () => {
+    // 交代の選手を選んでいる間などは、裏で試合を進めない
+    if (sheet.value || tiredAsk.value || !auto.value) return
     if (successMode.value && askIfFocus()) return
+    if (successMode.value && askIfTired()) return
     await step('pa')
     scheduleAuto()
   }, delay)
 }
 
 watch(auto, (on) => (on ? scheduleAuto() : clearTimeout(timer)))
+
+// ---- 選手育成モード：自校の投手が疲れてきたら、試合を止めて継投するか聞く ----
+const tiredAsk = ref<{ id: string; name: string; text: string } | null>(null)
+const tiredAsked = new Set<string>()
+function askIfTired(): boolean {
+  const s = m.value
+  const t = ownTeam.value
+  if (!s || !t || ownBatting.value || s.finished) return false
+  const id = t.pitcherId
+  const box = s.pitching[id]
+  const key = `${id}-${s.inning}`
+  // 打たれている（この回3点以上）ときも聞く
+  const opp = battingTeam(s)
+  const inningRuns = opp.runsByInning[opp.runsByInning.length - 1] ?? 0
+  if (!box || (box.fatigue < TIRED_ASK && inningRuns < 3) || tiredAsked.has(key) || benchPitchers.value.length === 0) return false
+  tiredAsked.add(key)
+  auto.value = false
+  clearTimeout(timer)
+  const name = players.value[id]?.surname ?? '投手'
+  tiredAsk.value = { id, name, text: box.fatigue >= TIRED_ASK ? `${name}の球威が落ちてきました。代えますか？` : `${name}がつかまっています。代えますか？` }
+  return true
+}
+/** 継投を聞く疲れの目安（0〜1。1でスタミナ切れ） */
+const TIRED_ASK = 0.5
+function tiredRelief(): void {
+  tiredAsk.value = null
+  reliefWasAuto.value = true
+  sheet.value = 'pitcher'
+}
+function tiredStay(): void {
+  tiredAsk.value = null
+  auto.value = true
+}
 // 説明（ガイド）が閉じたら、試合の進行を再開する
 watch(
   () => guide.showing,
@@ -633,29 +669,42 @@ function s0Runner(_evs: PlayEvent[]): string | null {
 /** 継投：試合を止めて、ブルペンから投手を選ぶ */
 const reliefWasAuto = ref(false)
 function openRelief(): void {
-  reliefWasAuto.value = auto.value
+  openSheet('pitcher')
+}
+/** シートを開く：開いている間は試合を止め、閉じたら元どおり自動で進める */
+function openSheet(kind: 'pitcher' | 'sub' | 'log' | 'lineup', target: string | null = null): void {
+  if (!sheet.value) reliefWasAuto.value = auto.value
   auto.value = false
   clearTimeout(timer)
-  sheet.value = 'pitcher'
+  subTarget.value = target
+  sheet.value = kind
 }
 function closeSheet(): void {
-  const wasRelief = sheet.value === 'pitcher'
   sheet.value = null
-  if (successMode.value && wasRelief && reliefWasAuto.value) {
+  subTarget.value = null
+  if (reliefWasAuto.value) {
     reliefWasAuto.value = false
     auto.value = true
   }
+}
+/** 代打：いまの打者（自校の攻撃中）を交代の相手に選んだ状態で開く */
+function openPinch(): void {
+  const id = m.value ? currentBatterId(m.value) : null
+  openSheet('sub', ownBatting.value && id && ownTeam.value?.lineup.some((x) => x.playerId === id) ? id : null)
 }
 const nagiSaid = ref<string | null>(null)
 
 // ---- 選手交代 ----
 const sheet = ref<'pitcher' | 'sub' | 'log' | 'lineup' | null>(null)
 const subTarget = ref<string | null>(null)
+// シートや確認を閉じたら、自動中なら続きを進める
+watch([sheet, tiredAsk], ([sh, ta]) => {
+  if (!sh && !ta) scheduleAuto()
+})
 // 戻るボタン：開いているシートを閉じる。なければ中断の確認
 useBack(() => {
   if (sheet.value) {
-    sheet.value = null
-    subTarget.value = null
+    closeSheet()
     return true
   }
   void ui.confirm('試合を中断して、ホームに戻りますか？\n（試合は保存され、あとで続きから再開できます）', { title: '中断', okLabel: '中断する', cancelLabel: '続ける' }).then((ok) => {
@@ -683,10 +732,10 @@ async function pickPitcher(id: string): Promise<void> {
 
 async function pickSub(inId: string): Promise<void> {
   if (!subTarget.value) return
+  const wasBatter = m.value ? currentBatterId(m.value) === subTarget.value : false
   await game.substituteOwn(subTarget.value, inId)
-  sheet.value = null
-  subTarget.value = null
-  ui.showToast('選手を交代しました')
+  closeSheet()
+  ui.showToast(wasBatter ? '代打を送りました' : '選手を交代しました')
 }
 
 // ---- 試合終了 ----
@@ -721,8 +770,8 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
         <div class="label">{{ m.options.label }}</div>
       </div>
       <div class="top-tools">
-        <button class="tool" @click="sheet = 'log'"><GameIcon name="megaphone" :size="16" />実況</button>
-        <button class="tool" @click="sheet = 'lineup'"><GameIcon name="clipboard" :size="16" />オーダー</button>
+        <button class="tool" @click="openSheet('log')"><GameIcon name="megaphone" :size="16" />実況</button>
+        <button class="tool" @click="openSheet('lineup')"><GameIcon name="clipboard" :size="16" />オーダー</button>
       </div>
     </div>
 
@@ -793,7 +842,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
           >
             {{ o.label }}
           </button>
-          <button class="cmd sub" @click="sheet = 'sub'">代打・代走</button>
+          <button class="cmd sub" @click="openPinch">代打・代走</button>
         </div>
       </template>
       <template v-else>
@@ -809,7 +858,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
             {{ o.label }}
           </button>
           <button class="cmd" :class="{ on: m.pending.shift === 'infieldIn' }" @click="game.setMatchOrders({ shift: m.pending.shift === 'infieldIn' ? 'normal' : 'infieldIn' })">前進守備</button>
-          <button class="cmd sub" @click="sheet = 'pitcher'">継投</button>
+          <button class="cmd sub" @click="openSheet('pitcher')">継投</button>
           <button v-for="o in PLANS" :key="o.value" class="cmd plan" :class="{ on: m.pending.plan === o.value }" @click="game.setMatchOrders({ plan: o.value })">
             {{ o.value === 'auto' ? '配球任せ' : o.label }}
           </button>
@@ -883,15 +932,23 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
     </div>
 
     <!-- 進める -->
+    <div v-if="tiredAsk && !m.finished" class="resume tired">
+      <span>{{ tiredAsk.text }}</span>
+      <button class="sun" @click="tiredRelief">継投する</button>
+      <button class="secondary" @click="tiredStay">続投</button>
+    </div>
     <div v-if="resumeHint && !auto && !m.finished" class="resume">
       <span>{{ ownBatting ? 'チャンス！' : 'ピンチ！' }}作戦を選んだら、オートで再開します</span>
       <button class="sun" @click="resume"><GameIcon name="play" :size="14" /> 再開</button>
     </div>
     <div v-if="!m.finished && successMode" class="controls icons" data-tut="match-controls">
-      <button :class="{ on: auto }" @click="auto = !auto">
-        <img :src="`${BASE}ui/ui_auto.webp`" alt="" /><span>{{ auto ? '自動中' : '自動' }}</span>
+      <button class="pause" :class="{ on: auto }" @click="auto = !auto">
+        <img :src="`${BASE}ui/ui_auto.webp`" alt="" /><span>{{ auto ? '一時停止' : '再開' }}</span>
       </button>
-      <button :disabled="busyStep" @click="openRelief">
+      <button v-if="ownBatting" :disabled="busyStep" @click="openPinch">
+        <GameIcon name="cap" :size="30" /><span>代打・代走</span>
+      </button>
+      <button v-else :disabled="busyStep" @click="openRelief">
         <GameIcon name="flame" :size="30" /><span>継投</span>
       </button>
       <button :disabled="busyStep" @click="step('inning')">
@@ -935,6 +992,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
               <span class="slot">{{ i + 1 }}番</span>
               <span class="pick-name">{{ players[sl.playerId]?.surname }}<small>{{ posLabel(sl.position) }}</small></span>
               <span v-if="m.bases.includes(sl.playerId)" class="pill gold">走者</span>
+              <span v-if="ownBatting && currentBatterId(m) === sl.playerId" class="pill">打席</span>
             </button>
           </template>
           <template v-else>
@@ -1054,6 +1112,12 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
 .resume button {
   margin-left: auto;
   padding: 6px 12px;
+}
+.resume.tired button + button {
+  margin-left: 0;
+}
+.controls.icons .pause:not(.on) {
+  box-shadow: inset 0 0 0 2px #ffd36b;
 }
 /* 試合中は、球場の電光掲示板のような暗い配色で、1画面に収める */
 .match {

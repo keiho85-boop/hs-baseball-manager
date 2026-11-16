@@ -84,7 +84,7 @@ def highpass(x, cutoff, order=2):
 
 def inst(kind, m, dur, vel=1.0):
     f = hz(m)
-    tail = {'piano': 1.6, 'pluck': 0.9, 'pad': 1.2, 'lead': 0.25, 'brass': 0.25, 'bass': 0.15, 'bell': 2.5, 'strings': 0.6, 'flute': 0.2, 'marimba': 0.6}[kind]
+    tail = {'gtr': 0.25, 'gmute': 0.08, 'glead': 0.3, 'synth': 0.2, 'piano': 1.6, 'pluck': 0.9, 'pad': 1.2, 'lead': 0.25, 'brass': 0.25, 'bass': 0.15, 'bell': 2.5, 'strings': 0.6, 'flute': 0.2, 'marimba': 0.6}[kind]
     n = int((dur + tail) * SR)
     t = np.arange(n) / SR
     if kind == 'piano':
@@ -130,6 +130,34 @@ def inst(kind, m, dur, vel=1.0):
         x = 0.7 * np.sin(2 * np.pi * f * t) + 0.35 * saw(f, t)
         x = lowpass(x, 700)
         x *= env(n, 0.005, 0.1, 0.8, 0.08, dur)
+    elif kind in ('gtr', 'gmute'):
+        # 歪んだギター：ルート・5度・オクターブ（パワーコード）。gmute はブリッジミュートの刻み
+        x = np.zeros(n)
+        for iv, a in [(0, 1.0), (7, 0.8), (12, 0.55)]:
+            ff = f * 2 ** (iv / 12)
+            x += a * (saw(ff, t, -0.003) + saw(ff, t, 0.003))
+        x = np.tanh(x * 3.5)
+        x = lowpass(x, 2400 if kind == 'gmute' else 3800, 2)
+        x = highpass(x, 140)
+        if kind == 'gmute':
+            x *= np.exp(-t * 18) * env(n, 0.002, 0.03, 1, 0.04, dur)
+        else:
+            x *= env(n, 0.004, 0.2, 0.85, 0.15, dur)
+        x *= 0.75
+    elif kind == 'glead':
+        # リードギター：歌うようなビブラートと、音の頭のしゃくり
+        bend = 1 - 0.03 * np.exp(-t * 25)
+        vib = 1 + 0.008 * np.sin(2 * np.pi * 5.8 * t) * np.clip((t - 0.18) * 3, 0, 1)
+        x = saw(f * bend * vib, t, -0.002) + saw(f * bend * vib, t, 0.002)
+        x = np.tanh(x * 4)
+        x = lowpass(x, 3800, 2)
+        x *= env(n, 0.006, 0.15, 0.8, 0.15, dur) * 0.55
+    elif kind == 'synth':
+        # 明るいシンセのリード（ポップの主旋律）
+        vib = 1 + 0.004 * np.sin(2 * np.pi * 5.5 * t) * np.clip((t - 0.12) * 3, 0, 1)
+        x = 0.5 * saw(f * vib, t, -0.006) + 0.5 * saw(f * vib, t, 0.006) + 0.3 * np.sign(np.sin(2 * np.pi * f * 2 * vib * t))
+        x = lowpass(x, 5200)
+        x *= env(n, 0.005, 0.12, 0.8, 0.12, dur) * 0.7
     elif kind == 'bell':
         mod = np.sin(2 * np.pi * f * 3.5 * t) * 2.2 * np.exp(-t * 3)
         x = np.sin(2 * np.pi * f * t + mod) * np.exp(-t * 1.6)
@@ -257,6 +285,84 @@ def melody_from(song, kind, prog, scale, rhythm_bars, start_m, inst_kind, vel=0.
         beat += song.beats
 
 
+def phrase(song, start_bar, prog, scale, rhythm_bars, start_m, inst_kind, seed, vel=0.9, gain=1.0, pan=0.0, octave_lock=(60, 84), track='melody', shift=0):
+    """start_bar から始まる区間の旋律。同じ seed・同じコードなら同じ旋律になる"""
+    rng = np.random.default_rng(seed)
+    cur = start_m
+    lo, hi = octave_lock
+    for bar, rhythm in enumerate(rhythm_bars):
+        chord = chord_notes(prog[bar % len(prog)])
+        tones = sorted({(c % 12) for c in chord})
+        b = 0.0
+        for i, d in enumerate(rhythm):
+            if d is None:
+                b += 0.5
+                continue
+            strong = (b % 2 == 0)
+            last = i == len(rhythm) - 1
+            cands = [m for m in range(lo, hi + 1) if (m % 12) in (tones if (strong or last) else scale)]
+            cands.sort(key=lambda m: abs(m - cur) + (rng.random() * 3 if not strong else rng.random()))
+            pick = cands[0] if rng.random() > 0.25 else cands[min(len(cands) - 1, rng.integers(1, 4))]
+            if pick == cur and len(cands) > 1 and rng.random() < 0.6:
+                pick = cands[1]
+            cur = pick
+            song.note(track, inst_kind, cur + shift, (start_bar + bar) * song.beats + b, d * 0.92, vel * (1.0 if strong else 0.85), pan, gain)
+            b += d
+
+
+def rock_drums(song, bars, style='8beat', gain=1.0, start=0):
+    """ロックのドラム。8beat／16beat（速いハイハット）／2beat（疾走）"""
+    for bar in range(start, start + bars):
+        o = bar * song.beats
+        if style == '2beat':
+            for b in [0, 1, 2, 3]:
+                song.hit('kick', o + b, 0.7, 0, gain, seed=bar)
+                song.hit('snare', o + b + 0.5, 0.9, 0, gain * 0.9, seed=bar * 3 + b)
+            for b in np.arange(0, 4, 0.5):
+                song.hit('hat', o + b, 0.8, 0.15, gain, seed=int(bar * 9 + b * 2))
+        else:
+            kicks = [0, 1.5, 2, 2.75] if style == '16beat' else [0, 0.75, 2, 2.5]
+            for b in kicks:
+                song.hit('kick', o + b, 0.7, 0, gain, seed=bar)
+            for b in [1, 3]:
+                song.hit('snare', o + b, 1.0, 0, gain, seed=bar * 3 + b)
+            step = 0.25 if style == '16beat' else 0.5
+            for b in np.arange(0, 4, step):
+                song.hit('hat', o + b, 0.9 if b % 1 == 0 else 0.6, 0.15, gain, seed=int(bar * 9 + b * 4))
+        if bar % 8 == 7:
+            for k, b in enumerate([3, 3.25, 3.5, 3.75]):
+                song.hit('snare' if k % 2 else 'tom', o + b, 0.9, 0, gain, seed=k + bar)
+        if bar % 8 == 0:
+            song.hit('crash', o, 0.9, 0.2, gain, seed=bar)
+
+
+def rock_guitar(song, prog, bars, start=0, mode='mute', gain=1.0, octave=3):
+    """リズムギター。mute：8分の刻み／open：コードを伸ばす／push：裏で食う"""
+    for bar in range(start, start + bars):
+        root = chord_notes(prog[bar % len(prog)], octave)[0]
+        o = bar * song.beats
+        if mode == 'mute':
+            for b in np.arange(0, 4, 0.5):
+                song.note('gtr', 'gmute', root, o + b, 0.45, 0.9, -0.45, gain)
+                song.note('gtr2', 'gmute', root, o + b, 0.45, 0.85, 0.45, gain * 0.9)
+        elif mode == 'open':
+            song.note('gtr', 'gtr', root, o, 1.9, 1.0, -0.45, gain)
+            song.note('gtr2', 'gtr', root, o + 2, 1.9, 0.95, 0.45, gain)
+        else:
+            for b, d in [(0, 1.4), (1.5, 1.0), (2.5, 1.4)]:
+                song.note('gtr', 'gtr', root, o + b, d, 1.0, -0.45, gain)
+                song.note('gtr2', 'gtr', root, o + b, d, 0.95, 0.45, gain * 0.9)
+
+
+def rock_bass(song, prog, bars, start=0, gain=1.0):
+    gain *= 0.75
+    for bar in range(start, start + bars):
+        root = chord_notes(prog[bar % len(prog)], 2)[0]
+        for b in np.arange(0, 4, 0.5):
+            m = root + (12 if b == 3.5 else 0)
+            song.note('bass', 'bass', m, bar * song.beats + b, 0.45, 0.95 if b % 1 == 0 else 0.8, 0, gain)
+
+
 def chords_part(song, prog, kind, octave, pattern, vel=0.6, pan=0.0, gain=1.0, inv_top=None):
     """pattern: [(拍, 長さ)] の繰り返し。各小節にコードを鳴らす"""
     for bar in range(song.bars):
@@ -312,72 +418,98 @@ def save(name, loop):
 # ---------------------------------------------------------------- 各曲
 
 def home():
-    """通常（ホーム）：明るく軽快。部活の日常"""
-    s = Song(112, 32)
+    """通常（ホーム）：明るいポップロック。部活の毎日のワクワク"""
+    s = Song(132, 32)
     A = ['C', 'G', 'Am', 'F', 'C', 'G', 'F', 'G']
-    B = ['Am', 'Em', 'F', 'C', 'Dm', 'G', 'C', 'G']
+    B = ['F', 'G', 'Em', 'Am', 'F', 'G', 'C', 'G']
     prog = A + A + B + A
-    chords_part(s, prog, 'piano', 4, [(0, 1.5), (1.5, 1), (2.5, 1.5)], vel=0.5, pan=-0.2, gain=0.55)
-    bass_part(s, prog, [(0, 1, 'r'), (1.5, 0.5, 'r'), (2, 1, '5'), (3, 1, 'o')], gain=0.7)
-    drums_part(s, {'kick': [0, 2.5], 'snare': [1, 3], 'hat': [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]}, gain=0.55)
-    r1 = [[1, 0.5, 0.5, 1, 1], [1.5, 0.5, 2], [1, 0.5, 0.5, 1, 1], [3, 1]]
-    r2 = [[0.5, 0.5, 1, 0.5, 0.5, 1], [2, 1, 1], [0.5, 0.5, 0.5, 0.5, 1, 1], [4]]
-    rh = (r1 + r1) * 2 + (r2 + r2) + (r1 + r1)
-    melody_from(s, 'lead', prog, MAJ('C'), rh, 72, 'flute', vel=0.75, gain=0.6, seed=3)
-    for bar in range(32):
-        s.note('chords', 'marimba', chord_notes(prog[bar], 5)[bar % 3], bar * 4 + 3.5, 0.5, 0.5, 0.4, 0.25)
-    return s.render(0.22)
+    rock_drums(s, 32, '8beat', 0.6)
+    rock_bass(s, prog, 32, gain=0.7)
+    rock_guitar(s, prog, 16, 0, 'push', 0.32)
+    rock_guitar(s, prog, 8, 16, 'mute', 0.3)
+    rock_guitar(s, prog, 8, 24, 'push', 0.32)
+    chords_part(s, prog, 'piano', 4, [(0, 0.5), (1.5, 0.5), (2, 0.5), (3.5, 0.5)], vel=0.5, pan=0.3, gain=0.3)
+    ra = [[0.5, 0.5, 1, 0.5, 0.5, 1], [1.5, 0.5, 2], [0.5, 0.5, 1, 0.5, 0.5, 1], [3, 1]] * 2
+    rb = [[1, 0.5, 0.5, 1, 1], [1, 1, 2], [0.5, 0.5, 0.5, 0.5, 1, 1], [4]] * 2
+    phrase(s, 0, A, MAJ('C'), ra, 72, 'synth', seed=3, gain=0.55)
+    phrase(s, 8, A, MAJ('C'), ra, 72, 'synth', seed=3, gain=0.55)
+    phrase(s, 16, B, MAJ('C'), rb, 72, 'glead', seed=7, gain=0.5)
+    phrase(s, 24, A, MAJ('C'), ra, 72, 'synth', seed=3, gain=0.55)
+    phrase(s, 24, A, MAJ('C'), ra, 72, 'glead', seed=3, gain=0.25, shift=-12, octave_lock=(60, 84))
+    return s.render(0.14, 1.1)
 
 
 def pref():
-    """県大会：熱く、前へ進む応援の勢い"""
-    s = Song(142, 32)
+    """県大会・練習試合：気合の入る疾走ロック"""
+    s = Song(168, 32)
     A = ['Am', 'F', 'G', 'Em', 'Am', 'F', 'G', 'E']
-    B = ['F', 'G', 'Em', 'Am', 'F', 'G', 'Esus4', 'E']
-    prog = A + A + B + ['F', 'G', 'C', 'Am', 'F', 'G', 'Am', 'E']
-    chords_part(s, prog, 'strings', 4, [(0, 0.5), (0.75, 0.5), (1.5, 0.5), (2, 0.5), (2.75, 0.5), (3.5, 0.5)], vel=0.6, pan=-0.25, gain=0.45)
-    bass_part(s, prog, [(0, 0.5, 'r'), (0.5, 0.5, 'r'), (1, 0.5, 'o'), (1.5, 0.5, 'r'), (2, 0.5, 'r'), (2.5, 0.5, '5'), (3, 0.5, 'o'), (3.5, 0.5, 'r')], gain=0.75)
-    drums_part(s, {'kick': [0, 1, 2, 3], 'snare': [1, 3, 3.75], 'hat': [0.5, 1.5, 2.5, 3.5], 'ohat': [3.5]}, gain=0.65)
-    r1 = [[0.5, 0.5, 1, 0.5, 0.5, 1], [1, 1, 2], [0.5, 0.5, 1, 0.5, 0.5, 1], [2, 2]]
-    r2 = [[1.5, 0.5, 1, 1], [1, 1, 1, 1], [1.5, 0.5, 2], [4]]
-    rh = (r1 + r1) * 2 + (r2 + r2) + (r1 + r2)
-    melody_from(s, 'lead', prog, MIN('A'), rh, 76, 'brass', vel=0.9, gain=0.7, seed=11)
-    return s.render(0.18, 1.2)
+    B = ['F', 'G', 'Am', 'Am', 'F', 'G', 'E', 'E']
+    C = ['F', 'G', 'C', 'Am', 'F', 'G', 'Am', 'E']
+    prog = A + A + B + C
+    rock_drums(s, 16, '8beat', 0.7)
+    rock_drums(s, 8, '16beat', 0.7, start=16)
+    rock_drums(s, 8, '2beat', 0.7, start=24)
+    rock_bass(s, prog, 32, gain=0.8)
+    rock_guitar(s, prog, 16, 0, 'mute', 0.36)
+    rock_guitar(s, prog, 8, 16, 'push', 0.36)
+    rock_guitar(s, prog, 8, 24, 'open', 0.36)
+    ra = [[0.5, 0.5, 0.5, 0.5, 1, 1], [1, 1, 2], [0.5, 0.5, 0.5, 0.5, 1, 1], [2, 2]] * 2
+    rc = [[1.5, 0.5, 1, 1], [1, 1, 1, 1], [1.5, 0.5, 2], [4]] * 2
+    phrase(s, 0, A, MIN('A'), ra, 76, 'glead', seed=11, gain=0.6)
+    phrase(s, 8, A, MIN('A'), ra, 76, 'glead', seed=11, gain=0.6)
+    phrase(s, 16, B, MIN('A'), rc, 76, 'brass', seed=13, gain=0.55)
+    phrase(s, 24, C, MAJ('C'), rc, 79, 'glead', seed=17, gain=0.65)
+    phrase(s, 24, C, MAJ('C'), rc, 79, 'brass', seed=17, gain=0.3, shift=-12, octave_lock=(60, 88))
+    return s.render(0.12, 1.0)
 
 
 def national():
-    """全国大会：大舞台の高揚感。行進曲風"""
-    s = Song(126, 32)
+    """全国大会：大舞台の熱いアンセム・ロック"""
+    s = Song(152, 32)
     A = ['D', 'A', 'Bm', 'G', 'D', 'A', 'G', 'A']
-    B = ['G', 'A', 'F#m', 'Bm', 'Em', 'A', 'D', 'A7']
-    prog = A + A + B + ['G', 'A', 'D', 'Bm', 'G', 'A', 'D', 'D']
-    chords_part(s, prog, 'brass', 4, [(0, 1), (1.5, 0.5), (2, 1.5)], vel=0.7, pan=-0.2, gain=0.42)
-    chords_part(s, prog, 'pad', 3, [(0, 4)], vel=0.5, pan=0.25, gain=0.3)
-    bass_part(s, prog, [(0, 1, 'r'), (1, 1, '5'), (2, 1, 'r'), (3, 1, '5')], gain=0.75)
-    drums_part(s, {'kick': [0, 2], 'snare': [1, 3, 3.25, 3.5], 'hat': [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]}, gain=0.6)
-    r1 = [[2, 1, 1], [1.5, 0.5, 2], [1, 1, 1, 1], [3, 1]]
-    r2 = [[1, 0.5, 0.5, 2], [1, 1, 2], [0.5, 0.5, 1, 1, 1], [4]]
-    rh = (r1 + r1) * 2 + (r2 + r2) + (r1 + r2)
-    melody_from(s, 'lead', prog, MAJ('D'), rh, 74, 'brass', vel=1.0, gain=0.75, seed=5)
-    melody_from(s, 'lead', prog, MAJ('D'), rh, 74 - 12, 'strings', vel=0.6, gain=0.3, seed=5, octave_lock=(57, 79))
-    return s.render(0.3, 2.0)
+    B = ['G', 'A', 'F#m', 'Bm', 'G', 'A', 'Bm', 'A']
+    C = ['G', 'A', 'D', 'Bm', 'G', 'A', 'D', 'A']
+    prog = A + A + B + C
+    rock_drums(s, 16, '8beat', 0.7)
+    rock_drums(s, 8, '16beat', 0.7, start=16)
+    rock_drums(s, 8, '8beat', 0.75, start=24)
+    rock_bass(s, prog, 32, gain=0.8)
+    rock_guitar(s, prog, 8, 0, 'open', 0.36)
+    rock_guitar(s, prog, 16, 8, 'mute', 0.34)
+    rock_guitar(s, prog, 8, 24, 'push', 0.38)
+    chords_part(s, prog, 'brass', 4, [(0, 1.5), (1.5, 0.5), (2, 2)], vel=0.7, pan=0.25, gain=0.25)
+    ra = [[2, 1, 1], [1.5, 0.5, 2], [1, 1, 1, 1], [3, 1]] * 2
+    rc = [[1, 0.5, 0.5, 2], [1, 1, 2], [0.5, 0.5, 1, 1, 1], [4]] * 2
+    phrase(s, 0, A, MAJ('D'), ra, 74, 'glead', seed=5, gain=0.6)
+    phrase(s, 8, A, MAJ('D'), ra, 74, 'glead', seed=5, gain=0.6)
+    phrase(s, 16, B, MAJ('D'), rc, 74, 'synth', seed=9, gain=0.5)
+    phrase(s, 24, C, MAJ('D'), rc, 78, 'glead', seed=19, gain=0.65)
+    phrase(s, 24, C, MAJ('D'), rc, 78, 'brass', seed=19, gain=0.35, shift=-12, octave_lock=(62, 88))
+    return s.render(0.2, 1.6)
 
 
 def camp():
-    """合宿：夏の海辺。のびのびとした南国風"""
-    s = Song(98, 32)
+    """合宿：真夏の海辺の、熱く明るいサマーロック"""
+    s = Song(150, 32)
     A = ['F', 'C', 'Dm', 'Bb', 'F', 'C', 'Bb', 'C']
-    B = ['Bb', 'C', 'Am', 'Dm', 'Gm', 'C', 'F', 'C']
+    B = ['Bb', 'C', 'Am', 'Dm', 'Bb', 'C', 'F', 'C']
     prog = A + A + B + A
-    chords_part(s, prog, 'pluck', 4, [(0, 0.5), (1, 0.5), (1.5, 0.5), (2.5, 0.5), (3, 0.5)], vel=0.55, pan=-0.3, gain=0.5)
-    bass_part(s, prog, [(0, 1.5, 'r'), (1.5, 0.5, '5'), (2, 1, 'o'), (3, 1, '5')], gain=0.7)
-    drums_part(s, {'kick': [0, 2], 'snare': [3], 'shaker': [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]}, gain=0.5, fills=False)
-    r1 = [[1.5, 0.5, 1, 1], [2, 2], [0.5, 0.5, 1, 1, 1], [4]]
-    r2 = [[1, 1, 1.5, 0.5], [3, 1], [1, 0.5, 0.5, 2], [4]]
-    rh = (r1 + r1) * 2 + (r2 + r2) + (r1 + r1)
-    melody_from(s, 'lead', prog, MAJ('F'), rh, 72, 'marimba', vel=0.9, gain=0.7, seed=21)
-    melody_from(s, 'lead', prog, MAJ('F'), rh, 77, 'flute', vel=0.5, gain=0.25, seed=21)
-    return s.render(0.25)
+    rock_drums(s, 32, '8beat', 0.65)
+    rock_bass(s, prog, 32, gain=0.75)
+    rock_guitar(s, prog, 16, 0, 'push', 0.33)
+    rock_guitar(s, prog, 8, 16, 'mute', 0.32)
+    rock_guitar(s, prog, 8, 24, 'open', 0.34)
+    for bar in range(32):
+        s.hit('shaker', bar * 4 + 0.5, 0.8, 0.4, 0.4, seed=bar)
+        s.hit('shaker', bar * 4 + 2.5, 0.8, 0.4, 0.4, seed=bar + 99)
+    ra = [[1.5, 0.5, 1, 1], [0.5, 0.5, 1, 2], [0.5, 0.5, 1, 1, 1], [4]] * 2
+    rb = [[1, 1, 1.5, 0.5], [3, 1], [1, 0.5, 0.5, 2], [4]] * 2
+    phrase(s, 0, A, MAJ('F'), ra, 72, 'synth', seed=21, gain=0.55)
+    phrase(s, 8, A, MAJ('F'), ra, 72, 'synth', seed=21, gain=0.55)
+    phrase(s, 16, B, MAJ('F'), rb, 72, 'glead', seed=23, gain=0.55)
+    phrase(s, 24, A, MAJ('F'), ra, 72, 'glead', seed=21, gain=0.55)
+    phrase(s, 24, A, MAJ('F'), ra, 72, 'marimba', seed=21, gain=0.35, shift=12, octave_lock=(60, 84))
+    return s.render(0.15, 1.2)
 
 
 def ending():
