@@ -6,6 +6,8 @@ export type BgmName = 'home' | 'pref' | 'national' | 'camp' | 'ending' | 'rare'
 const KEY = 'hsbm:bgm'
 const VOLUME = 0.42
 const FADE = 1.2
+/** 曲を作り直したら上げる（保存済みの古い曲を使わないように） */
+const BGM_VERSION = 2
 
 let enabled = (() => {
   try {
@@ -61,7 +63,7 @@ function load(name: BgmName): Promise<AudioBuffer | null> {
       const a = audio()
       if (!a) return null
       try {
-        const res = await fetch(`${import.meta.env.BASE_URL}bgm/${name}.mp3`)
+        const res = await fetch(`${import.meta.env.BASE_URL}bgm/${name}.mp3?v=${BGM_VERSION}`)
         if (!res.ok) return null
         return await a.decodeAudioData(await res.arrayBuffer())
       } catch {
