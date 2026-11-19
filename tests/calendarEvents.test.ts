@@ -1,3 +1,4 @@
+import { tenkoseiAvailable } from '../src/game/success/clubs'
 // 季節の行事・レアイベントのテスト：3年間進めて、行事が起き、効果を反映しても壊れないか確かめる
 import { describe, expect, it } from 'vitest'
 import { createNewGame } from '../src/game/world'
@@ -93,14 +94,14 @@ describe('レアイベント', () => {
     expect(seen.size).toBeGreaterThanOrEqual(4)
   })
 
-  it('転校生を誘うと、2年生が1人増える', () => {
+  it('転校生（神代）が来ると、その場では入部せず、帰宅部の勧誘対象になる', () => {
     const save = newGame(10, true)
     const before = save.schools[save.playerSchoolId]!.playerIds.length
+    expect(tenkoseiAvailable(save)).toBe(false)
     const ev = __test.transferEvent(save, new Rng([1, 1, 1, 1]))
     applyOps(save, ev.choices[0]!.ops)
-    const own = save.schools[save.playerSchoolId]!
-    expect(own.playerIds.length).toBe(before + 1)
-    expect(save.players[own.playerIds[own.playerIds.length - 1]!]!.grade).toBe(2)
+    expect(save.schools[save.playerSchoolId]!.playerIds.length).toBe(before)
+    expect(tenkoseiAvailable(save)).toBe(true)
   })
 
   it('台風の座学は、次の1試合だけ作戦が決まりやすくなる', () => {
