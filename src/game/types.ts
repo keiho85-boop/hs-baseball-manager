@@ -116,6 +116,8 @@ export interface Condition {
    * 不安のまま疲れて練習すると、確率で故障（ケガ）になる。試合には影響しない
    */
   worry?: Worry | null
+  /** 直前の試合に負けた（特殊能力「負けず嫌い」：次の練習の伸びが良い） */
+  lostLastGame?: boolean
 }
 
 export interface Worry {
@@ -404,6 +406,8 @@ export interface EventChoice {
   /** 選んだあとに出す文 */
   result: string
   ops: EffectOp[]
+  /** 固有キャラの出来事：選択肢の種類（end・ok・alt）。画面には出さない（調整用） */
+  tag?: string
 }
 
 export interface EventInstance {
@@ -444,6 +448,8 @@ export interface SugorokuState {
   campWeeks: number
   /** サクセス：練習マスに付いている人物（マスの番号 → 人物）。止まるとその人物のイベントが起きる。毎週入れ替わる */
   attach?: Record<number, string>
+  /** 選手育成モード：練習マスに付く固有キャラ（1マスに複数いてもよい） */
+  charAttach?: Record<number, string[]>
   /** 選手育成モード：同じ練習マスに続けて止まった回数（つながりで練習の効果が上がる） */
   combo?: { square: SquareType; count: number }
 }

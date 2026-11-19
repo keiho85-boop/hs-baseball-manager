@@ -12,6 +12,8 @@ import { computeOverall, generateGrade, newId, schoolStrength } from '../world'
 import { newSuccessState } from '../success/state'
 import type { Player, Position, SaveData } from '../types'
 import type { StoryState } from './types'
+import { grantJoinSkill } from '../success/charSkills'
+import { grantSkill, randomGoodPool } from '../skills'
 
 export const RIVAL_NAME = '龍ヶ峰学園'
 
@@ -72,6 +74,8 @@ export function setupStoryWorld(save: SaveData, opts: { focusName?: { surname: s
   const f = makeFocus(save, rng, opts.position ?? 'SS')
   // 育成選手が捕手なら、大地は投手にする（バッテリーを組む）
   if (f.mainPosition === 'C') makeDaichiPitcher(d, rng)
+  // 大地は、守備位置に合う「その人の能力」を最初から持っている
+  grantJoinSkill('daichi', d)
   if (opts.focusName?.surname) f.surname = opts.focusName.surname
   if (opts.focusName?.givenName) f.givenName = opts.focusName.givenName
   st.success.focusId = f.id
@@ -108,6 +112,11 @@ function makeDaichiPitcher(d: Player, rng: Rng): void {
   d.pitching.stamina = clamp(Math.max(d.pitching.stamina, 55), 1, 99)
   if (d.pitching.pitches.length === 0) d.pitching.pitches = [{ type: 'slider', level: 2 }]
 }
+
+/** 育成選手が入部時に「伸び盛り」か「大器晩成」を持っている確率 */
+export const FOCUS_GROWTH_SKILL_RATE = 0.1
+/** 育成選手が入部時に、ほかの良い能力を持っている確率 */
+export const FOCUS_OTHER_SKILL_RATE = 0.05
 
 /** 育成選手の入部時の強さ（11月16日：前半に勝負になるよう、入部時を高めにして伸びをなだらかに） */
 export const FOCUS_START_STRENGTH = 52
@@ -148,6 +157,13 @@ function makeFocus(save: SaveData, rng: Rng, position: Position, keep?: Player):
     if (position === 'P') f.pitching.velocity = clamp(f.pitching.velocity + Math.round(FOCUS_START_BOOST / 2), 95, 163)
   }
   f.condition.motivation = clamp(Math.max(f.condition.motivation, 65), 0, 100)
+  // 入部時の特殊能力：10%で「伸び盛り」か「大器晩成」、5%でほかの良い能力（弱点は持たない）
+  f.skills = []
+  if (rng.chance(FOCUS_GROWTH_SKILL_RATE)) f.skills.push(rng.chance(0.5) ? 'nobizakari' : 'taiki')
+  if (rng.chance(FOCUS_OTHER_SKILL_RATE)) {
+    const pool = randomGoodPool(f)
+    if (pool.length) grantSkill(f, rng.weighted(pool.map((x) => ({ value: x.id, weight: x.weight }))))
+  }
   f.storyCast = 'focus'
   save.players[f.id] = f
   if (!own.playerIds.includes(f.id)) own.playerIds.push(f.id)

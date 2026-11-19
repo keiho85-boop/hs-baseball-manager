@@ -3,6 +3,7 @@
 import { Rng, clamp } from '../rng'
 import { newStats, fullName, raiseAbility } from '../player'
 import { learnable, mainKeys, skillName } from '../events'
+import { grantSkill } from '../skills'
 import type { Player, SaveData } from '../types'
 import { successOf } from '../success/state'
 import type { MatchState } from './types'
@@ -71,7 +72,7 @@ export function applyMatchResults(save: SaveData, s: MatchState, rng: Rng): Matc
         raiseAbility(p, key, key === 'pitching.velocity' ? 1 : 3)
       }
       const skill = learnable(rng, p)
-      if (skill) p.skills.push(skill)
+      if (skill) grantSkill(p, skill)
       p.condition.form = 5
       messages.push(`覚醒の一打！　打球音が変わり、ベンチが静まり返った。${fullName(p)}の能力がまとめて伸びた！${skill ? `「${skillName(skill)}」を身につけた！` : ''}`)
       break

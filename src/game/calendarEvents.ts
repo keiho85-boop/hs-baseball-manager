@@ -8,7 +8,7 @@ import { SEASON_WEEKS, wk } from './constants'
 import { findTournament, kindNow, ownAlive, type Tournament, type TournamentKind } from './tournament'
 import { playerRating } from './player'
 import { ABILITY_LABEL, beachEvent, beachVolleyEvent, eid, learnable, mainKeys, nurseBeachEvent, players, skillName, story } from './events'
-import { SKILLS } from './skills'
+import { SKILLS, canHave, getSkill } from './skills'
 import { absWeek } from './modifiers'
 import type { EffectOp, EventInstance, Player, SaveData, Speaker } from './types'
 import { CAMP_PLACES, campBg, campStartWeek, campThisYear, focusPlayer, mustForfeit, rosterCount, successOf } from './success/state'
@@ -803,8 +803,10 @@ function transferEvent(save: SaveData, rng: Rng): EventInstance {
         },
         {
           label: '無理には誘わない',
-          result: later ? '数週間後、神代は自分からグラウンドにやって来た。「…ここなら、やれる気がする」（神代が入部した！）' : '神代は、結局野球部には来なかった。',
-          ops: later ? [{ op: 'transfer', motivation: 60 }] : [],
+          result: later
+            ? '数週間後、神代は自分からグラウンドにやって来た。「…ここなら、やれる気がする」（神代が入部した！）'
+            : '神代は、結局野球部には来なかった。それでも、廊下で会うと会釈してくれるようになった。（評判が少し上がった）',
+          ops: later ? [{ op: 'transfer', motivation: 60 }] : [{ op: 'school', key: 'reputation', delta: 1 }],
         },
       ],
     }
@@ -822,8 +824,8 @@ function transferEvent(save: SaveData, rng: Rng): EventInstance {
       },
       {
         label: '無理には誘わない',
-        result: later ? '数週間後、転校生は自分からグラウンドにやって来て、入部した。' : '転校生は、結局野球部には来なかった。',
-        ops: later ? [{ op: 'recruit', grade: 2, boost: 18, motivation: 60, note: '自分からグラウンドに来て、入部した。' }] : [],
+        result: later ? '数週間後、転校生は自分からグラウンドにやって来て、入部した。' : '転校生は、結局野球部には来なかった。（評判が少し上がった）',
+        ops: later ? [{ op: 'recruit', grade: 2, boost: 18, motivation: 60, note: '自分からグラウンドに来て、入部した。' }] : [{ op: 'school', key: 'reputation', delta: 1 }],
       },
     ],
   }
@@ -1001,13 +1003,54 @@ function withDefaultScene(save: SaveData, ev: EventInstance): EventInstance {
   return { ...ev, bg, cast: char ? [{ char }] : [] }
 }
 
+/**
+ * 選手育成モード：季節の行事・合宿で、決まった選択肢を選ぶと決まった特殊能力が確率で身につく（設計の文書 11月19日）。
+ * pick：対象の選択肢か。p・f：育成選手が投手・野手のときの能力（野手は守備位置で選べるものも）
+ */
+interface SeasonSkillRule {
+  title: string
+  rate: number
+  pick: (c: EventInstance['choices'][number], f: Player) => boolean
+  p: string | ((f: Player, rng: Rng) => string | null) | null
+  f: string | ((f: Player, rng: Rng) => string | null) | null
+}
+const INFIELD_POS = ['1B', '2B', '3B', 'SS']
+const OUTFIELD_POS = ['LF', 'CF', 'RF']
+const SEASON_SKILLS: SeasonSkillRule[] = [
+  { title: '体育祭', rate: 0.15, pick: (c) => c.ops.some((o) => o.op === 'ability'), p: 'rocket_start', f: (_f, rng) => (rng.chance(0.5) ? 'rocket_start' : 'pinch_runner') },
+  { title: '台風', rate: 0.15, pick: (c) => c.label === '室内で座学をする', p: 'no_steal', f: 'heads_up' },
+  { title: '文化祭', rate: 0.1, pick: () => true, p: 'pinch_hitter', f: 'pinch_hitter' },
+  { title: 'OB戦', rate: 0.2, pick: (c) => !c.ops.some((o) => o.op === 'modifier'), p: 'pinch_ace', f: 'late_hero' },
+  { title: '修学旅行', rate: 0.1, pick: () => true, p: 'heijoshin', f: 'heijoshin' },
+  { title: '合宿：夜の素振り', rate: 0.2, pick: (c) => c.label === '付き合う', p: 'denka', f: 'all_fields' },
+  { title: '合宿：紅白戦のMVP', rate: 0.2, pick: (c, f) => c.label.startsWith(f.surname), p: (_f, rng) => (rng.chance(0.5) ? 'k_momentum' : 'kyuen'), f: (f, rng) => (INFIELD_POS.includes(f.mainPosition) && rng.chance(0.5) ? 'dp_master' : 'bases_loaded') },
+  { title: '合宿：川向こうの球場', rate: 0.15, pick: () => true, p: 'groundball', f: (f, rng) => (OUTFIELD_POS.includes(f.mainPosition) && rng.chance(0.5) ? 'back_catch' : 'steady_glove') },
+  { title: '合宿：限界の先', rate: 0.2, pick: (c) => c.label === 'やらせる', p: 'gear_change', f: 'persistent' },
+  { title: '合宿：OBのプロ選手', rate: 0.2, pick: (c, f) => c.label.startsWith(f.surname), p: 'steel_heart', f: 'steel_heart' },
+]
+
+function withSeasonSkill(save: SaveData, rng: Rng, ev: EventInstance): EventInstance {
+  const rule = SEASON_SKILLS.find((r) => r.title === ev.title)
+  const f = focusPlayer(save)
+  if (!rule || !f) return ev
+  const choices = ev.choices.map((c) => {
+    if (!rule.pick(c, f) || !rng.chance(rule.rate)) return c
+    const src = f.mainPosition === 'P' ? rule.p : rule.f
+    const id = typeof src === 'function' ? src(f, rng) : src
+    const def = id ? getSkill(id) : undefined
+    if (!id || !def || !canHave(f, def)) return c
+    return { ...c, result: `${c.result}（${f.surname}は特殊能力「${def.name}」を身につけた！）`, ops: [...c.ops, { op: 'skill' as const, playerId: f.id, add: id }] }
+  })
+  return { ...ev, choices }
+}
+
 /** 週を進めた後に呼ぶ：今週の行事やレアイベントを積む */
 export function queueWeeklyEvents(save: SaveData, rng: Rng, ctx: { campPractice?: boolean; campRest?: boolean; campLastRoll?: boolean } = {}): void {
   const list = members(save)
   if (list.length === 0) return
   const q = (save.eventQueue ??= [])
   const push = (ev: EventInstance | null): void => {
-    if (ev) q.push(successOf(save) ? withDefaultScene(save, ev) : ev)
+    if (ev) q.push(successOf(save) ? withDefaultScene(save, withSeasonSkill(save, rng, ev)) : ev)
   }
   const y = save.calendar.year
   const w = save.calendar.week

@@ -11,7 +11,7 @@ import { autoLineup, available, BENCH_SIZE, canPitch, lineupValid } from '@/game
 import { ownLineup } from '@/game/match/session'
 import { focusPlayer } from '@/game/success/state'
 import type { LineupConfig, Player, Position } from '@/game/types'
-import { getSkill } from '@/game/skills'
+import { getSkill, tierClass } from '@/game/skills'
 import GameIcon from './GameIcon.vue'
 import PlayerSheet from './PlayerSheet.vue'
 import FormIcon from './FormIcon.vue'
@@ -473,7 +473,7 @@ const focusSkills = computed(() =>
         </div>
       </div>
       <div class="f-sk">
-        <span v-for="sk in focusSkills" :key="sk.id" class="sk" :class="sk.good ? 'good' : 'bad'">{{ sk.name }}</span>
+        <span v-for="sk in focusSkills" :key="sk.id" class="sk" :class="[sk.good ? 'good' : 'bad', tierClass(sk.name)]">{{ sk.name }}</span>
         <span v-if="focusSkills.length === 0" class="sk none">特殊能力なし</span>
       </div>
       <div class="f-apt">

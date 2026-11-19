@@ -5,7 +5,7 @@ import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { APTITUDE_LABEL, PITCH_NAME, POSITIONS, POSITION_LABEL, POSITION_NAME, velocityScore } from '@/game/constants'
 import { fielderRating, pitcherRating } from '@/game/player'
-import { getSkill } from '@/game/skills'
+import { getSkill, tierClass } from '@/game/skills'
 import AbilityBar from './AbilityBar.vue'
 import FaceIcon from './FaceIcon.vue'
 import RankBadge from './RankBadge.vue'
@@ -67,7 +67,7 @@ const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
       </div>
 
       <div v-if="p.skills.length" class="skills">
-        <span v-for="id in p.skills" :key="id" class="pill" :class="getSkill(id)?.good ? 'good' : 'bad'">{{ getSkill(id)?.name }}</span>
+        <span v-for="id in p.skills" :key="id" class="pill" :class="[getSkill(id)?.good ? 'good' : 'bad', tierClass(id)]">{{ getSkill(id)?.name }}</span>
       </div>
       <button class="secondary full" @click="emit('close')">閉じる</button>
     </div>

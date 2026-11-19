@@ -5,11 +5,11 @@ import { Rng, clamp } from './rng'
 import { POSITION_NAME } from './constants'
 import { defaultPracticeMenu, fullName, raiseAbility, shiftForm } from './player'
 import { computeOverall, generateGrade, schoolStrength } from './world'
-import { SKILLS, conflicts } from './skills'
+import { getSkill, grantSkill, randomGoodPool } from './skills'
 import type { EffectOp, EventInstance, Player, Position, SaveData, SquareType } from './types'
 import { addEval, successOf } from './success/state'
 import type { EvalKey } from './success/types'
-import { attachEvent, attachedAt, withFocusEval } from './success/board'
+import { occupantEvent, withFocusEval } from './success/board'
 import { joinTransfer } from './success/clubs'
 
 export const ABILITY_LABEL: Record<string, string> = {
@@ -40,28 +40,20 @@ export function mainKeys(p: Player): string[] {
     : ['batting.contact', 'batting.power', 'running.speed', 'fielding.range', 'fielding.arm']
 }
 
-export function learnable(rng: Rng, p: Player): string | null {
-  const isPitcher = p.mainPosition === 'P'
-  const options = SKILLS.filter(
-    (s) =>
-      s.good &&
-      !p.skills.includes(s.id) &&
-      (s.target === 'all' || (s.target === 'pitcher') === isPitcher) &&
-      // 捕手として出たときに効く能力は、捕手だけが覚える
-      (s.id !== 'battery_mate' || p.mainPosition === 'C') &&
-      !p.skills.some((o) => conflicts(o, s.id)),
-  )
-  return options.length ? rng.pick(options).id : null
+/** 偶然で身につく良い能力（Sと上位は出ない。序列の低いものほど出やすい） */
+export function learnable(rng: Rng, p: Pick<Player, 'mainPosition' | 'skills'>): string | null {
+  const pool = randomGoodPool(p)
+  return pool.length ? rng.weighted(pool.map((x) => ({ value: x.id, weight: x.weight }))) : null
 }
 
-/** 投手だけが覚える良い特殊能力から1つ（大地の投手専用イベントで使う） */
-export function learnablePitcher(rng: Rng, p: Player): string | null {
-  const options = SKILLS.filter((s) => s.good && s.target === 'pitcher' && !p.skills.includes(s.id) && !p.skills.some((o) => conflicts(o, s.id)))
-  return options.length ? rng.pick(options).id : null
+/** 投手だけが覚える良い特殊能力から1つ */
+export function learnablePitcher(rng: Rng, p: Pick<Player, 'mainPosition' | 'skills'>): string | null {
+  const pool = randomGoodPool(p).filter((x) => getSkill(x.id)?.target === 'pitcher')
+  return pool.length ? rng.weighted(pool.map((x) => ({ value: x.id, weight: x.weight }))) : null
 }
 
 export function skillName(id: string): string {
-  return SKILLS.find((s) => s.id === id)?.name ?? ''
+  return getSkill(id)?.name ?? ''
 }
 
 export function players(save: SaveData): Player[] {
@@ -653,8 +645,8 @@ function nurseEvent(rng: Rng, list: Player[]): EventInstance {
       },
       {
         label: 'また今度にします',
-        result: '「ふふ、いつでもどうぞ」蓮見先生は笑って見送った。',
-        ops: [],
+        result: '「ふふ、いつでもどうぞ」蓮見先生は笑って見送った。（体力が少し回復した）',
+        ops: [{ op: 'condition', playerId: p.id, key: 'stamina', delta: 5 }],
       },
     ],
   }
@@ -666,8 +658,10 @@ export function buildEvent(save: SaveData, rng: Rng, square: SquareType, positio
   if (list.length === 0) return null
   // サクセス：練習マスに人物が付いていれば、その人物のイベント
   if (successOf(save)) {
-    const person = position !== undefined ? attachedAt(save, position) : null
-    if (person) return attachEvent(save, rng, person)
+    if (position !== undefined) {
+      const o = occupantEvent(save, rng, position)
+      if (o.hit) return o.event
+    }
     // イベントマス：共通の8種（日常の小さな出来事は、通常週のイベントに移した）
     if (square === 'event') return withFocusEval(save, buildEventBase(save, rng, square, list))
   }
@@ -753,7 +747,7 @@ export function applyOps(save: SaveData, ops: EffectOp[]): void {
     } else if (op.op === 'skill') {
       const p = save.players[op.playerId]
       if (!p) continue
-      if (op.add && !p.skills.includes(op.add)) p.skills.push(op.add)
+      if (op.add) grantSkill(p, op.add)
       if (op.remove) p.skills = p.skills.filter((s) => s !== op.remove)
     } else if (op.op === 'position') {
       const p = save.players[op.playerId]

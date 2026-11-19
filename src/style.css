@@ -451,3 +451,17 @@ textarea {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
 }
+
+/* 特殊能力の札：序列S＝金、A＝銀（11月19日） */
+.tier-gold {
+  background: linear-gradient(135deg, #f7e08a, #d4a72c) !important;
+  color: #4a3300 !important;
+  border-color: #b8860b !important;
+  font-weight: 800;
+}
+.tier-silver {
+  background: linear-gradient(135deg, #f1f3f5, #b9c0c8) !important;
+  color: #2e3640 !important;
+  border-color: #8a939c !important;
+  font-weight: 700;
+}

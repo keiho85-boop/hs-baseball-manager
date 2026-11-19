@@ -6,7 +6,7 @@ import RankBadge from '@/components/RankBadge.vue'
 import AbilityBar from '@/components/AbilityBar.vue'
 import { PITCH_NAME, POSITION_NAME, rankOf, velocityScore } from '@/game/constants'
 import { playerRating } from '@/game/player'
-import { getSkill } from '@/game/skills'
+import { getSkill, tierClass } from '@/game/skills'
 import { EVAL_KEYS, EVAL_LABEL, evalStars, focusPlayer, successOf } from '@/game/success/state'
 import type { EvalKey } from '@/game/success/types'
 import { play } from '@/sound'
@@ -115,7 +115,7 @@ function stars(v: number): string {
             </div>
           </div>
           <div v-if="f.skills.length" class="pc-skills">
-            <span v-for="id in f.skills" :key="id" :class="getSkill(id)?.good ? 'good' : 'bad'">{{ getSkill(id)?.name }}</span>
+            <span v-for="id in f.skills" :key="id" :class="[getSkill(id)?.good ? 'good' : 'bad', tierClass(id)]">{{ getSkill(id)?.name }}</span>
           </div>
         </div>
       </Transition>

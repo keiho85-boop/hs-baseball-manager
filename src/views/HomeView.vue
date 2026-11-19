@@ -672,6 +672,7 @@ watch(
               :milestone="success ? undefined : milestone.weeks <= 0 ? `${milestone.label}は今週` : `${milestone.label}まで あと${milestone.weeks}週`"
               :card-note="selected !== null && sg.hand[selected] && sg.hand[selected]!.effect !== 'none' ? CARD_EFFECT_DESC[sg.hand[selected]!.effect] : null"
               :attach="sg.attach ?? null"
+              :char-attach="sg.charAttach ?? null"
             />
           </div>
           <template v-if="autoWeek">

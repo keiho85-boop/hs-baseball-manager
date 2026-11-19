@@ -7,7 +7,7 @@ import GameIcon from '@/components/GameIcon.vue'
 import RankBadge from '@/components/RankBadge.vue'
 import AbilityBar from '@/components/AbilityBar.vue'
 import { PITCH_NAME, velocityScore } from '@/game/constants'
-import { getSkill } from '@/game/skills'
+import { getSkill, tierClass } from '@/game/skills'
 import type { Player, Position } from '@/game/types'
 import {
   autoDreamTeam,
@@ -146,7 +146,7 @@ function brief(x: SavedPlayer | undefined): string {
           <AbilityBar label="守備" :value="x.player.fielding.range" />
           <AbilityBar label="捕球" :value="x.player.fielding.catching" />
           <div class="skills">
-            <span v-for="sk in skillsOf(x.player)" :key="sk.name" class="sk" :class="sk.good ? 'good' : 'bad'">{{ sk.name }}</span>
+            <span v-for="sk in skillsOf(x.player)" :key="sk.name" class="sk" :class="[sk.good ? 'good' : 'bad', tierClass(sk.name)]">{{ sk.name }}</span>
             <span v-if="skillsOf(x.player).length === 0" class="muted">特殊能力なし</span>
           </div>
         </div>

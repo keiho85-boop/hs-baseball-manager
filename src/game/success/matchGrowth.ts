@@ -16,6 +16,9 @@ export const PITCHER_MATCH_MULT = 0.78
 export const FIELDER_MATCH_MULT = 1
 
 /** 試合での活躍の点数（評価にも使う） */
+/** 試合で良い能力を身につける確率の倍率 */
+export const MATCH_SKILL_RATE = 1 / 3
+
 export function focusScore(m: MatchState, id: string): number {
   const b = m.batting[id]
   const pi = m.pitching[id]
@@ -104,8 +107,12 @@ export function focusMatchGrowth(save: SaveData, m: MatchState, rng: Rng, offici
   const steals = mine.filter((e) => e.kind === 'steal').length
   const caught = mine.filter((e) => e.kind === 'caughtstealing').length
 
+  // 11月19日：試合で身につく良い能力は、これまでの約3分の1の確率（弱点はそのまま）。Sや上位は身につかない
   const gain = (skill: string, chance: number, why: string): void => {
-    if (rng.chance(chance) && addSkill(p, skill)) {
+    const def0 = getSkill(skill)
+    if (!def0) return
+    if (def0.good && (def0.tier === 'S' || def0.lower)) return
+    if (rng.chance(def0.good ? chance * MATCH_SKILL_RATE : chance) && addSkill(p, skill)) {
       const def = getSkill(skill)!
       out.push(def.good ? `${why}${name}は特殊能力「${def.name}」を身につけた！` : `${why}${name}に弱点「${def.name}」がついてしまった…`)
     }

@@ -13,6 +13,7 @@ import type {
   BoxBatting,
   BoxPitching,
   FieldPos,
+  MatchFx,
   MatchOptions,
   MatchState,
   PitchingOrder,
@@ -126,6 +127,13 @@ export function createMatch(
       if (!p) continue
       state.dayForm[id] = Math.round(ctx.rng.normal((p.condition.form - 3) * 3, sd) + teamForm)
     }
+    // 「ベンチの太陽」：ベンチ入りしていると、味方の調子が上がる
+    if (t.bench.some((id) => ctx.players[id]?.skills.includes('bench_sun'))) {
+      for (const s2 of t.lineup) state.dayForm[s2.playerId] = (state.dayForm[s2.playerId] ?? 0) + 2
+      state.dayForm[t.pitcherId] = (state.dayForm[t.pitcherId] ?? 0) + 2
+    }
+    // 先発投手は1回の初めから（回の途中ではない）
+    ;(state.fx ??= { boost: {}, pinchHit: [], pinchRun: [], spurt: {}, enter: {} }).enter[t.pitcherId] = { inning: 1, top: t === state.away ? false : true, mid: false }
     for (const s of t.lineup) state.batting[s.playerId] = emptyBatting()
     state.pitching[t.pitcherId] = emptyPitching()
   }
@@ -171,6 +179,46 @@ function has(p: Player | undefined, skill: string): boolean {
   return !!p && p.skills.includes(skill)
 }
 
+/** 特殊能力のための試合中の記録 */
+function fxOf(s: MatchState): MatchFx {
+  return (s.fx ??= { boost: {}, pinchHit: [], pinchRun: [], spurt: {}, enter: {} })
+}
+
+/** この回にその投手が取られた点 */
+function runsThisInning(s: MatchState, pitcherId: string): number {
+  let r = 0
+  for (const e of s.events) if (e.inning === s.inning && e.top === s.top && e.pitcherId === pitcherId) r += e.runs
+  return r
+}
+
+/** 「大舞台の鬼」が効く試合（全国大会と、県大会の準決勝以降） */
+function bigOrLate(s: MatchState): boolean {
+  return !!s.options.bigStage || !!s.options.lateRound
+}
+
+/** その日の調子（「平常心」は上下が半分） */
+function formOf(s: MatchState, p: Player, id: string): number {
+  const f = s.dayForm[id] ?? 0
+  return has(p, 'heijoshin') ? f / 2 : f
+}
+
+/** 走者の足（「代走の切り札」は代走で出ると速くなる） */
+function speedOf(s: MatchState, p: Player): number {
+  return p.running.speed + (has(p, 'pinch_runner') && s.fx?.pinchRun.includes(p.id) ? 20 : 0)
+}
+
+/** ボールの着地点から、処理した外野手（いなければ undefined） */
+function outfielderAt(s: MatchState, ctx: MatchContext, ball: PlayEvent['ball'] | null | undefined): Player | undefined {
+  if (!ball) return undefined
+  const dir = (Math.atan2(ball.x, ball.y) * 180) / Math.PI
+  return ctx.players[fielderAt(fieldingTeam(s), dir < -15 ? 'LF' : dir <= 15 ? 'CF' : 'RF')]
+}
+
+/** 外野からの送球で走者を刺す力の上乗せ（「好返球」「スナイパー」） */
+function throwBonus(p: Player | undefined): number {
+  return has(p, 'sniper') ? 0.15 : has(p, 'good_throw') ? 0.08 : 0
+}
+
 /** チャンス・ピンチの判定（カットインや采配の目安） */
 export function situation(s: MatchState): Situation {
   const risp = s.bases[1] !== null || s.bases[2] !== null
@@ -212,6 +260,16 @@ export function activeSkills(s: MatchState, players: Record<string, Player>): { 
   on(out.pitcher, p, 'tempo', true)
   on(out.pitcher, p, 'meatball', true)
   on(out.pitcher, p, 'no_steal', runner)
+  const risp2 = s.bases[1] !== null || s.bases[2] !== null
+  on(out.pitcher, p, 'checkmate', s.count.strikes === 2)
+  on(out.pitcher, p, 'haisui', risp2)
+  on(out.pitcher, p, 'pinch_ace', risp2)
+  on(out.pitcher, p, 'makaiten', true)
+  on(out.pitcher, p, 'ouja', true)
+  on(out.pitcher, p, 'tekkyu', true)
+  on(out.pitcher, p, 'all_in', true)
+  on(out.pitcher, p, 'fuiuchi', runner)
+  on(out.pitcher, p, 'last_spurt', !!p && s.fx?.spurt[p.id] === s.inning)
   // 打者
   const late = s.inning >= s.options.innings - 1
   const last = s.events[s.events.length - 1]
@@ -237,6 +295,14 @@ export function activeSkills(s: MatchState, players: Record<string, Player>): { 
   on(out.batter, b, 'double_play', s.bases[0] !== null && s.outs < 2)
   on(out.batter, b, 'bunt', s.pending.batting === 'bunt')
   on(out.batter, b, 'sign_lost', s.pending.batting === 'bunt')
+  const risp3 = s.bases[1] !== null || s.bases[2] !== null
+  on(out.batter, b, 'shikaku', true)
+  on(out.batter, b, 'shigotonin', risp3)
+  on(out.batter, b, 'risp_hunter', risp3)
+  on(out.batter, b, 'senryo', diff <= 0 && runner && -diff <= s.bases.filter((x) => x !== null).length)
+  on(out.batter, b, 'moda', !!b && (s.batting[b.id]?.h ?? 0) > 0)
+  on(out.batter, b, 'pinch_hitter', !!b && !!s.fx?.pinchHit.includes(b.id))
+  on(out.batter, b, 'butai_oni', bigOrLate(s))
   return out
 }
 
@@ -254,7 +320,7 @@ function pitcherNow(s: MatchState, ctx: MatchContext, full: boolean): PitcherNow
   const id = fieldingTeam(s).pitcherId
   const p = ctx.players[id]!
   const box = s.pitching[id]!
-  const form = s.dayForm[id] ?? 0
+  const form = formOf(s, p, id)
   const f = box.fatigue
   let velo = p.pitching.velocity - f * 5 + (full ? 3 : 0)
   let control = p.pitching.control - f * 14 + form * 0.6
@@ -271,6 +337,57 @@ function pitcherNow(s: MatchState, ctx: MatchContext, full: boolean): PitcherNow
     velo += 2
     kire += 6
   }
+  // ---- 11月19日に加えた特殊能力（投手）
+  const pr = s.bases[1] !== null || s.bases[2] !== null
+  const batterP = s.finished ? undefined : ctx.players[currentBatterId(s)]
+  if (has(p, 'all_in')) {
+    control *= 1.15
+    kire *= 1.15
+    velo += 5
+  }
+  if (has(p, 'makaiten')) kire += 12
+  if (has(p, 'checkmate') && s.count.strikes === 2) control += 6
+  if (pr && has(p, 'haisui')) {
+    velo += 2
+    control += 10
+    kire += 10
+  } else if (pr && has(p, 'pinch_ace')) {
+    control += 6
+    kire += 6
+  }
+  if (s.fx?.spurt[id] === s.inning) {
+    velo += 5
+    control += 10
+    kire += 10
+  }
+  if (has(p, 'rikito')) {
+    velo += 3
+    control -= 5
+  }
+  const lost = runsThisInning(s, id)
+  if (lost >= 2 && has(p, 'game_maker')) {
+    control += 12
+    kire += 12
+  }
+  if (lost >= 1 && has(p, 'recover')) control += 8
+  if (batterP?.bats === 'L' && has(p, 'lefty_stopper')) {
+    control += 5
+    kire += 5
+  }
+  const ent = s.fx?.enter[id]
+  if (ent && ent.mid && ent.inning === s.inning && ent.top === s.top && has(p, 'kyuen')) {
+    control += 8
+    kire += 8
+  }
+  if (s.count.balls === 3 && s.count.strikes === 2 && has(p, 'shikyu_guse')) control -= 10
+  {
+    const [a0, h0] = score(s)
+    const behind = s.top ? h0 < a0 : a0 < h0 // 守っている側（投手のチーム）が負けている
+    if (behind && has(p, 'counterattack')) control += 6
+  }
+  if (bigOrLate(s) && has(p, 'butai_oni')) kire += 10
+  if (s.options.bigStage && has(p, 'yajiuma')) control -= 4
+  if (s.options.summer && has(p, 'enten')) control += 5
   if (s.inning >= 7 && has(p, 'out_of_gas')) {
     velo -= 3
     kire -= 7
@@ -283,7 +400,10 @@ function pitcherNow(s: MatchState, ctx: MatchContext, full: boolean): PitcherNow
   if (risp) kire += (p.pitching.pinch - 50) / 5
   // 捕手の「名女房」
   const catcher = ctx.players[fielderAt(fieldingTeam(s), 'C')]
-  if (has(catcher, 'battery_mate')) control += 6
+  if (has(catcher, 'ougi')) {
+    control += 12
+    kire += 4
+  } else if (has(catcher, 'battery_mate')) control += 6
   // 打たれると崩れる
   if (has(p, 'glass_heart') && recentHits(s) >= 2) control -= 10
   const stuff = velocityScore(velo) * 0.5 + kire * 0.4 + form * 0.5
@@ -313,7 +433,7 @@ function batterNow(s: MatchState, ctx: MatchContext, order: BattingOrder): Batte
   const id = currentBatterId(s)
   const p = ctx.players[id]!
   const pitcher = ctx.players[fieldingTeam(s).pitcherId]!
-  const form = s.dayForm[id] ?? 0
+  const form = formOf(s, p, id)
   let contact = p.batting.contact + form
   let power = p.batting.power + form * 0.7
   let eye = p.batting.eye
@@ -383,8 +503,60 @@ function batterNow(s: MatchState, ctx: MatchContext, order: BattingOrder): Batte
     if (has(p, 'heat_weak')) contact -= 4
     if (has(p, 'summer_child')) contact += 3
   }
+  // ---- 11月19日に加えた特殊能力（打者）
+  if (has(p, 'shikaku')) contact += s.count.strikes === 2 ? 16 : 6
+  if (risp) {
+    if (has(p, 'shigotonin')) {
+      contact += 14
+      power += 8
+    } else if (has(p, 'risp_hunter')) contact += 8
+    if (has(p, 'chance_katamaru')) contact -= 8
+  }
+  {
+    const runners = s.bases.filter((x) => x !== null).length
+    if (diff <= 0 && runners > 0 && -diff <= runners && has(p, 'senryo')) {
+      contact += 20
+      power += 15
+    }
+  }
+  if (has(p, 'shingan')) eye += 20
+  else if (has(p, 'miwame')) eye += 8
+  const bat = battingTeam(s)
+  const boost = Math.min(3, s.fx?.boost[bat.schoolId] ?? 0)
+  contact += boost * 2
+  power += boost * 2
+  const ratings = s.options.ratings
+  if (ratings && has(p, 'gekokujo') && (ratings[fieldingTeam(s).schoolId] ?? 0) > (ratings[bat.schoolId] ?? 0)) {
+    contact += 8
+    power += 8
+  }
+  if (has(p, 'moda')) {
+    const h = s.batting[id]?.h ?? 0
+    contact += Math.min(12, h * 4)
+    power += Math.min(9, h * 3)
+  }
+  if (has(p, 'upper_swing')) {
+    contact -= 5
+    power += 10
+  }
+  if (has(p, 'pinch_hitter') && s.fx?.pinchHit.includes(id)) {
+    contact += 10
+    power += 8
+  }
+  if (pitcher.throws === 'L' && has(p, 'lefty_killer')) contact += 6
+  const pid = fieldingTeam(s).pitcherId
+  if (has(p, 'first_ab') && !s.events.some((e) => e.batterId === id && e.pitcherId === pid)) contact += 8
+  if (has(p, 'tachiagari') && (s.batting[id]?.pa ?? 0) === 0) contact -= 8
+  if (has(pitcher, 'ouja')) {
+    contact -= 5
+    power -= 5
+  }
+  if (has(ctx.players[bat.pitcherId], 'ace')) contact += 3
+  if (bigOrLate(s) && has(p, 'butai_oni')) contact += 14
+  if (s.options.bigStage && has(p, 'yajiuma')) contact -= 4
+  if (s.options.summer && has(p, 'enten')) contact += 5
   if (p.condition.injury) contact -= 15
-  return { contact, power, eye, speed: p.running.speed }
+  return { contact, power, eye, speed: speedOf(s, p) }
 }
 
 // ---------------------------------------------------------------- 打撃の作戦（CPU・おまかせ）
@@ -456,6 +628,8 @@ export function changePitcher(s: MatchState, team: TeamState, newId: string): vo
   team.bench = team.bench.filter((id) => id !== newId)
   team.pitcherId = newId
   team.pitchersUsed.push(newId)
+  // 「救援の鬼」：回の途中からの登板かを覚えておく
+  fxOf(s).enter[newId] = { inning: s.inning, top: s.top, mid: s.outs > 0 || s.bases.some((b) => b !== null) }
   const slot = team.lineup.find((x) => x.playerId === old && x.position === 'P')
   if (slot) {
     slot.playerId = newId
@@ -472,6 +646,11 @@ export function substitute(s: MatchState, team: TeamState, outId: string, inId: 
   team.used.push(outId)
   team.bench = team.bench.filter((id) => id !== inId)
   s.batting[inId] ??= emptyBatting()
+  // 「ベンチの秘密兵器」「代走の切り札」：代打・代走で出た選手を覚えておく
+  if (team === battingTeam(s)) {
+    if (s.bases.includes(outId)) fxOf(s).pinchRun.push(inId)
+    else if (currentBatterId(s) === outId) fxOf(s).pinchHit.push(inId)
+  }
   // 走者を入れ替える（代走）
   s.bases = s.bases.map((b) => (b === outId ? inId : b)) as Bases
   if (slot.position === 'P') {
@@ -607,8 +786,19 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
 
   // 4. 当たり判定
   let stuff = pn.stuff + (pitch ? pitch.level * 3 : 0) - (meatball ? 25 : 0) + (inZone ? 0 : 15)
-  if (s.count.strikes === 2 && has(pitcher, 'finisher')) stuff += 10
-  const pContact = clamp(0.84 + (bn.contact + zoneBonus - stuff) / 170, 0.45, 0.97) * (inZone ? 1 : 0.8)
+  if (s.count.strikes === 2) {
+    if (has(pitcher, 'checkmate')) stuff += 18
+    else if (has(pitcher, 'finisher')) stuff += 10
+  }
+  {
+    const prev = s.events[s.events.length - 1]
+    if (has(pitcher, 'k_momentum') && prev && prev.kind === 'strikeout' && prev.pitcherId === field.pitcherId && prev.inning === s.inning && prev.top === s.top) stuff += 6
+  }
+  if (!pitch && has(pitcher, 'sokojikara')) stuff += 4
+  if (pitch && has(pitcher, 'denka') && pitch.level >= Math.max(...pitcher.pitching.pitches.map((x) => x.level))) stuff += 3
+  if (pitch && has(pitcher, 'all_in')) stuff += pitch.level * 0.45
+  const typeBonus = (!pitch && pn.velo >= 140 && has(batter, 'fastball_killer') ? 8 : 0) + (pitch && has(batter, 'breaking_eye') ? 8 : 0)
+  const pContact = clamp(0.84 + (bn.contact + typeBonus + zoneBonus - stuff) / 170, 0.45, 0.97) * (inZone ? 1 : 0.8)
   if (!rng.chance(pContact)) {
     s.count.strikes += 1
     s.lastPitch = `${pitchName} ${speedText}、空振り`
@@ -634,7 +824,7 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
     }
     return { paEnded: s.finished, event: null }
   }
-  const foulRate = (inZone ? 0.36 : 0.46) + (s.count.strikes === 2 && has(batter, 'persistent') ? 0.12 : 0)
+  const foulRate = (inZone ? 0.36 : 0.46) + (s.count.strikes === 2 ? (has(batter, 'shikaku') ? 0.2 : has(batter, 'persistent') ? 0.12 : 0) : 0)
   if (rng.chance(foulRate)) {
     if (s.count.strikes < 2) s.count.strikes += 1
     s.lastPitch = `${pitchName} ${speedText}、ファウル`
@@ -643,11 +833,14 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
 
   // 5. 打球
   const quality = (bn.power * 0.55 + bn.contact * 0.25 - stuff * 0.3) / 1
-  let ev = 108 + quality * 0.55 + (meatball ? 14 : 0) + (inZone ? 0 : -12) + rng.normal(0, 17)
+  let ev = 108 + quality * 0.55 + (meatball ? 14 + (has(batter, 'shingan') ? 6 : 0) : 0) + (inZone ? 0 : -12) + rng.normal(0, 17)
+  if (has(pitcher, 'tekkyu')) ev -= 8
   ev = clamp(ev, 45, 182)
-  const trajMean = [0, 2, 8, 13, 18][batter.batting.trajectory] ?? 8
+  const traj = Math.min(4, batter.batting.trajectory + (has(batter, 'upper_swing') ? 1 : 0))
+  const trajMean = [0, 2, 8, 13, 18][traj] ?? 8
   let la = rng.normal(trajMean, 19)
-  if (has(pitcher, 'groundball')) la -= 5
+  if (has(pitcher, 'tekkyu')) la -= 3
+  else if (has(pitcher, 'groundball')) la -= 5
   if (plan === 'low' && zoneIdx >= 6) la -= 6
   if (has(batter, 'double_play')) la -= 4
   if (pitch && (pitch.type === 'sinker' || pitch.type === 'fork' || pitch.type === 'splitter')) la -= 3
@@ -685,12 +878,19 @@ function addPitch(s: MatchState, pitcherId: string, p: Player, full: boolean): v
   box.pitches += 1
   // スタミナが尽きるまでの球数
   const cond = s.options.ignoreCondition ? 1 : 0.6 + (0.4 * p.condition.stamina) / 100
-  const pool = (42 + p.pitching.stamina * 1.15) * cond
+  const pool = (42 + p.pitching.stamina * 1.15) * cond * (has(p, 'all_in') ? 0.5 : 1)
   let rate = 1 / 35
-  if (s.options.summer) rate *= has(p, 'summer_child') ? 0.8 : has(p, 'heat_weak') ? 1.25 : 1
+  if (s.options.summer) rate *= has(p, 'enten') ? 0.65 : has(p, 'summer_child') ? 0.8 : has(p, 'heat_weak') ? 1.25 : 1
   if (full) rate *= 1.8
-  if (has(p, 'tempo')) rate *= 0.88
+  if (has(p, 'mujinzo')) rate *= 0.75
+  else if (has(p, 'tempo')) rate *= 0.88
   box.fatigue = Math.max(0, (box.pitches - pool) * rate)
+  // 「ラストスパート」：体力が残り2割を切ったら、その回だけ全力。次の回からは体力が尽きている
+  if (has(p, 'last_spurt')) {
+    const fx = fxOf(s)
+    if (fx.spurt[pitcherId] === undefined && box.pitches >= pool * 0.8) fx.spurt[pitcherId] = s.inning
+    else if (fx.spurt[pitcherId] !== undefined && fx.spurt[pitcherId]! < s.inning) box.fatigue = Math.max(box.fatigue, 1.2)
+  }
 }
 
 // ---------------------------------------------------------------- 打球の処理
@@ -736,13 +936,16 @@ function battedBall(
 ): PitchResult {
   const rng = ctx.rng
   const field = fieldingTeam(s)
-  const speed = batter.running.speed
+  const speed = speedOf(s, batter) + (has(batter, 'supercar') ? 20 : has(batter, 'hustle') ? 15 : 0)
+  const aceOn = has(ctx.players[field.pitcherId], 'ace') ? 0.01 : 0
+  /** 守備範囲に効く特殊能力（聖域・スーパーカー） */
+  const rangeOf = (f: Player) => f.fielding.range + (has(f, 'seiiki') ? 12 : 0) + (has(f, 'supercar') ? 8 : 0)
   // 前進守備は、プレイヤーが守っているときだけ
   const infieldIn = isUser(s, field) && s.pending.shift === 'infieldIn'
   const v = ev / 3.6
   const rad = (Math.max(la, 1) * Math.PI) / 180
   // 飛距離（空気抵抗を大まかに入れた計算。低反発バットを想定して控えめ）
-  const carry = clamp(((v * v * Math.sin(2 * rad)) / 9.8) * 0.62, 2, 140)
+  let carry = clamp(((v * v * Math.sin(2 * rad)) / 9.8) * 0.62, 2, 140)
   const toXY = (d: number) => ({ x: Math.sin((dir * Math.PI) / 180) * d, y: Math.cos((dir * Math.PI) / 180) * d })
   const fence = fenceAt(dir)
 
@@ -750,8 +953,9 @@ function battedBall(
     // ゴロ
     const pos = Math.abs(dir) < 6 && ev < 95 && rng.chance(0.5) ? 'P' : groundFielder(dir)
     const f = ctx.players[fielderAt(field, pos)]!
-    let pHit = 0.2 + (ev - 115) / 250 + (speed - 50) / 450 - (f.fielding.range - 50) / 320 + (infieldIn ? 0.07 : 0)
-    if (has(f, 'highlight_defense')) pHit -= 0.05
+    let pHit = 0.2 + (ev - 115) / 250 + (speed - 50) / 450 - (rangeOf(f) - 50) / 320 + (infieldIn ? 0.07 : 0) - aceOn
+    if (has(f, 'seiiki')) pHit -= 0.08
+    else if (has(f, 'highlight_defense')) pHit -= 0.05
     if (order === 'hitrun') pHit += 0.04 + userTactic(s) / 2
     pHit = clamp(pHit, 0.04, 0.6)
     // 内野手がさばく打球は内野に、抜けた打球は外野まで転がす（実況と絵を合わせる）
@@ -764,8 +968,8 @@ function battedBall(
       return hit(s, ctx, 'single', { ...toXY(clamp(36 + ev * 0.22, 56, 74)), type: 'ground' }, `${FIELD_NAMES[airFielder(dir)]}前へのヒット`, order)
     }
     // エラー
-    const pErr = 0.05 + (55 - f.fielding.catching) / 650 + (55 - f.fielding.throwing) / 1000
-    if (rng.chance(clamp(pErr, 0.005, 0.12))) {
+    const pErr = (0.05 + (55 - f.fielding.catching) / 650 + (55 - f.fielding.throwing) / 1000) * (has(f, 'steady_glove') || has(f, 'seiiki') ? 0.6 : has(f, 'shubi_zatsu') ? 1.4 : 1)
+    if (rng.chance(clamp(pErr, 0.003, 0.14))) {
       field.errors += 1
       return reachOnError(s, ctx, infieldBall, `${FIELD_NAMES[pos]}のエラー`)
     }
@@ -784,15 +988,17 @@ function battedBall(
     const short = carry < 40
     const pos = short ? groundFielder(dir) : airFielder(dir)
     const f = ctx.players[fielderAt(field, pos)]!
-    let pHit = 0.63 + (ev - 125) / 240 - (f.fielding.range - 50) / 420
-    if (has(f, 'highlight_defense')) pHit -= 0.06
+    let pHit = 0.63 + (ev - 125) / 240 - (rangeOf(f) - 50) / 420 - aceOn
+    if (has(f, 'seiiki')) pHit -= 0.08
+    else if (has(f, 'highlight_defense')) pHit -= 0.06
     pHit = clamp(pHit, 0.25, 0.9)
     const base = carry * 1.1
     if (rng.chance(pHit)) {
       let kind: PlayKind = 'single'
       // 外野の間（左中間・右中間）や線際に飛ぶと長打になりやすい
       const gapBonus = (Math.abs(dir) > 12 && Math.abs(dir) < 30) || Math.abs(dir) > 36 ? 0.14 : 0
-      if (carry >= 30 && rng.chance(clamp(0.1 + (ev - 125) / 140 + gapBonus + (speed - 50) / 300, 0.03, 0.6))) kind = 'double'
+      const xbh = has(batter, 'supercar') ? 0.2 : has(batter, 'gap_power') ? 0.15 : 0
+      if (carry >= 30 && rng.chance(clamp(0.1 + (ev - 125) / 140 + gapBonus + xbh + (speed - 50) / 300, 0.03, 0.7))) kind = 'double'
       if (kind === 'double' && speed >= 65 && rng.chance(0.12)) kind = 'triple'
       const of = FIELD_NAMES[airFielder(dir)]
       const text = kind === 'single' ? `${of}前ヒット` : kind === 'double' ? `${of}へのツーベース` : `${of}へのスリーベース`
@@ -807,15 +1013,19 @@ function battedBall(
   // フライ
   const pos = airFielder(dir)
   const f = ctx.players[fielderAt(field, pos)]!
+  // 「鉄球」：本塁打になるはずの打球の半分は、フェンスの手前で失速する
+  if (carry >= fence && has(ctx.players[field.pitcherId], 'tekkyu') && rng.chance(0.5)) carry = fence - 3
   if (carry >= fence) {
     const where = Math.abs(dir) > 30 ? `${dir < 0 ? 'レフト' : 'ライト'}ポール際` : `${FIELD_NAMES[pos]}スタンド`
     return hit(s, ctx, 'homerun', { ...toXY(Math.min(carry, fence + 15)), type: 'fly' }, `${where}へのホームラン！`, order)
   }
-  let pHit = 0.14 + Math.max(0, carry - 65) / 110 - (f.fielding.range - 50) / 380
-  if (has(f, 'highlight_defense')) pHit -= 0.06
+  let pHit = 0.14 + Math.max(0, carry - 65) / 110 - (rangeOf(f) - 50) / 380 - aceOn
+  if (has(f, 'seiiki')) pHit -= 0.08
+  else if (has(f, 'highlight_defense')) pHit -= 0.06
+  if (carry > 72 && has(f, 'back_catch')) pHit -= 0.08
   pHit = clamp(pHit, 0.03, 0.6)
   if (rng.chance(pHit)) {
-    let kind: PlayKind = carry > fence * 0.84 ? 'double' : 'single'
+    let kind: PlayKind = carry > fence * (has(batter, 'supercar') || has(batter, 'gap_power') ? 0.78 : 0.84) ? 'double' : 'single'
     if (kind === 'double' && speed >= 60 && Math.abs(dir) < 25 && rng.chance(0.2)) kind = 'triple'
     const of = FIELD_NAMES[pos]
     // 浅い当たりは「前に落ちる」、深い当たりは「へのヒット」
@@ -858,8 +1068,10 @@ function hit(s: MatchState, ctx: MatchContext, kind: PlayKind, ball: PlayEvent['
   const fast = (id: string | null, base: number) => {
     const p = runner(ctx, id)
     if (!p) return false
-    let pr = base + (p.running.speed - 50) / 120 + (p.running.baserunning - 50) / 200
+    let pr = base + (speedOf(s, p) - 50) / 120 + (p.running.baserunning - 50) / 200 - throwBonus(outfielderAt(s, ctx, ball))
     if (has(p, 'heads_up')) pr += 0.12
+    if (has(p, 'supercar')) pr += order === 'hitrun' ? 0.2 : 0.1
+    if (has(p, 'bousou')) pr -= 0.06
     return rng.chance(clamp(pr, 0.05, 0.97))
   }
   if (kind === 'homerun') {
@@ -970,9 +1182,11 @@ function groundPlay(
       (batter.running.speed - 50) / 170 -
       (r1p.running.speed - 50) / 260 +
       (has(batter, 'double_play') ? 0.15 : 0) +
+      (has(f, 'dp_master') || has(pivot, 'dp_master') ? 0.1 : 0) +
       (pos === '1B' ? -0.1 : pos === 'P' ? -0.04 : 0) -
       (infieldIn ? 0.08 : 0)
     if (moving) pDP -= 0.3 + (r1p.running.steal - 50) / 300
+    if (has(batter, 'supercar')) pDP *= 0.5
     pDP = clamp(pDP, 0.02, 0.7)
     if (rng.chance(pDP)) {
       s.outs += 2
@@ -1078,7 +1292,8 @@ function airOut(
   s.outs += 1
   const [r1, r2, r3] = s.bases
   if (s.outs >= 3) return endPA(s, ctx, kind, 0, ball, text, [], true)
-  const arm = ctx.players[fielderAt(field, pos)]?.fielding.arm ?? 50
+  const fieldPlayer = ctx.players[fielderAt(field, pos)]
+  const arm = (fieldPlayer?.fielding.arm ?? 50) + (has(fieldPlayer, 'sniper') ? 10 : 0)
 
   // エンドランで内野へのライナー：スタートを切っていた走者が戻れないことがある（走塁判断と足）
   if (kind === 'lineout' && order === 'hitrun' && dist <= 42) {
@@ -1099,7 +1314,8 @@ function airOut(
     // 外野フライ：打球の深さ・走者の足と走塁判断・外野手の肩で、タッチアップできるかが決まる
     const tagUp = (id: string, bonus: number) => {
       const p = ctx.players[id]!
-      return clamp(0.5 + (dist - 72) / 36 + (p.running.speed - 50) / 110 + (p.running.baserunning - 50) / 300 - (arm - 50) / 160 + bonus, 0, 0.98)
+      const fx = (has(p, 'supercar') ? 0.15 : 0) - throwBonus(fieldPlayer) - (has(p, 'bousou') ? 0.06 : 0)
+      return clamp(0.5 + (dist - 72) / 36 + (speedOf(s, p) - 50) / 110 + (p.running.baserunning - 50) / 300 - (arm - 50) / 160 + bonus + fx, 0, 0.98)
     }
     if (r3) {
       const p = tagUp(r3, 0)
@@ -1259,9 +1475,13 @@ function stealChance(s: MatchState, ctx: MatchContext, from: 0 | 1): number {
   const r = ctx.players[s.bases[from]!]!
   const catcher = ctx.players[fielderAt(field, 'C')]!
   const pitcher = ctx.players[field.pitcherId]!
-  let p = 0.6 + (r.running.steal - 50) / 160 + (r.running.speed - 50) / 220 - (catcher.fielding.arm - 50) / 220 - (pitcher.pitching.quick - 50) / 300
-  if (has(r, 'rocket_start')) p += 0.1
-  if (has(pitcher, 'no_steal')) p -= 0.1
+  let p = 0.6 + (r.running.steal - 50) / 160 + (speedOf(s, r) - 50) / 220 - (catcher.fielding.arm - 50) / 220 - (pitcher.pitching.quick - 50) / 300
+  if (has(r, 'supercar')) p += 0.15
+  else if (has(r, 'rocket_start')) p += 0.1
+  if (has(r, 'bousou')) p -= 0.15
+  if (has(pitcher, 'fuiuchi')) p -= 0.25
+  else if (has(pitcher, 'no_steal')) p -= 0.1
+  if (has(catcher, 'shield_mitt')) p -= 0.08
   if (from === 1) p -= 0.08
   p += userTactic(s)
   return clamp(p, 0.15, 0.95)
@@ -1280,8 +1500,8 @@ function attemptSteal(s: MatchState, ctx: MatchContext): PlayEvent | null {
   const p = stealChance(s, ctx, from)
   // 動けず：投手のクイックや牽制でスタートを切れない（その球はふつうに投げる）
   let stuck = 0.15 + (pitcher.pitching.quick - 50) / 250 - (r.running.steal - 50) / 300
-  if (has(r, 'rocket_start')) stuck -= 0.06
-  if (has(pitcher, 'no_steal')) stuck += 0.06
+  if (has(r, 'rocket_start') || has(r, 'supercar')) stuck -= 0.06
+  if (has(pitcher, 'no_steal') || has(pitcher, 'fuiuchi')) stuck += 0.06
   if (rng.chance(clamp(stuck, 0.05, 0.35))) {
     s.stealStuck = `${name(ctx, id)}、スタートを切れず`
     return null
@@ -1405,6 +1625,11 @@ function endPA(
   }
   pbox.r += runs
   addRuns(s, runs)
+  // 「大黒柱」：安打・打点のたびに、その試合の味方の打撃が上がる（最大3回）
+  if ((runs > 0 || ['single', 'double', 'triple', 'homerun'].includes(kind)) && has(ctx.players[batterId], 'pillar')) {
+    const fx = fxOf(s)
+    fx.boost[bat.schoolId] = Math.min(3, (fx.boost[bat.schoolId] ?? 0) + 1)
+  }
 
   const ev = makeEvent(s, ctx, batterId, kind, `${name(ctx, batterId)}：${withScoreNote(kind, text, runs)}`, runs, ball ?? undefined)
   s.events.push(ev)

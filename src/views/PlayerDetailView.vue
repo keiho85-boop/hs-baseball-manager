@@ -15,7 +15,7 @@ import {
   velocityScore,
 } from '@/game/constants'
 import { fielderRating, pitcherRating } from '@/game/player'
-import { getSkill } from '@/game/skills'
+import { getSkill, tierClass } from '@/game/skills'
 import type { PracticeMenu, Position } from '@/game/types'
 import FaceIcon from '@/components/FaceIcon.vue'
 import RankBadge from '@/components/RankBadge.vue'
@@ -323,7 +323,7 @@ const zoneLabel = (v: number) => (v >= 2 ? '◎' : v === 1 ? '○' : v === 0 ? '
     <div v-show="tab === 'skill'" class="card">
       <h2 class="sun"><GameIcon name="sparkle" /> 特殊能力</h2>
       <div v-if="p.skills.length" class="skills">
-        <div v-for="id in p.skills" :key="id" class="skill" :class="getSkill(id)?.good ? 'good' : 'bad'">
+        <div v-for="id in p.skills" :key="id" class="skill" :class="[getSkill(id)?.good ? 'good' : 'bad', tierClass(id)]">
           <div class="skill-name">{{ getSkill(id)?.name }}</div>
           <div class="skill-desc">{{ getSkill(id)?.description }}</div>
         </div>

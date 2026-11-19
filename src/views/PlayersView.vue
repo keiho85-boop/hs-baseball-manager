@@ -8,7 +8,7 @@ import { POSITIONS, POSITION_LABEL, PRACTICE_NAME, rankOf, velocityScore } from 
 import type { Player, PracticeMenu } from '@/game/types'
 import GameIcon from '@/components/GameIcon.vue'
 import FormIcon from '@/components/FormIcon.vue'
-import { getSkill } from '@/game/skills'
+import { getSkill, tierClass } from '@/game/skills'
 import { successOf } from '@/game/success/state'
 
 const game = useGameStore()
@@ -214,7 +214,7 @@ function posKind(p: Player): string {
             <template v-else>{{ c.text ? c.text(p) : c.value(p) }}</template>
           </span>
           <span v-if="view === 'sk'" class="c-sk">
-            <i v-for="sk in skillsOf(p)" :key="sk.id" :class="sk.good ? 'good' : 'bad'">{{ sk.name }}</i>
+            <i v-for="sk in skillsOf(p)" :key="sk.id" :class="[sk.good ? 'good' : 'bad', tierClass(sk.name)]">{{ sk.name }}</i>
             <em v-if="p.skills.length === 0">なし</em>
           </span>
           <button v-if="!noMenu" class="c-m" :disabled="p.retired" @click.stop="menuFor = p">{{ MENU_SHORT[p.practiceMenu] }}</button>

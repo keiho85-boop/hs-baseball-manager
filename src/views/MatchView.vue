@@ -15,7 +15,7 @@ import FormIcon from '@/components/FormIcon.vue'
 import { play } from '@/sound'
 import { hideBanner } from '@/ads'
 import { shortResult, isGoodResult, bigResult } from '@/game/match/labels'
-import { getSkill } from '@/game/skills'
+import { getSkill, tierClass } from '@/game/skills'
 import { rankOf } from '@/game/constants'
 import CutIn from '@/components/match/CutIn.vue'
 import TacticCutIn from '@/components/match/TacticCutIn.vue'
@@ -919,7 +919,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
         </div>
         <div class="stamina"><div class="fill" :class="{ low: pitcherStats.fatigue > 0.6 }" :style="{ width: `${Math.max(4, 100 - pitcherStats.fatigue * 70)}%` }" /></div>
         <div class="skills">
-          <button v-for="sk in skillsNow.pitcher" :key="sk.name" class="skill" :class="sk.good ? 'good' : 'bad'" @click="showSkill(sk)">{{ sk.name }}</button>
+          <button v-for="sk in skillsNow.pitcher" :key="sk.name" class="skill" :class="[sk.good ? 'good' : 'bad', tierClass(sk.name)]" @click="showSkill(sk)">{{ sk.name }}</button>
         </div>
       </div>
       <div v-if="batter && batterStats" class="panel" :class="{ own: ownBatting }">
@@ -948,7 +948,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
           </ol>
         </div>
         <div class="skills">
-          <button v-for="sk in skillsNow.batter" :key="sk.name" class="skill" :class="sk.good ? 'good' : 'bad'" @click="showSkill(sk)">{{ sk.name }}</button>
+          <button v-for="sk in skillsNow.batter" :key="sk.name" class="skill" :class="[sk.good ? 'good' : 'bad', tierClass(sk.name)]" @click="showSkill(sk)">{{ sk.name }}</button>
         </div>
       </div>
     </div>
@@ -1072,7 +1072,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
               <span v-for="x in side.stats" :key="x.k"><small>{{ x.k }}</small><i :class="`k-${x.v}`">{{ x.v }}</i></span>
             </span>
             <span class="na-sk">
-              <button v-for="sk in side.skills" :key="sk.name" class="skill" :class="sk.good ? 'good' : 'bad'" @click="showSkill(sk)">{{ sk.name }}</button>
+              <button v-for="sk in side.skills" :key="sk.name" class="skill" :class="[sk.good ? 'good' : 'bad', tierClass(sk.name)]" @click="showSkill(sk)">{{ sk.name }}</button>
             </span>
           </template>
           <div v-if="si === 0" class="na-vs">VS</div>
@@ -1082,7 +1082,7 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
         <div v-for="r in nagiAsk.runners" :key="r.role" class="na-runner">
           <b>{{ r.role }}</b><span class="nm">{{ r.p.surname }}</span>
           <span v-for="x in r.stats" :key="x.k" class="rs"><small>{{ x.k }}</small><i :class="`k-${x.v}`">{{ x.v }}</i></span>
-          <button v-for="sk in r.skills" :key="sk.name" class="skill" :class="sk.good ? 'good' : 'bad'" @click="showSkill(sk)">{{ sk.name }}</button>
+          <button v-for="sk in r.skills" :key="sk.name" class="skill" :class="[sk.good ? 'good' : 'bad', tierClass(sk.name)]" @click="showSkill(sk)">{{ sk.name }}</button>
         </div>
       </div>
       <div class="na-sit">{{ nagiAsk.sub }}</div>

@@ -1,4 +1,4 @@
-// 選手育成モード：通常週のイベント（決まった行事・大会・合宿のない週に、約7割の確率で起きる）
+// 選手育成モード：通常週のイベント（決まった行事・大会・合宿のない週に、約7割の確率で起きる）。11月19日に40種へ
 // ・日常や人間関係の小さな出来事。よく起きるものほど重みが大きい
 // ・同じイベントは1年に2回まで
 // ・イベントマス（狙って踏む）の出来事とは別のもの
@@ -38,6 +38,26 @@ interface WeekEvent {
   /** 起きやすさ（よく起きる10・ときどき6・たまに3） */
   weight: number
   make: (f: Player, rng: Rng) => EventInstance
+}
+
+type SimpleChoice = [label: string, result: string, ops: EffectOp[]]
+type Sp = typeof NARR | typeof NAGI | typeof DAICHI | typeof GENZO | typeof HASUMI | typeof MAKABE | typeof MIKI
+/** 2択の短いイベントを作る */
+function simple(id: string, weight: number, title: string, speaker: Sp, bg: string, cast: { char: string; face?: string }[], lines: string[], choices: (f: Player, rng: Rng) => SimpleChoice[]): WeekEvent {
+  return {
+    id,
+    weight,
+    make: (f, rng) => ({
+      id: eid(id),
+      title,
+      speaker: { ...speaker },
+      relatedPlayerIds: [f.id],
+      bg,
+      cast,
+      lines,
+      choices: choices(f, rng).map(([label, result, ops]) => ({ label, result, ops })),
+    }),
+  }
 }
 
 const EVENTS: WeekEvent[] = [
@@ -199,7 +219,7 @@ const EVENTS: WeekEvent[] = [
       lines: ['朝比奈さんに宿題を出されてね。インフィールドフライ、今日こそ理解したいんだ'],
       choices: [
         { label: '最後まで付き合う', result: '夜の9時。真壁先生はついにインフィールドフライを理解した。（真壁の評価が大きく上がった。体力が減った）', ops: [ev('makabe', 5), stamina(f, -8)] },
-        { label: '途中で帰る', result: '真壁先生は一人で教本を読み続けた。（変化なし）', ops: [] },
+        { label: '途中で帰る', result: '真壁先生は一人で教本を読み続けた。（体力が少し回復した。真壁の評価が少し上がった）', ops: [stamina(f, 5), ev('makabe', 1)] },
       ],
     }),
   },
@@ -315,7 +335,7 @@ const EVENTS: WeekEvent[] = [
       lines: ['すまん、今日は寄り合いでな。一時間だけ、店番を頼めんか？', 'バイト代は出す。部費に回せばええ'],
       choices: [
         { label: '引き受ける', result: 'ビールケースを運び、近所のおばちゃんの話し相手もした。（部費が5万円増えた。源造の評価が上がった。体力が少し減った）', ops: [{ op: 'school', key: 'funds', delta: 5 }, ev('genzo', 4), stamina(f, -5)] },
-        { label: '部活があるので断る', result: '「そうか、練習が一番じゃ」（変化なし）', ops: [] },
+        { label: '部活があるので断る', result: '「そうか、練習が一番じゃ」（調子が上がった）', ops: [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 4 }] },
       ],
     }),
   },
@@ -336,6 +356,118 @@ const EVENTS: WeekEvent[] = [
       ],
     }),
   },
+
+  // ---- 11月19日に追加（40種に）
+  simple('gakushoku', 10, '学食の大盛り', NARR, 'bg_classroom_day', [{ char: 'focus', face: 'smile' }], ['学食のおばちゃんが「野球部？ 大盛りにしとくよ」と、ご飯を山のように盛ってくれた。'], (f) => [
+    ['全部食べる', 'お腹いっぱいで、午後の練習も元気に動けた。（体力が回復した）', [stamina(f, 15)]],
+    ['大地と半分に分ける', '大地「お、助かる！」（体力が少し回復した。大地の評価が上がった）', [stamina(f, 6), ev('daichi', 2)]],
+  ]),
+  simple('test', 10, 'テスト前の放課後', MAKABE, 'bg_classroom_day', [{ char: 'makabe', face: 'troubled' }], ['もうすぐ定期テスト。真壁先生が「赤点を取ったら、練習に出られないよ」と、こっそり教えてくれた。'], (f) => [
+    ['今日は勉強する', '真壁先生が、苦手なところを見てくれた。（真壁の評価が上がった。体力が回復した）', [ev('makabe', 3), stamina(f, 8)]],
+    ['練習のあとに勉強する', `${f.surname}は眠い目をこすって机に向かった。（${ABILITY_LABEL[mainKeys(f)[0]!]}が少し上がった。体力が減った）`, [grow(f, mainKeys(f)[0]!, 1), stamina(f, -8)]],
+  ]),
+  simple('seibi', 10, 'グラウンド整備', NARR, 'bg_ground_sunset', [{ char: 'focus', face: 'normal' }], ['練習のあと。グラウンドには、スパイクの跡がいっぱいだ。'], (f) => [
+    ['最後まで丁寧にならす', '明日の朝、グラウンドはきれいに整っていた。（体力が少し減った。チームメイトの評価が上がった）', [stamina(f, -5), ev('team', 3)]],
+    ['大地と競争でならす', '「俺のほうが速かっただろ！」（大地の評価が上がった。体力が少し減った）', [ev('daichi', 2), stamina(f, -4)]],
+  ]),
+  simple('yudachi', 10, '夕立', NARR, 'bg_street_sunset', [{ char: 'focus', face: 'surprise' }], ['帰り道、急に空が暗くなり、大粒の雨が降ってきた。'], (f) => [
+    ['走って帰る', `ずぶぬれになったが、足腰はしっかり使えた。（${ABILITY_LABEL['common.durability']}が少し上がった。体力が少し減った）`, [grow(f, 'common.durability', 1), stamina(f, -5)]],
+    ['軒先で雨宿りする', '雨が上がるまで、ぼんやり空を見ていた。（体力が少し回復した）', [stamina(f, 6)]],
+  ]),
+  simple('kouhai', 6, '後輩の相談', NARR, 'bg_ground_day', [{ char: 'mob_cap', face: 'normal' }], ['練習のあと、部員の一人が「バットの握り方を見てほしい」と声をかけてきた。'], (f) => [
+    ['付きっきりで教える', '教えているうちに、自分の振りも見直せた。（チームメイトの評価が上がった。体力が少し減った）', [ev('team', 3), stamina(f, -4)]],
+    ['自分で考えさせる', '「…やってみます」（チームメイトの評価が少し上がった。調子が上がった）', [ev('team', 1), { op: 'condition', playerId: f.id, key: 'motivation', delta: 3 }]],
+  ]),
+  simple('neko', 6, 'グラウンドの猫', NARR, 'bg_ground_day', [{ char: 'nagi', face: 'smile' }], ['一塁ベースの上で、白い猫が丸くなっている。ナギがそっと近づいた。'], (f) => [
+    ['みんなで名前を考える', '名前は「ベース」に決まった。（チームメイトの評価が上がった）', [ev('team', 2)]],
+    ['ナギにそっと任せる', 'ナギ「…この子、肩がいいですね」なぜか猫と見つめ合っている。（ナギの評価が上がった。調子が上がった）', [ev('nagi', 2), { op: 'condition', playerId: f.id, key: 'motivation', delta: 2 }]],
+  ]),
+  simple('video', 6, 'プロの試合の映像', NAGI, 'bg_clubroom_tv', [{ char: 'nagi', face: 'normal' }], ['部室のテレビで、プロ野球の試合の録画を流しています。', '…この選手の構え、よく見てください。'], (f) => {
+    const k = f.mainPosition === 'P' ? 'pitching.control' : 'batting.eye'
+    return [
+      ['ナギの解説つきで見る', `ナギの話は、試合より長かった。（${ABILITY_LABEL[k]}が少し上がった。ナギの評価が上がった）`, [grow(f, k, 1), ev('nagi', 2)]],
+      ['一人で何度も見返す', `同じ場面を、二十回は見返した。（${ABILITY_LABEL[k]}が少し上がった。体力が少し減った）`, [grow(f, k, 1), stamina(f, -3)]],
+    ]
+  }),
+  simple('fukubiki', 6, '商店街の福引', GENZO, 'bg_liquor_day', [{ char: 'genzo', face: 'smile' }], ['おう、福引券が一枚余っとる。運だめしに引いていけ！'], (f, rng) => {
+    const win = rng.chance(0.3)
+    return [
+      ['引いてみる', win ? '金色の玉が出た！ 商品券は部費に回した。（部費が3万円増えた）' : '白い玉。ポケットティッシュをもらった。（調子が少し上がった）', win ? [{ op: 'school', key: 'funds', delta: 3 }] : [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 2 }]],
+      ['源造に引いてもらう', '「わしは運がないんじゃ…」やっぱり白い玉だった。（源造の評価が上がった）', [ev('genzo', 2)]],
+    ]
+  }),
+  simple('hokencha', 6, '保健室のお茶', HASUMI, 'bg_infirmary_day', [{ char: 'hasumi', face: 'smile' }], ['あら、顔色が少し悪いわね。温かいお茶でも飲んでいきなさい。'], (f) => [
+    ['少し休んでいく', 'お茶を飲むと、体の芯から温まった。（体力が回復した。蓮見の評価が上がった）', [stamina(f, 10), ev('hasumi', 2)]],
+    ['お礼を言って練習へ', '「ふふ、無理はしないこと」（調子が上がった。蓮見の評価が少し上がった）', [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 3 }, ev('hasumi', 1)]],
+  ]),
+  simple('uwasa', 6, 'スカウトのうわさ', NARR, 'bg_classroom_day', [{ char: 'focus', face: 'surprise' }], ['「今週、プロのスカウトが練習を見に来るらしいぞ」教室でそんなうわさが流れている。'], (f) => [
+    ['いつも通りにやる', '結局、スカウトは来なかった。でも、いい練習ができた。（調子が上がった）', [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 3 }]],
+    ['張り切って練習する', '実は一人だけ、遠くから見ていたらしい。（スカウトの評価が上がった。体力が減った）', [ev('scout', 2), stamina(f, -8)]],
+  ]),
+  simple('senbon', 6, '素振り千本', DAICHI, 'bg_ground_sunset', [{ char: 'daichi', face: 'serious' }], ['なあ、今日だけ素振り千本やってみないか。…昔、少年野球の監督に言われてたやつ。'], (f) => {
+    const k = f.mainPosition === 'P' ? 'pitching.stamina' : 'batting.power'
+    return [
+      ['千本やり切る', `手の皮がむけたが、やり切った。（${ABILITY_LABEL[k]}が少し上がった。体力が大きく減った。大地の評価が上がった）`, [grow(f, k, 1), stamina(f, -12), ev('daichi', 2)]],
+      ['三百本でやめる', '「…まあ、無理は禁物だよな」（調子が上がった。体力が少し減った）', [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 2 }, stamina(f, -4)]],
+    ]
+  }),
+  simple('denwa', 6, '家からの電話', NARR, 'bg_street_winter_night', [{ char: 'focus', face: 'smile' }], ['夜、家族から電話がかかってきた。「ちゃんと食べてる？ 試合はいつ？」'], (f) => [
+    ['ゆっくり話す', '電話を切ると、なんだか肩が軽くなった。（調子が上がった）', [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 4 }]],
+    ['短く切って早く寝る', 'ぐっすり眠れた。（体力が回復した）', [stamina(f, 10)]],
+  ]),
+  simple('manga', 6, '部室の野球漫画', NARR, 'bg_clubroom_day', [{ char: 'daichi', face: 'smile' }], ['部室の棚に、誰かが持ってきた野球漫画の全巻がそろっている。'], (f) => [
+    ['一気に読む', '最終巻で、少しだけ泣いた。（体力が回復した。調子が上がった）', [stamina(f, 6), { op: 'condition', playerId: f.id, key: 'motivation', delta: 2 }]],
+    ['必殺技を大地と真似する', '二人とも、見事に空振りした。（大地の評価が上がった。体力が少し減った）', [ev('daichi', 2), stamina(f, -3)]],
+  ]),
+  simple('asajog', 6, '朝のジョギング', NARR, 'bg_riverside_field_day', [{ char: 'focus', face: 'normal' }], ['いつもより早く目が覚めた。窓の外は、まだ薄暗い。'], (f) => {
+    const k = f.mainPosition === 'P' ? 'pitching.stamina' : 'running.speed'
+    return [
+      ['河川敷を走る', `朝の空気が気持ちよかった。（${ABILITY_LABEL[k]}が少し上がった。体力が少し減った）`, [grow(f, k, 1), stamina(f, -5)]],
+      ['二度寝する', '気がつくと、遅刻ぎりぎりだった。（体力が回復した）', [stamina(f, 10)]],
+    ]
+  }),
+  simple('score', 6, 'スコアブックの整理', NAGI, 'bg_clubroom_night', [{ char: 'nagi', face: 'normal' }], ['部室に残って、ナギがスコアブックを整理しています。', '…一人でも大丈夫です。慣れていますから。'], (f) => [
+    ['手伝う', 'ナギは、少しだけうれしそうだった。（ナギの評価が上がった。体力が少し減った）', [ev('nagi', 3), stamina(f, -4)]],
+    ['差し入れを置いて帰る', 'ナギ「…ありがとうございます」（ナギの評価が少し上がった。体力が少し回復した）', [ev('nagi', 1), stamina(f, 5)]],
+  ]),
+  simple('obvisit', 3, 'OBの訪問', MAKABE, 'bg_ground_day', [{ char: 'makabe', face: 'smile' }], ['今日は、昔この野球部にいたOBの方が来てくれたよ。練習を見てもらえるって！'], (f, rng) => {
+    const k = rng.pick(mainKeys(f))
+    return [
+      ['練習を見てもらう', `細かいところまで、丁寧に教えてもらった。（${ABILITY_LABEL[k] ?? '能力'}が少し上がった。体力が少し減った）`, [grow(f, k, 1), stamina(f, -5)]],
+      ['昔の話を聞く', '部員が三人しかいなかった時代の話だった。（チームメイトの評価が上がった。調子が上がった）', [ev('team', 2), { op: 'condition', playerId: f.id, key: 'motivation', delta: 2 }]],
+    ]
+  }),
+  simple('volunteer', 3, '球場の清掃ボランティア', MAKABE, 'bg_stadium_day', [{ char: 'makabe', face: 'normal' }], ['県営球場の清掃ボランティアの募集が来ているんだけど…野球部で行ってみる？'], (f) => [
+    ['部員みんなで参加する', '新聞の地域面に、小さく載った。（評判が上がった。全員の体力が少し減った）', [{ op: 'school', key: 'reputation', delta: 2 }, stamina('all', -4)]],
+    ['練習を優先する', '真壁先生「そうだよね、練習が大事だよね」（調子が上がった）', [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 3 }]],
+  ]),
+  simple('kabeate', 3, '公園の壁当て', NARR, 'bg_riverside_field_day', [{ char: 'focus', face: 'normal' }], ['休みの日。近所の公園に、ちょうどいいコンクリートの壁がある。'], (f) => {
+    const k = f.mainPosition === 'P' ? 'pitching.control' : 'fielding.catching'
+    return [
+      ['日が暮れるまで壁当てする', `跳ね返る球を、ひたすら捕り続けた。（${ABILITY_LABEL[k]}が少し上がった。体力が少し減った）`, [grow(f, k, 1), stamina(f, -5)]],
+      ['ベンチで昼寝する', '子どもの声を聞きながら、うとうとした。（体力が回復した）', [stamina(f, 10)]],
+    ]
+  }),
+  simple('kaidashi', 3, '道具の買い出し', MAKABE, 'bg_sports_shop', [{ char: 'makabe', face: 'troubled' }], ['ボールとロジンを買いに行くんだけど…どれがいいのか、全然分からなくて。ついてきてくれる？'], (f) => [
+    ['一緒に選ぶ', '真壁先生は、店員さんより熱心にメモを取った。（真壁の評価が上がった。体力が少し減った）', [ev('makabe', 3), stamina(f, -3)]],
+    ['部員に選んでもらう', '部員たちが、あれこれ言い合いながら選んだ。（チームメイトの評価が上がった）', [ev('team', 2)]],
+  ]),
+  simple('yakyuban', 3, '野球盤', DAICHI, 'bg_clubroom_day', [{ char: 'daichi', face: 'smile' }], ['見ろよ、倉庫から古い野球盤が出てきた！ 一回勝負しようぜ'], (f) => [
+    ['本気で勝負する', '九回裏、消える魔球で大地が勝った。（大地の評価が上がった）', [ev('daichi', 2)]],
+    ['ナギを呼んでくる', 'ナギの采配の前に、大地は一点も取れなかった。（ナギの評価が上がった。大地の評価が少し上がった）', [ev('nagi', 2), ev('daichi', 1)]],
+  ]),
+  simple('spike', 3, 'スパイクのひも', NARR, 'bg_ground_day', [{ char: 'focus', face: 'frustrated' }], ['走り込みの途中で、スパイクのひもが、ぷつりと切れた。'], (f) => [
+    ['予備のひもに替える', '新しいひもで、足元が引き締まった。（調子が上がった）', [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 3 }]],
+    ['結び直して走り続ける', `少し走りにくかったが、最後まで走り切った。（${ABILITY_LABEL[f.mainPosition === 'P' ? 'pitching.stamina' : 'running.speed']}が少し上がった。体力が少し減った）`, [grow(f, f.mainPosition === 'P' ? 'pitching.stamina' : 'running.speed', 1), stamina(f, -5)]],
+  ]),
+  simple('radio', 3, '夜のラジオ中継', NARR, 'bg_nagi_room_hs_night', [{ char: 'focus', face: 'normal' }], ['夜。ラジオから、プロ野球の延長戦の中継が流れてくる。'], (f) => [
+    ['最後まで聞く', 'サヨナラ勝ちで、思わず声が出た。（調子が上がった。体力が少し減った）', [{ op: 'condition', playerId: f.id, key: 'motivation', delta: 4 }, stamina(f, -4)]],
+    ['途中で寝る', '翌朝、結果は新聞で知った。（体力が回復した）', [stamina(f, 10)]],
+  ]),
+  simple('kasa', 3, '忘れた傘', DAICHI, 'bg_school_gate_sakura', [{ char: 'daichi', face: 'frustrated' }], ['下校時刻。昇降口で、大地が空を見上げて立ち尽くしている。「…傘、忘れた」'], (f) => [
+    ['傘に入れてやる', '二人で一本の傘は、さすがに狭かった。（大地の評価が上がった）', [ev('daichi', 3)]],
+    ['一緒に走って帰る', '日向酒店に着くころには、二人ともずぶぬれだった。（体力が少し減った。調子が上がった）', [stamina(f, -4), { op: 'condition', playerId: f.id, key: 'motivation', delta: 3 }]],
+  ]),
 ]
 
 /** 通常週のイベントを1つ選ぶ（同じものは1年に2回まで） */

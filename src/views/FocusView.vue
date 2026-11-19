@@ -7,7 +7,7 @@ import AbilityBar from '@/components/AbilityBar.vue'
 import RankBadge from '@/components/RankBadge.vue'
 import { PITCH_NAME, POSITION_NAME, velocityScore } from '@/game/constants'
 import { fielderRating, pitcherRating, playerRating, xpProgress } from '@/game/player'
-import { getSkill } from '@/game/skills'
+import { getSkill, tierClass } from '@/game/skills'
 import { EVAL_KEYS, EVAL_LABEL, EVAL_NOTE, draftOutlook, evalStars, focusPlayer, successOf } from '@/game/success/state'
 import type { EvalKey } from '@/game/success/types'
 
@@ -139,7 +139,7 @@ const draft = computed(() => {
       <div class="card">
         <h2 class="sun">特殊能力</h2>
         <div v-if="p.skills.length" class="skills">
-          <span v-for="id in p.skills" :key="id" class="skill" :class="getSkill(id)?.good ? 'good' : 'bad'">{{ getSkill(id)?.name }}</span>
+          <span v-for="id in p.skills" :key="id" class="skill" :class="[getSkill(id)?.good ? 'good' : 'bad', tierClass(id)]">{{ getSkill(id)?.name }}</span>
         </div>
         <p v-else class="muted">まだありません。イベントや特訓で覚えます。</p>
       </div>

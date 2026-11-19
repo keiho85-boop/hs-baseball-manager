@@ -8,6 +8,7 @@ import { ABILITY_LABEL, eid, learnable, learnablePitcher, mainKeys, skillName } 
 import type { EffectOp, EventInstance, Player, SaveData, SquareType } from '../types'
 import { focusPlayer, successOf } from './state'
 import { levelEvent, PERSON_EVAL, pitcherDelta } from './personEvents'
+import { DAICHI_CHAIN_RATE, chainEvent, charEvent, joinedChars, type CharKey } from './charEvents'
 
 export type Person = 'scout' | 'nagi' | 'genzo' | 'hasumi' | 'daichi' | 'makabe'
 
@@ -37,6 +38,7 @@ export function rollAttach(save: SaveData, rng: Rng): void {
   // 合宿中は、練習マスに人物は付かない
   if (sg.campWeeks > 0) {
     sg.attach = {}
+    sg.charAttach = {}
     return
   }
   const flags = save.story!.flags
@@ -52,6 +54,27 @@ export function rollAttach(save: SaveData, rng: Rng): void {
     if (i !== undefined) attach[i] = p
   })
   sg.attach = attach
+  // 入部している固有キャラも、練習マスに付く（人物のいないマス。1マスに複数いてもよい）
+  const free = slots.slice(people.length)
+  const chars: Record<number, string[]> = {}
+  if (free.length) for (const c of joinedChars(save)) (chars[rng.pick(free)] ??= []).push(c.key)
+  sg.charAttach = chars
+}
+
+/** 止まったマスにいる人（人物か固有キャラ）。複数いるときは、その中から1人 */
+export function occupantAt(save: SaveData, rng: Rng, index: number): { person: Person } | { char: CharKey } | null {
+  const person = attachedAt(save, index)
+  const chars = (save.sugoroku?.charAttach?.[index] ?? []) as CharKey[]
+  const all: ({ person: Person } | { char: CharKey })[] = [...(person ? [{ person }] : []), ...chars.map((char) => ({ char }))]
+  return all.length ? rng.pick(all) : null
+}
+
+/** 止まったマスのイベント（人物か固有キャラ） */
+export function occupantEvent(save: SaveData, rng: Rng, index: number): { hit: boolean; event: EventInstance | null } {
+  const who = occupantAt(save, rng, index)
+  if (!who) return { hit: false, event: null }
+  if ('person' in who) return { hit: true, event: attachEvent(save, rng, who.person) }
+  return { hit: true, event: charEvent(save, rng, who.char) }
 }
 
 /** 止まったマスに付いている人物 */
@@ -90,6 +113,11 @@ export function attachEvent(save: SaveData, rng: Rng, person: Person): EventInst
 function attachEventBase(save: SaveData, rng: Rng, person: Person): EventInstance | null {
   const f = focusPlayer(save)
   if (!f) return null
+  // 大地：★イベントの代わりに、25%で続きの話
+  if (person === 'daichi' && rng.chance(DAICHI_CHAIN_RATE)) {
+    const chain = chainEvent(save, rng, 'daichi')
+    if (chain) return chain
+  }
   // 評価が上がるほど、新しいイベントが解放される（解放済みの中からランダム。★1はこの下のもの）
   const higher = levelEvent(save, rng, person, f)
   if (higher) return higher
@@ -279,7 +307,7 @@ export function successRandomEvent(save: SaveData, rng: Rng): EventInstance | nu
       lines: ['朝比奈さんに宿題を出されてね。インフィールドフライ、今日こそ理解したいんだ'],
       choices: [
         { label: '最後まで付き合う', result: '夜の9時。真壁先生はついにインフィールドフライを理解した。（真壁の評価が大きく上がった。体力が減った）', ops: [ev('makabe', 5), { op: 'condition', playerId: f.id, key: 'stamina', delta: -8 }] },
-        { label: '途中で帰る', result: '真壁先生は一人で教本を読み続けた。（変化なし）', ops: [] },
+        { label: '途中で帰る', result: '真壁先生は一人で教本を読み続けた。（体力が少し回復した。真壁の評価が少し上がった）', ops: [{ op: 'condition', playerId: f.id, key: 'stamina', delta: 5 }, ev('makabe', 1)] },
       ],
     }),
     (): EventInstance => ({

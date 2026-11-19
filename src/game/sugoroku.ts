@@ -7,7 +7,8 @@ import { rollAttach } from './success/board'
 import { rollClubs } from './success/clubs'
 import { POSITION_NAME, weekToDate } from './constants'
 import { fullName, growWeekly } from './player'
-import { SKILLS, conflicts } from './skills'
+import { getSkill, grantSkill } from './skills'
+import { learnable } from './events'
 import type { Card, CardEffect, Facilities, Player, PracticeMenu, SaveData, SquareType, SugorokuState, WeekPlan } from './types'
 
 export const BOARD_SIZE = 20
@@ -87,7 +88,7 @@ export function squareDescription(sq: SquareType, p: Pick<Player, 'mainPosition'
   return `${names.join('・')}が伸びる${keys.pitches !== undefined ? '（新しい球種を覚えることもある）' : ''}`
 }
 /** 選手育成モードの特訓で、特殊能力に挑戦したときに身につく確率（熱血カードなら1.5倍） */
-export const SPECIAL_SKILL_RATE = 0.45
+export const SPECIAL_SKILL_RATE = 0.15
 /** 選手育成モードの特訓マスで選べる能力（最後は特殊能力への挑戦） */
 export function specialOptions(p: Pick<Player, 'mainPosition'>): { key: string; label: string }[] {
   const keys = p.mainPosition === 'P' ? ['velocity', 'control', 'stamina', 'kire', 'pitches'] : ['contact', 'power', 'eye', 'speed', 'arm', 'range', 'catching']
@@ -290,6 +291,11 @@ export function setMateMode(m: typeof MATE_MODE): void {
 }
 export const MATE_REST_BELOW = 40
 
+/** ケガのしやすさに効く特殊能力（ケガ知らず・鋼の体・ケガがち） */
+export function injurySkillMult(p: Player): number {
+  return p.skills.includes('hagane') ? 0.15 : p.skills.includes('kega_shirazu') ? 0.4 : p.skills.includes('kegagachi') ? 1.6 : 1
+}
+
 /** 練習で体力が減り、疲れているとケガをしやすい */
 function practiceLoad(rng: Rng, save: SaveData, p: Player, cost: number, injuryMult: number, messages: string[]): void {
   const c = p.condition
@@ -301,7 +307,7 @@ function practiceLoad(rng: Rng, save: SaveData, p: Player, cost: number, injuryM
   const tired = c.stamina < 20 ? 0.07 : c.stamina < 40 ? 0.022 : 0.002
   // 選手育成モードのチームメイトは、ケガをしにくい（ケガの知らせが多くなりすぎないように。育成選手はそのまま）
   const mate = successOf(save) && p.storyCast !== 'focus' ? 0.25 : 1
-  const risk = tired * injuryMult * mate * (1.5 - p.common.durability / 100)
+  const risk = tired * injuryMult * mate * (1.5 - p.common.durability / 100) * injurySkillMult(p)
   if (rng.chance(clamp(risk, 0, 0.4))) {
     const kind = rng.weighted(INJURIES.map((x, i) => ({ value: x, weight: [30, 30, 18, 15, 7][i]! })))
     const weeks = rng.int(kind.weeks[0], kind.weeks[1])
@@ -324,7 +330,7 @@ function worryCheck(rng: Rng, save: SaveData, p: Player, messages: string[]): bo
   if (c.stamina >= 40) return false
   const exhausted = c.stamina < 20
   const mate = p.storyCast === 'focus' ? 1 : 0.25
-  const body = 1.5 - p.common.durability / 100
+  const body = (1.5 - p.common.durability / 100) * injurySkillMult(p)
   if (!c.worry) {
     if (!rng.chance((exhausted ? WORRY_RATE.exhausted : WORRY_RATE.tired) * mate * body)) return false
     const part = p.mainPosition === 'P' ? (rng.chance(0.5) ? 'shoulder' : 'elbow') : rng.chance(0.5) ? 'elbow' : 'knee'
@@ -360,27 +366,19 @@ function worryCheck(rng: Rng, save: SaveData, p: Player, messages: string[]): bo
 
 /** 特殊能力を覚える／弱点を克服する */
 export function trySkill(rng: Rng, p: Player, learnRate: number, cureRate: number, messages: string[]): void {
-  const bad = p.skills.filter((id) => !SKILLS.find((s) => s.id === id)?.good)
+  const bad = p.skills.filter((id) => !getSkill(id)?.good)
   if (bad.length > 0 && rng.chance(cureRate)) {
     const id = rng.pick(bad)
     p.skills = p.skills.filter((x) => x !== id)
-    messages.push(`${fullName(p)}が弱点「${SKILLS.find((s) => s.id === id)?.name}」を克服した！`)
+    messages.push(`${fullName(p)}が弱点「${getSkill(id)?.name}」を克服した！`)
     return
   }
-  if (p.skills.filter((id) => SKILLS.find((s) => s.id === id)?.good).length >= 5) return
+  if (p.skills.filter((id) => getSkill(id)?.good).length >= 5) return
   if (!rng.chance(learnRate)) return
-  const isPitcher = p.mainPosition === 'P'
-  const options = SKILLS.filter(
-    (s) =>
-      s.good &&
-      !p.skills.includes(s.id) &&
-      (s.target === 'all' || (s.target === 'pitcher') === isPitcher) &&
-      !p.skills.some((o) => conflicts(o, s.id)),
-  )
-  if (options.length === 0) return
-  const skill = rng.pick(options)
-  p.skills.push(skill.id)
-  messages.push(`${fullName(p)}が特殊能力「${skill.name}」を身につけた！`)
+  // 偶然で身につくのは、Sでも上位でもない能力だけ（序列の低いものほど出やすい）
+  const id = learnable(rng, p)
+  if (!id || !grantSkill(p, id)) return
+  messages.push(`${fullName(p)}が特殊能力「${getSkill(id)?.name}」を身につけた！`)
 }
 
 /** 選手育成モードの練習：体力の消費の倍率と、伸びの倍率（調整用） */
@@ -505,7 +503,7 @@ export function applyOwnWeek(save: SaveData, rng: Rng, plan: WeekPlan | null, me
       } else if (chosen) trySkill(rng, p, 0.16 * card.gain, 0.15 * card.gain, messages)
     } else if (sq === 'rest') {
       intensity = 0.25
-      cost = -restGain
+      cost = -restGain * (p.skills.includes('kaifuku') ? 1.3 : p.skills.includes('hagane') ? 1.2 : 1)
       if (p.condition.form < 3 && rng.chance(0.6)) p.condition.form += 1
     } else if (sq === 'rain') {
       intensity = 0.5 * card.gain

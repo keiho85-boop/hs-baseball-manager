@@ -181,11 +181,22 @@ export function canConfess(save: SaveData, place: 1 | 2 | 3 = 3): boolean {
 export function focusGrowthMult(save: SaveData, p: Player): number {
   const s = successOf(save)
   if (!s) return 1
-  if (s.focusId !== p.id) return teamGrowthMult(save) * TEAMMATE_GROWTH_MULT
+  if (s.focusId !== p.id) {
+    // 11月19日：育成選手 ≧ 固有キャラ（大地・神代を含む） ≫ モブ
+    const named = p.storyCast === 'daichi' || !!p.storyCast?.startsWith('fixed:')
+    return teamGrowthMult(save) * (named ? TEAMMATE_GROWTH_MULT : MOB_GROWTH_MULT)
+  }
   return p.mainPosition === 'P' ? 1.45 : 1.35
 }
-/** チームメイトの伸びの倍率（調整用。11月16日：全国優勝が上手に遊んで5割前後になるように） */
-export const TEAMMATE_GROWTH_MULT = 1.45
+/** 固有キャラ（大地・神代を含む）の伸びの倍率（11月19日：育成選手 ≧ 固有キャラ ≫ モブ、全国優勝が上手に遊んで5割前後） */
+export let TEAMMATE_GROWTH_MULT = 1.15
+/** モブの部員の伸びの倍率（固有キャラより低く） */
+export let MOB_GROWTH_MULT = 0.9
+/** 調整用 */
+export function setGrowthMults(named: number, mob: number): void {
+  TEAMMATE_GROWTH_MULT = named
+  MOB_GROWTH_MULT = mob
+}
 
 /**
  * 選手育成モード：育成選手以外の部員の伸びの倍率。

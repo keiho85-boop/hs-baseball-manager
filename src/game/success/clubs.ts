@@ -13,6 +13,8 @@ import type { Player, Position, SaveData } from '../types'
 import type { CharId } from '../story/types'
 import type { ClubId, ClubMember, ClubRoster, EvalKey, FixedId } from './types'
 import { addEval, evalStars, successOf } from './state'
+import { grantJoinSkill } from './charSkills'
+import { absWeek } from '../modifiers'
 
 export interface ClubInfo {
   id: ClubId
@@ -194,6 +196,8 @@ export function joinTransfer(save: SaveData, rng: Rng, motivation: number): Play
   set(f, 'catching', 62)
   p.condition.motivation = motivation
   s.joinedTransfer = p.id
+  grantJoinSkill('tenkosei', p)
+  ;(save.flags ??= {}).chj_tenkosei = absWeek(save)
   save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `転校生の${TRANSFER.surname}${TRANSFER.givenName}が入部した。` })
   return p
 }
@@ -310,6 +314,7 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
       const p = addMember(save, rng, { grade: save.calendar.year === 1 ? 1 : 2, position: info.position, strength: 55, surname: info.surname, givenName: info.givenName })
       if (save.calendar.year >= 3) p.grade = 3
       tailor(p, fixedHere.id, rng)
+      grantJoinSkill(fixedHere.id, p)
       s.joined[fixedHere.id] = p.id
       // 入部したので、その部活の今週の顔ぶれから外す（週を進めない最初の勧誘でも、次の勧誘に出てこない）
       if (roster) roster.members = roster.members.filter((x) => x !== fixedHere)

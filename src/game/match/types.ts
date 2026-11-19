@@ -141,6 +141,23 @@ export interface MatchOptions {
   oppForm?: number
   /** 自校の継投は自分で決める（おまかせでも自動で代えない。選手育成モードで1打席ずつ進めるとき） */
   manualRelief?: boolean
+  /** 県大会の準決勝以降か（「大舞台の鬼」が効く） */
+  lateRound?: boolean
+  /** 学校ごとの総合（「下剋上」の判定に使う） */
+  ratings?: Record<string, number>
+}
+
+/** 特殊能力のための試合中の記録 */
+export interface MatchFx {
+  /** 「大黒柱」：学校ごとの上乗せの回数（最大3） */
+  boost: Record<string, number>
+  /** 代打で出た選手・代走で出た選手 */
+  pinchHit: string[]
+  pinchRun: string[]
+  /** 「ラストスパート」を出した回 */
+  spurt: Record<string, number>
+  /** 投手が登板した回と、回の途中からか */
+  enter: Record<string, { inning: number; top: boolean; mid: boolean }>
 }
 
 export interface MatchState {
@@ -175,4 +192,6 @@ export interface MatchState {
   cutins: number
   /** この打席の作戦（打者が替わるとおまかせに戻る） */
   pending: { batting: BattingOrder; pitching: PitchingOrder; plan: PitchPlan; shift: DefenseShift }
+  /** 特殊能力のための記録（古いデータにはない） */
+  fx?: MatchFx
 }

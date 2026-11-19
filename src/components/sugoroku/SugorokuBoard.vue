@@ -5,6 +5,7 @@ import { COMBO_MULT, SQUARES } from '@/game/sugoroku'
 import type { SquareType } from '@/game/types'
 import GameIcon from '../GameIcon.vue'
 import { PERSON_BADGE, type Person } from '@/game/success/board'
+import { CHAR_BADGE, type CharKey } from '@/game/success/charEvents'
 
 const props = defineProps<{
   board: SquareType[]
@@ -26,11 +27,24 @@ const props = defineProps<{
   milestone?: string
   /** サクセス：練習マスに付いている人物（マスの番号 → 人物） */
   attach?: Record<number, string> | null
+  /** サクセス：練習マスに付いている固有キャラ（マスの番号 → キャラ。複数いてもよい） */
+  charAttach?: Record<number, string[]> | null
 }>()
 
-function badge(i: number): { short: string; label: string; color: string } | null {
+type Badge = { short: string; label: string; color: string }
+/** そのマスにいる人（人物・固有キャラ） */
+function badges(i: number): Badge[] {
   const p = props.attach?.[i] as Person | undefined
-  return p ? PERSON_BADGE[p] : null
+  const out: Badge[] = p ? [PERSON_BADGE[p]] : []
+  for (const c of props.charAttach?.[i] ?? []) {
+    const b = CHAR_BADGE[c as CharKey]
+    if (b) out.push(b)
+  }
+  return out
+}
+function badgeNote(i: number): string {
+  const list = badges(i)
+  return list.length ? `＋${list.map((b) => b.label).join('か')}のイベント` : ''
 }
 
 /** マス番号 → 盤面の行・列（時計回り） */
@@ -58,7 +72,10 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
       <span class="short">{{ c.info.short }}</span>
       <span class="lbl">{{ c.info.label }}</span>
       <span v-if="c.i === position" class="token"><GameIcon name="cap" :size="18" /></span>
-      <span v-if="badge(c.i)" class="person" :style="{ background: badge(c.i)!.color }" :title="badge(c.i)!.label">{{ badge(c.i)!.short }}</span>
+      <span v-if="badges(c.i).length" class="people">
+        <span v-for="(b, k) in badges(c.i).slice(0, 2)" :key="k" class="person" :style="{ background: b.color }" :title="b.label">{{ b.short }}</span>
+        <span v-if="badges(c.i).length > 2" class="person more">+{{ badges(c.i).length - 2 }}</span>
+      </span>
     </div>
     <div class="center">
       <div class="month">{{ month }}<small>月の練習</small></div>
@@ -67,7 +84,7 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
       <div v-if="previewInfo" class="info target-info" :style="{ '--c': previewInfo.color }">
         <b>{{ previewInfo.label }}マス</b>
         <span>{{ desc ?? previewInfo.description }}</span>
-        <span v-if="preview !== null && badge(preview)" class="person-note">＋{{ badge(preview)!.label }}のイベント</span>
+        <span v-if="preview !== null && badgeNote(preview)" class="person-note">{{ badgeNote(preview) }}</span>
         <span v-if="(comboNext ?? 0) >= 2" class="combo-note">練習がつながる！ ×{{ (COMBO_MULT[comboNext ?? 0] ?? 1).toFixed(1) }}</span>
       </div>
       <div v-else class="info" :style="{ '--c': hereInfo.color }">
@@ -151,10 +168,17 @@ const hereInfo = computed(() => SQUARES[props.board[props.position]!])
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25), 0 4px 6px rgba(0, 0, 0, 0.25);
   animation: hop 0.3s ease-out;
 }
-.person {
+.people {
   position: absolute;
   bottom: -5px;
   left: -5px;
+  display: flex;
+  gap: 1px;
+}
+.person.more {
+  background: #555;
+}
+.person {
   min-width: 18px;
   height: 18px;
   padding: 0 3px;

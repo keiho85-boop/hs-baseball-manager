@@ -9,7 +9,7 @@ import { autoLineup, available, lineupValid } from './lineup'
 import { createMatch, defaultOptions, score, type MatchContext } from './engine'
 import { applyMatchResults } from './results'
 import type { MatchOptions, MatchState } from './types'
-import { TACTIC_BONUS, consumeOnce, hasModifier } from '../modifiers'
+import { TACTIC_BONUS, absWeek, consumeOnce, hasModifier } from '../modifiers'
 import { focusPlayer } from '../success/state'
 
 /** 自校のオーダー。保存したものが使えなければ、自動で組み直す */
@@ -49,7 +49,12 @@ export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial
   // 練習試合は自校が後攻か先攻かをランダムに
   const ownHome = rng.chance(0.5)
   // 選手育成モード：全国大会の相手は、各地の代表にふさわしい手ごわさにする（年を追うごとに強く）
-  const tk = partial.tournament ? save.tournaments?.find((x) => x.id === partial.tournament!.id)?.kind : undefined
+  const tour = partial.tournament ? save.tournaments?.find((x) => x.id === partial.tournament!.id) : undefined
+  const tk = tour?.kind
+  // 「大舞台の鬼」：県大会の準決勝以降
+  const lateRound = !!tour && !!partial.tournament && tour.prefCode !== null && partial.tournament.round >= tour.rounds.length - 2
+  // 「下剋上」：学校の総合の比較
+  const ratings = { [own.id]: own.overall, [opp.id]: opp.overall }
   const oppForm = save.story?.success && (tk === 'summerNational' || tk === 'springNational') ? NATIONAL_FORM.base + (save.calendar.year - 1) * NATIONAL_FORM.yearly : 0
   const ownInput = { schoolId: own.id, name: own.name, lineup: ownLine }
   const oppInput = { schoolId: opp.id, name: opp.name, lineup: oppLine }
@@ -57,7 +62,7 @@ export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial
     ctx,
     ownHome ? oppInput : ownInput,
     ownHome ? ownInput : oppInput,
-    defaultOptions({ luck: 'normal', userSchoolId: own.id, tacticBonus, ignoreCondition: !!save.story?.success, oppForm, ...partial }),
+    defaultOptions({ luck: 'normal', userSchoolId: own.id, tacticBonus, ignoreCondition: !!save.story?.success, oppForm, lateRound, ratings, ...partial }),
     newId(save, 'm'),
   )
 }
@@ -71,6 +76,21 @@ export interface FinishResult {
 /** 試合後：成績を反映し、記録に残す */
 export function finishMatch(save: SaveData, m: MatchState, rng: Rng): FinishResult {
   const { messages } = applyMatchResults(save, m, rng)
+  // 「負けず嫌い」：負けたら次の練習の伸びが良い（試合に出た自校の選手）
+  {
+    const [aa, hh] = score(m)
+    const ownHome = m.home.schoolId === save.playerSchoolId
+    const lost = ownHome ? hh < aa : aa < hh
+    const own = ownHome ? m.home : m.away
+    for (const id of [...own.lineup.map((x) => x.playerId), ...own.pitchersUsed]) {
+      const p = save.players[id]
+      if (p) p.condition.lostLastGame = lost
+    }
+    // 大地の続きの話（2話）：自校より総合の高い相手と戦った週に印を付ける
+    const oppId = ownHome ? m.away.schoolId : m.home.schoolId
+    const r = m.options.ratings
+    if (r && (r[oppId] ?? 0) > (r[save.playerSchoolId] ?? 0)) (save.flags ??= {}).strongFought = absWeek(save)
+  }
   const ownIsHome = m.home.schoolId === save.playerSchoolId
   const [a, h] = score(m)
   const own = ownIsHome ? h : a

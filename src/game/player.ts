@@ -2,7 +2,7 @@
 
 import { Rng, clamp } from './rng'
 import { POSITIONS, velocityScore } from './constants'
-import { SKILLS, conflicts } from './skills'
+import { SKILLS, canHave, getSkill, randomGoodPool } from './skills'
 import type {
   AlumniRecord,
   BatSide,
@@ -237,16 +237,22 @@ export function generatePlayer(rng: Rng, opt: GenerateOptions): Player {
   return player
 }
 
+/**
+ * 入部時の特殊能力（11月19日：1人1つまで。良い能力8%・弱点7%。序列の低いものほど出やすく、Sと上位は出ない）
+ */
+export const INITIAL_SKILL = { good: 0.08, bad: 0.07 }
 function rollInitialSkills(rng: Rng, isPitcher: boolean): string[] {
-  const result: string[] = []
-  for (const s of rng.shuffle([...SKILLS])) {
-    if (result.length >= 3) break
-    if (s.target === 'pitcher' && !isPitcher) continue
-    if (s.target === 'batter' && isPitcher && s.id !== 'highlight_defense') continue
-    if (result.some((r) => conflicts(r, s.id))) continue
-    if (rng.chance(s.initialRate)) result.push(s.id)
+  const pos = { mainPosition: (isPitcher ? 'P' : 'CF') as Position, skills: [] as string[] }
+  const r = rng.next()
+  if (r < INITIAL_SKILL.good) {
+    const pool = randomGoodPool(pos).filter((x) => (getSkill(x.id)?.initialRate ?? 0) > 0 && !getSkill(x.id)?.pos)
+    return pool.length ? [rng.weighted(pool.map((x) => ({ value: x.id, weight: x.weight })))] : []
   }
-  return result
+  if (r < INITIAL_SKILL.good + INITIAL_SKILL.bad) {
+    const bad = SKILLS.filter((s) => !s.good && canHave(pos, s))
+    return bad.length ? [rng.weighted(bad.map((s) => ({ value: s.id, weight: s.initialRate })))] : []
+  }
+  return []
 }
 
 export function defaultPracticeMenu(position: Position, power: number, speed: number): PracticeMenu {
@@ -404,10 +410,9 @@ export function xpProgress(p: Player, key: string, value: number): number {
 export const FOCUS_XP_MULT = 0.88
 export const FOCUS_XP_MULT_P = 0.56
 /**
- * 学年ごとの伸びの倍率（1年・2年・3年）。11月16日：入部時の能力を上げ（総合45前後）、伸びはなだらかに。
- * 3年間どの時期も練習に意味があるようにした。最終は投手80前後、野手75前後（シミュレーションで調整）
+ * 学年ごとの伸びの倍率（1年・2年・3年）。11月19日：学年による倍率はなくし、能力値ごとの必要経験点（xpNeed）だけで伸びにくさを決める
  */
-export const FOCUS_GRADE_MULT = [1.4, 0.95, 0.8]
+export const FOCUS_GRADE_MULT = [1, 1, 1]
 
 function addXp(p: Player, key: string, value: number, gain: number, max: number): number {
   const xp = (p.xp ??= {})
@@ -453,6 +458,16 @@ const XP_RATE = 0.26
 /** イベントや試合の「＋1」は、能力60前後で1上がるくらいの経験点 */
 const XP_PER_POINT = 2.1
 
+/** 練習の伸びに効く特殊能力（練習の鬼・練習の虫・サボり魔・伸び盛り・大器晩成・負けず嫌い） */
+export function practiceSkillFactor(p: Player): number {
+  const has = (id: string) => p.skills.includes(id)
+  let f = has('renshu_oni') ? 1.45 : has('hard_worker') ? 1.25 : has('lazy') ? 0.75 : 1
+  if (has('nobizakari') && p.grade === 1) f *= 1.25
+  if (has('taiki') && p.grade === 3) f *= 1.3
+  if (has('makezugirai') && p.condition.lostLastGame) f *= 1.3
+  return f
+}
+
 /** 小数の伸びを確率で整数にする */
 function roundByChance(rng: Rng, v: number): number {
   const base = Math.floor(v)
@@ -468,7 +483,7 @@ export function growWeekly(rng: Rng, p: Player, intensity: number, focusKeys?: R
   if (p.retired || p.condition.injury) return
   const typeFactor = GROWTH_BY_GRADE[p.hidden.growthType][p.grade] ?? 1
   const isPitcher = p.mainPosition === 'P'
-  const skillFactor = p.skills.includes('hard_worker') ? 1.25 : p.skills.includes('lazy') ? 0.75 : 1
+  const skillFactor = practiceSkillFactor(p)
 
   // 選手育成モードの育成選手：上限ではなく経験点（高い能力ほど上がりにくい）
   const useXp = p.storyCast === 'focus'

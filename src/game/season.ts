@@ -71,6 +71,11 @@ function seasonalEvents(save: SaveData, rng: Rng, list: Player[], messages: stri
 /** 練習の濃さ。設備が整っているほど伸びやすい */
 /** 選手育成モード：龍ヶ峰の部員が、新年度ごとに底上げされる量 */
 const RIVAL_YEARLY_GROWTH = 6
+/** 選手育成モード：他県の学校が1年で強くなる量（総合） */
+export let OTHER_PREF_YEARLY_GROWTH = 2
+export function setOtherPrefGrowth(v: number): void {
+  OTHER_PREF_YEARLY_GROWTH = v
+}
 
 function practiceIntensity(school: School): number {
   const f = school.facilities
@@ -112,7 +117,10 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
       applyOwnWeek(save, rng, plan, members, intensity, messages)
       // ストーリーあり：養護教諭の蓮見先生がいるので、ケガが少し早く治る（合宿に同伴しているときは、さらに早い）
       const nurse = save.story?.enabled ? ((save.sugoroku?.campWeeks ?? 0) > 0 ? 5 : 1) : 0
-      for (const p of members) weeklyCondition(rng, p, messages, school.facilities.medical + nurse)
+      const tourney = !!currentTournament(save)
+      for (const p of members) weeklyCondition(rng, p, messages, school.facilities.medical + nurse, tourney)
+      // 「負けず嫌い」の効果は、負けた次の1週だけ
+      for (const p of members) p.condition.lostLastGame = false
     } else {
       for (const p of members) {
         weeklyCondition(rng, p, null, school.facilities.medical)
@@ -209,7 +217,7 @@ export function advanceWeek(save: SaveData, plan: WeekPlan | null = null): WeekR
 }
 
 /** 体力・調子・ケガの1週間分の変化 */
-function weeklyCondition(rng: Rng, p: Player, ownMessages: string[] | null, medicalLevel = 0): void {
+function weeklyCondition(rng: Rng, p: Player, ownMessages: string[] | null, medicalLevel = 0, tourney = false): void {
   const c = p.condition
   // 体力の回復
   // 整数にそろえる（以前の版で小数になっていたデータもここで直る）
@@ -218,10 +226,12 @@ function weeklyCondition(rng: Rng, p: Player, ownMessages: string[] | null, medi
   c.stamina = clamp(Math.round(c.stamina + recover), 0, 100)
   c.motivation = clamp(Math.round(c.motivation), 0, 100)
   // 調子の変化（安定度が高いほど動きにくい）
-  const moveChance = 0.35 - p.common.stability / 400
+  // 「調子の波」は動きやすく、「平常心」は動きにくい。「お祭り男」は大会中に調子が下がらない
+  const moveChance = (0.35 - p.common.stability / 400) * (p.skills.includes('choshi_nami') ? 1.7 : p.skills.includes('heijoshin') ? 0.6 : 1)
   if (rng.chance(moveChance)) {
     const towardNormal = c.form > 3 ? -1 : c.form < 3 ? 1 : 0
-    const delta = rng.chance(0.55) && towardNormal !== 0 ? towardNormal : rng.chance(0.5) ? 1 : -1
+    let delta = rng.chance(0.55) && towardNormal !== 0 ? towardNormal : rng.chance(0.5) ? 1 : -1
+    if (delta < 0 && tourney && p.skills.includes('omatsuri')) delta = 0
     c.form = clamp(c.form + delta, 1, 5)
   }
   // ケガの回復（医務室が整っていると早く治ることがある）
@@ -326,7 +336,9 @@ function startNewYear(save: SaveData, rng: Rng, messages: string[]): void {
     if (!school.detailed) {
       // 総合力だけで管理する学校：評判に引き寄せられながら上下する（強豪の衰退や新しい強豪の台頭）
       const target = school.reputation * 0.75
-      school.overall = clamp(Math.round(school.overall + (target - school.overall) * 0.12 + rng.normal(0, 3)), 10, 90)
+      // 選手育成モード：他県の学校も、年を追うごとに少しだけ強くなる（3年目の全国大会が一方的にならないように）
+      const grow = successOf(save) && school.prefCode !== own.prefCode ? OTHER_PREF_YEARLY_GROWTH : 0
+      school.overall = clamp(Math.round(school.overall + (target - school.overall) * 0.12 + rng.normal(0, 3) + grow), 10, 90)
       continue
     }
     // 進級
