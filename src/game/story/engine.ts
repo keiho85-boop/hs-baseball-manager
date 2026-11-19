@@ -192,6 +192,9 @@ export function noteMatch(save: SaveData, info: { practice: boolean; won: boolea
   if (info.practice) {
     if (st.flags.firstPractice === undefined) st.flags.firstPractice = info.won === true ? 'win' : 'lose'
   }
+  // 勝敗の記録（久遠の勧誘の確率に使う）
+  if (info.won === true) st.flags.recW = Number(st.flags.recW ?? 0) + 1
+  else if (info.won === false) st.flags.recL = Number(st.flags.recL ?? 0) + 1
   // テニス部のエースは、試合で1勝するまで話を聞いてくれない（練習試合でも公式戦でもよい）
   if (info.won === true && st.flags.practiceWin === undefined) st.flags.practiceWin = save.calendar.year
   if (st.rivalId && info.opponentId === st.rivalId) {

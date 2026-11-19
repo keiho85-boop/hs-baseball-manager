@@ -7,7 +7,7 @@ export type EvalKey = 'nagi' | 'makabe' | 'hasumi' | 'daichi' | 'team' | 'genzo'
 export type ClubId = 'kitaku' | 'rikujo' | 'sumo' | 'soccer' | 'tennis' | 'takkyu' | 'shogi' | 'seitokai' | 'shinbun'
 
 /** 他の部活の固定キャラ（エース格） */
-export type FixedId = 'rikujo' | 'sumo' | 'soccer' | 'tennis' | 'takkyu' | 'shogi' | 'seitokai' | 'shinbun'
+export type FixedId = 'rikujo' | 'sumo' | 'soccer' | 'tennis' | 'takkyu' | 'shogi' | 'seitokai' | 'shinbun' | 'tenkosei'
 
 /** その週、部活にいる人（勧誘の前に見える） */
 export type ClubMember =

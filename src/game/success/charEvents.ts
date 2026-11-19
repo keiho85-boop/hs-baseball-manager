@@ -18,8 +18,16 @@ import type { EvalKey, FixedId } from './types'
 
 export type CharKey = FixedId | 'daichi' | 'tenkosei'
 
-/** 止まったときに続きの話が起きる確率（残りはただの出来事）。台本の目安は40%だったが、3年間で止まる回数が少ないため、シミュレーションで75%に調整（11月19日） */
-export const CHAIN_RATE = 0.75
+/**
+ * 止まったときに続きの話が起きる確率（残りはただの出来事）。11月19日：
+ * 入部している固有キャラが少ないほど、一人ひとりと深く付き合えるので続きの話が起きやすい。
+ * 勧誘を3人程度に絞ると完走しやすく、全員を集めると完走はまれになる
+ */
+export const CHAIN_RATE_BY_COUNT = [0.7, 0.7, 0.7, 0.7, 0.6, 0.5, 0.4, 0.35, 0.3, 0.3]
+export function chainRate(save: SaveData): number {
+  const n = Object.values(successOf(save)?.joined ?? {}).filter(Boolean).length
+  return CHAIN_RATE_BY_COUNT[Math.min(n, CHAIN_RATE_BY_COUNT.length - 1)]!
+}
 /** 大地のマスで、★イベントの代わりに続きの話が起きる確率 */
 export const DAICHI_CHAIN_RATE = 0.25
 /** 3話で、そのキャラの能力が取れる確率 */
@@ -28,6 +36,7 @@ export const CHAR_SKILL_RATE = 0.5
 export const CHAR_COMMON_RATE = 0.3
 /** 神代の一発イベント：起きる確率と、正解で能力が取れる確率 */
 export const TENKOSEI_RATE = 0.4
+export const TENKOSEI_RATE_SINGLE = 0.2
 export const TENKOSEI_SKILL_RATE = 0.35
 
 type Kind = 'end' | 'ok' | 'alt'
@@ -145,6 +154,12 @@ export const CHAR_SCRIPTS: Record<CharKey, CharScript> = {
         bg: 'bg_sumo_room',
         lines: ['練習のあと、塩見がほうきを持って相撲部の土俵へ向かっていく。'],
         choices: [f2('手伝う', '土俵を掃き終えると、塩見が深く頭を下げた。', ['st-5', 'mo+4']), f2('見送る', '先に帰って、ゆっくり休んだ。', ['st+5'])],
+      },
+      {
+        title: 'ちゃんこの研究',
+        bg: 'bg_clubroom_day',
+        lines: ['部室に、大鍋と湯気。塩見が、エプロン姿で鍋をかき混ぜている。', '塩見「…研究しました。野球部のための、ちゃんこです」'],
+        choices: [f2('みんなでいただく', '一口食べた瞬間、部員全員の目が見開いた。おかわりの列が、部室の外まで続いた。', ['all.st+100'])],
       },
     ],
   },
@@ -685,6 +700,24 @@ export const CHAR_SCRIPTS: Record<CharKey, CharScript> = {
   },
 }
 
+/**
+ * 各話の選択肢の出し方（11月19日）。3択ばかりにならないよう、選択肢のない回（['ok']）と2択の回を混ぜる。
+ * 並びは [1話, 2話, 3話]。'ok' 正解、'end' 終了、'alt' 別の道（3話では別の終わり方）
+ */
+const ALL: Kind[] = ['ok', 'end', 'alt']
+export const EP_FORMAT: Record<CharKey, Kind[][]> = {
+  sumo: [ALL, ['ok'], ['ok', 'end']],
+  soccer: [['ok', 'alt'], ALL, ALL],
+  shogi: [['ok'], ALL, ['ok', 'alt']],
+  tennis: [ALL, ['ok', 'end'], ALL],
+  rikujo: [['ok', 'alt'], ['ok'], ALL],
+  takkyu: [['ok'], ALL, ['ok', 'end']],
+  shinbun: [ALL, ['ok', 'alt'], ['ok', 'alt']],
+  seitokai: [['ok', 'alt'], ['ok'], ALL],
+  daichi: [['ok'], ALL, ['ok', 'end']],
+  tenkosei: [ALL, ALL, ALL],
+}
+
 // ---------------------------------------------------------------- 進み具合（save.flags に持つ）
 type Route = 'ok' | 'alt' | 'end' | 'done'
 function routeOf(save: SaveData, key: CharKey): Route {
@@ -701,6 +734,7 @@ export function joinedChars(save: SaveData): { key: CharKey; player: Player }[] 
   if (!s) return []
   const out: { key: CharKey; player: Player }[] = []
   for (const [id, pid] of Object.entries(s.joined)) {
+    if (id === 'tenkosei') continue
     const p = pid ? save.players[pid] : undefined
     if (p && !p.retired) out.push({ key: id as CharKey, player: p })
   }
@@ -795,7 +829,8 @@ function chainEp(save: SaveData, rng: Rng, key: CharKey, f: Player, n: 1 | 2): E
   const sc = CHAR_SCRIPTS[key]
   const ep = n === 1 ? sc.ep1 : sc.ep2
   const route = routeOf(save, key)
-  const choices = rng.shuffle(ep.choices).map((ch) => {
+  const kinds = EP_FORMAT[key][n - 1]!
+  const choices = rng.shuffle(ep.choices.filter((ch) => kinds.includes(ch.kind))).map((ch) => {
     const b = buildFx(f, ch.fx, rng)
     // 一度「別の道」に入ったら、そのあと正解を選んでも別の道のまま
     const next: Route = ch.kind === 'end' ? 'end' : ch.kind === 'alt' || route === 'alt' ? 'alt' : 'ok'
@@ -809,7 +844,8 @@ function chainEp3(save: SaveData, rng: Rng, key: CharKey, f: Player): EventInsta
   const sc = CHAR_SCRIPTS[key]
   const set = CHAR_SKILLS[key]!
   const ep = f.mainPosition === 'P' ? sc.ep3P : sc.ep3F
-  const choices = rng.shuffle(ep.choices).map((ch) => {
+  const kinds = EP_FORMAT[key][2]!
+  const choices = rng.shuffle(ep.choices.filter((ch) => kinds.includes(ch.kind))).map((ch) => {
     const done = [flag(`chr_${key}`, 'done'), flag(`che_${key}`, 3)]
     if (!ch.skill) {
       const b = buildFx(f, ch.fx, rng)
@@ -887,7 +923,9 @@ function fillerEvent(rng: Rng, key: CharKey, f: Player): EventInstance | null {
 /** 神代の一発イベント（入部から4週以上たってから、止まると40%） */
 function tenkoseiEvent(save: SaveData, rng: Rng, f: Player): EventInstance | null {
   const joined = Number(save.flags?.chj_tenkosei ?? absWeek(save))
-  if (absWeek(save) - joined < 4 || !rng.chance(TENKOSEI_RATE)) return null
+  // 大地とナギが付き合っていれば40%、そうでなければ20%
+  const rate = successOf(save)?.dating != null ? TENKOSEI_RATE : TENKOSEI_RATE_SINGLE
+  if (absWeek(save) - joined < 4 || !rng.chance(rate)) return null
   const sc = CHAR_SCRIPTS.tenkosei
   const done = [flag('chr_tenkosei', 'done')]
   const alt = trySkill(f, charSkillFor('tenkosei', f, true), CHAR_SKILL_RATE, rng)
@@ -934,7 +972,7 @@ export function charEvent(save: SaveData, rng: Rng, key: CharKey): EventInstance
   const f = focusPlayer(save)
   if (!f) return null
   if (key === 'tenkosei') return tenkoseiEvent(save, rng, f)
-  if (rng.chance(CHAIN_RATE)) {
+  if (rng.chance(chainRate(save))) {
     const e = chainEvent(save, rng, key)
     if (e) return e
   }

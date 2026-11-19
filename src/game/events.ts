@@ -7,7 +7,7 @@ import { defaultPracticeMenu, fullName, raiseAbility, shiftForm } from './player
 import { computeOverall, generateGrade, schoolStrength } from './world'
 import { getSkill, grantSkill, randomGoodPool } from './skills'
 import type { EffectOp, EventInstance, Player, Position, SaveData, SquareType } from './types'
-import { addEval, successOf } from './success/state'
+import { addEval, focusPlayer, successOf } from './success/state'
 import type { EvalKey } from './success/types'
 import { occupantEvent, withFocusEval } from './success/board'
 import { joinTransfer } from './success/clubs'
@@ -652,6 +652,28 @@ function nurseEvent(rng: Rng, list: Player[]): EventInstance {
   }
 }
 
+/** 育成選手の「カリスマ」「人望」：イベントの良い効果と評価の上がり幅を大きくする（11月19日） */
+export const CHARISMA_MULT = 1.2
+function withCharisma(save: SaveData, ops: EffectOp[]): EffectOp[] {
+  const f = successOf(save) ? focusPlayer(save) : null
+  if (!f) return ops
+  const ch = f.skills.includes('charisma')
+  const jb = f.skills.includes('jinbo')
+  if (!ch && !jb) return ops
+  return ops.map((o) => {
+    if (o.op === 'eval') {
+      if (ch) return { ...o, delta: o.delta > 0 ? Math.round(o.delta * 1.3) : Math.round(o.delta * 0.6) }
+      if (jb && o.key === 'team' && o.delta > 0) return { ...o, delta: Math.round(o.delta * 1.3) }
+      return o
+    }
+    if (!ch) return o
+    if (o.op === 'ability' && o.playerId === f.id && o.delta > 0 && !o.key.startsWith('direct:') && !o.key.startsWith('__')) return { ...o, delta: o.delta * CHARISMA_MULT }
+    if (o.op === 'condition' && o.key === 'stamina' && o.delta > 0) return { ...o, delta: Math.round(o.delta * CHARISMA_MULT) }
+    if (o.op === 'school' && o.key === 'funds' && o.delta > 0) return { ...o, delta: Math.round(o.delta * CHARISMA_MULT) }
+    return o
+  })
+}
+
 /** 止まったマスに応じてイベントを作る（イベントがなければ null）。position は止まったマスの番号（サクセスの人物イベントに使う） */
 export function buildEvent(save: SaveData, rng: Rng, square: SquareType, position?: number): EventInstance | null {
   const list = players(save)
@@ -710,9 +732,10 @@ function buildEventBase(save: SaveData, rng: Rng, square: SquareType, list: Play
 }
 
 /** 選んだ選択肢の効果を反映する */
-export function applyOps(save: SaveData, ops: EffectOp[]): void {
+export function applyOps(save: SaveData, ops0: EffectOp[]): void {
   const school = save.schools[save.playerSchoolId]!
   const all = players(save)
+  const ops = withCharisma(save, ops0)
   for (const op of ops) {
     if (op.op === 'school') {
       if (op.key === 'funds') school.funds = Math.max(0, school.funds + op.delta)

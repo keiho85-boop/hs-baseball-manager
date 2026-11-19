@@ -185,6 +185,13 @@ function fxOf(s: MatchState): MatchFx {
 }
 
 /** この回にその投手が取られた点 */
+/** その試合で、その投手が取られた点 */
+function runsThisGame(s: MatchState, pitcherId: string): number {
+  let r = 0
+  for (const e of s.events) if (e.pitcherId === pitcherId) r += e.runs
+  return r
+}
+
 function runsThisInning(s: MatchState, pitcherId: string): number {
   let r = 0
   for (const e of s.events) if (e.inning === s.inning && e.top === s.top && e.pitcherId === pitcherId) r += e.runs
@@ -341,9 +348,9 @@ function pitcherNow(s: MatchState, ctx: MatchContext, full: boolean): PitcherNow
   const pr = s.bases[1] !== null || s.bases[2] !== null
   const batterP = s.finished ? undefined : ctx.players[currentBatterId(s)]
   if (has(p, 'all_in')) {
-    control *= 1.15
-    kire *= 1.15
-    velo += 5
+    control *= 1.22
+    kire *= 1.22
+    velo += 7
   }
   if (has(p, 'makaiten')) kire += 12
   if (has(p, 'checkmate') && s.count.strikes === 2) control += 6
@@ -356,18 +363,21 @@ function pitcherNow(s: MatchState, ctx: MatchContext, full: boolean): PitcherNow
     kire += 6
   }
   if (s.fx?.spurt[id] === s.inning) {
-    velo += 5
-    control += 10
-    kire += 10
+    velo += 7
+    control += 15
+    kire += 15
   }
   if (has(p, 'rikito')) {
     velo += 3
     control -= 5
   }
   const lost = runsThisInning(s, id)
-  if (lost >= 2 && has(p, 'game_maker')) {
-    control += 12
-    kire += 12
+  // 「ゲームメーカー」：その試合で1点取られるごとに制球とキレが上がる（取られるほど上がり幅も大きい）
+  if (has(p, 'game_maker')) {
+    const g = runsThisGame(s, id)
+    const up = Math.min(30, g * 4 + Math.max(0, g - 2) * 2)
+    control += up
+    kire += up
   }
   if (lost >= 1 && has(p, 'recover')) control += 8
   if (batterP?.bats === 'L' && has(p, 'lefty_stopper')) {
@@ -532,8 +542,9 @@ function batterNow(s: MatchState, ctx: MatchContext, order: BattingOrder): Batte
   }
   if (has(p, 'moda')) {
     const h = s.batting[id]?.h ?? 0
-    contact += Math.min(12, h * 4)
-    power += Math.min(9, h * 3)
+    // 11月19日：S級に（1本目から大きく上がる）
+    contact += Math.min(18, h * 6)
+    power += Math.min(15, h * 5)
   }
   if (has(p, 'upper_swing')) {
     contact -= 5
@@ -796,7 +807,7 @@ export function simulatePitch(s: MatchState, ctx: MatchContext): PitchResult {
   }
   if (!pitch && has(pitcher, 'sokojikara')) stuff += 4
   if (pitch && has(pitcher, 'denka') && pitch.level >= Math.max(...pitcher.pitching.pitches.map((x) => x.level))) stuff += 3
-  if (pitch && has(pitcher, 'all_in')) stuff += pitch.level * 0.45
+  if (pitch && has(pitcher, 'all_in')) stuff += pitch.level * 0.6
   const typeBonus = (!pitch && pn.velo >= 140 && has(batter, 'fastball_killer') ? 8 : 0) + (pitch && has(batter, 'breaking_eye') ? 8 : 0)
   const pContact = clamp(0.84 + (bn.contact + typeBonus + zoneBonus - stuff) / 170, 0.45, 0.97) * (inZone ? 1 : 0.8)
   if (!rng.chance(pContact)) {
@@ -888,7 +899,7 @@ function addPitch(s: MatchState, pitcherId: string, p: Player, full: boolean): v
   // 「ラストスパート」：体力が残り2割を切ったら、その回だけ全力。次の回からは体力が尽きている
   if (has(p, 'last_spurt')) {
     const fx = fxOf(s)
-    if (fx.spurt[pitcherId] === undefined && box.pitches >= pool * 0.8) fx.spurt[pitcherId] = s.inning
+    if (fx.spurt[pitcherId] === undefined && box.pitches >= pool * 0.75) fx.spurt[pitcherId] = s.inning
     else if (fx.spurt[pitcherId] !== undefined && fx.spurt[pitcherId]! < s.inning) box.fatigue = Math.max(box.fatigue, 1.2)
   }
 }

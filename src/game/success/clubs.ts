@@ -6,7 +6,7 @@
 
 import { Rng, clamp } from '../rng'
 import { GIVEN_NAMES, SURNAMES } from '../names'
-import { POSITION_NAME } from '../constants'
+import { POSITION_NAME, wk } from '../constants'
 import { defaultPracticeMenu, fullName, generatePlayer } from '../player'
 import { computeOverall, newId } from '../world'
 import type { Player, Position, SaveData } from '../types'
@@ -60,6 +60,12 @@ export interface JoinContext {
   win: boolean
   /** 公式戦で勝ったことがあるか */
   officialWin: boolean
+  /** これまでの勝率（練習試合と公式戦。試合がなければ0） */
+  winRate: number
+  /** 育成選手が投手か */
+  focusPitcher: boolean
+  /** 評価の値（0〜100） */
+  evalOf: (key: EvalKey) => number
   /** 評価の段階（★1〜5） */
   stars: (key: EvalKey) => number
 }
@@ -84,44 +90,52 @@ export const FIXED: Record<FixedId, FixedInfo> = {
   rikujo: {
     id: 'rikujo', club: 'rikujo', surname: '岩城', givenName: '剛', char: 'iwaki', title: '陸上部のエース（砲丸投げ）', position: 'P',
     // 裏設定：強い相手と勝負したい。評判が高いほど乗ってくる
-    chance: (t, x) => 0.25 + 0.17 * t + x.rep / 200,
+    chance: (t, x) => 0.25 + TALK_STEP * t + x.rep / 200,
   },
   sumo: {
     id: 'sumo', club: 'sumo', surname: '塩見', givenName: '豪太', char: 'shiomi', title: '相撲部のエース', position: '1B',
-    // 裏設定：食べることが好き。商店会長（源造）の差し入れに弱い
-    chance: (t, x) => 0.3 + 0.17 * t + (x.stars('genzo') - 1) * 0.05,
+    // 裏設定：食べることが好き。商店会長（源造）の差し入れに弱い（11月19日：入りやすく）
+    chance: (t, x) => 0.42 + TALK_STEP * t + (x.stars('genzo') - 1) * 0.05,
   },
   soccer: {
     id: 'soccer', club: 'soccer', surname: '天羽', givenName: '翔', char: 'amou', title: 'サッカー部のエース', position: 'CF',
-    // 裏設定：勝てるチームにしか興味がない。評判と公式戦の勝利で動く
-    chance: (t, x) => 0.15 + 0.15 * t + x.rep / 150 + (x.officialWin ? 0.12 : 0),
+    // 裏設定：勝てるチームにしか興味がない。評判と公式戦の勝利で動く（11月19日：やや難しく）
+    chance: (t, x) => 0.1 + TALK_STEP * t + x.rep / 180 + (x.officialWin ? 0.1 : 0),
   },
   tennis: {
     id: 'tennis', club: 'tennis', surname: '久遠', givenName: '遼', char: 'kuon', title: 'テニス部のエース', position: 'SS',
-    // 練習試合で1勝するまでは、話を聞いてくれない。裏設定：ナギの采配に興味がある
-    chance: (t, x) => (x.win ? 0.3 + 0.17 * t + (x.stars('nagi') - 1) * 0.04 : 0),
+    // 練習試合で1勝するまでは、話を聞いてくれない。1勝したあとは戦績（勝率）しだい。裏設定：ナギの采配に興味がある
+    chance: (t, x) => (x.win ? 0.08 + TALK_STEP * t + x.winRate * 0.4 + (x.stars('nagi') - 1) * 0.03 : 0),
   },
   takkyu: {
     id: 'takkyu', club: 'takkyu', surname: '小早川', givenName: '俊', char: 'kobayakawa', title: '卓球部のエース', position: '2B',
-    // 裏設定：にぎやかな部が好き。チームメイトの評価（部の雰囲気）で動く
-    chance: (t, x) => 0.3 + 0.17 * t + (x.stars('team') - 1) * 0.05,
+    // 裏設定：にぎやかな部が好き。チームメイトの評価（部の雰囲気）で動く（育成選手が野手のときは少し難しい）
+    chance: (t, x) => (x.focusPitcher ? 0.3 : 0.2) + TALK_STEP * t + (x.stars('team') - 1) * 0.05,
   },
   shogi: {
     id: 'shogi', club: 'shogi', surname: '千手', givenName: '静馬', char: 'senju', title: '将棋部のエース', position: 'P',
     // 裏設定：作戦を考える人に興味がある。ナギの評価で動く
-    chance: (t, x) => 0.25 + 0.15 * t + (x.stars('nagi') - 1) * 0.06,
+    chance: (t, x) => 0.25 + TALK_STEP * t + (x.stars('nagi') - 1) * 0.06,
   },
   seitokai: {
     id: 'seitokai', club: 'seitokai', surname: '東雲', givenName: '学', char: 'shinonome', title: '生徒会長', position: '3B',
-    // 裏設定：先生の信頼がある部なら、と考えている。真壁先生の評価で動く
-    chance: (t, x) => 0.3 + 0.15 * t + (x.stars('makabe') - 1) * 0.06,
+    // 裏設定：先生の信頼がある部なら、と考えている。真壁先生の評価で動く（11月19日：入りやすく）
+    chance: (t, x) => 0.4 + TALK_STEP * t + (x.stars('makabe') - 1) * 0.06,
   },
   shinbun: {
     id: 'shinbun', club: 'shinbun', surname: '三木', givenName: '文太', char: 'miki', title: '新聞部', position: 'LF',
     // 裏設定：記事になる部を探している。勝っている部ほど入りたがる
-    chance: (t, x) => 0.35 + 0.15 * t + (x.win ? 0.1 : 0) + x.rep / 300,
+    chance: (t, x) => 0.35 + TALK_STEP * t + (x.win ? 0.1 : 0) + x.rep / 300,
+  },
+  tenkosei: {
+    id: 'tenkosei', club: 'kitaku', surname: '神代', givenName: '迅', char: 'tenkosei', title: '転校生（帰宅部）', position: '3B',
+    // 前の学校のスパルタ監督が合わず野球をやめた。保健室の常連で、蓮見先生だけが理解者。成功率は蓮見の評価だけで決まる
+    chance: (_t, x) => clamp((x.evalOf('hasumi') - 30) / 110, 0.03, 0.6),
   },
 }
+
+/** 話しかけるたびに上がる、加入の確率（11月19日：0.15〜0.17 → 0.10） */
+export const TALK_STEP = 0.1
 
 export function clubName(id: ClubId): string {
   return CLUBS.find((c) => c.id === id)?.name ?? ''
@@ -137,6 +151,8 @@ export function rollClubs(save: SaveData, rng: Rng): void {
   for (const c of CLUBS) {
     const members: ClubMember[] = []
     if (c.fixed && !s.joined[c.fixed] && rng.chance(0.5)) members.push({ kind: 'fixed', id: c.fixed })
+    // 神代：1〜2年目の4〜12月だけ、帰宅部にいることがある
+    if (c.id === 'kitaku' && tenkoseiAvailable(save) && rng.chance(0.5)) members.push({ kind: 'fixed', id: 'tenkosei' })
     for (let i = 0; i < c.mobs; i++) {
       members.push({
         kind: 'mob',
@@ -150,6 +166,12 @@ export function rollClubs(save: SaveData, rng: Rng): void {
     rosters.push({ club: c.id, members })
   }
   s.clubs = rosters
+}
+
+/** 神代が勧誘できる時期か（1〜2年目の12月まで。入部していない） */
+export function tenkoseiAvailable(save: SaveData): boolean {
+  const s = successOf(save)
+  return !!s && !s.joinedTransfer && save.calendar.year <= 2 && save.calendar.week <= wk(12, 5)
 }
 
 /** 強さの目安（一覧に出す） */
@@ -180,20 +202,26 @@ function addMember(save: SaveData, rng: Rng, opt: { grade: number; position: Pos
 /** 選手育成モードの転校生（固定キャラ）：2年生の三塁手・神代 迅。強豪校から来て、野球を続けるか迷っていた */
 export const TRANSFER = { surname: '神代', givenName: '迅', position: '3B' as Position, char: 'tenkosei' }
 
+export const TENKOSEI_STRENGTH = 74
+export const TENKOSEI_STATS = { contact: 78, power: 76, eye: 70, speed: 66, arm: 80, range: 76, catching: 76 }
+
 export function joinTransfer(save: SaveData, rng: Rng, motivation: number): Player | null {
   const s = successOf(save)
   if (!s || s.joinedTransfer) return null
-  const p = addMember(save, rng, { grade: 2, position: TRANSFER.position, strength: 62, surname: TRANSFER.surname, givenName: TRANSFER.givenName })
+  // 11月19日：入部しにくい分、入部時の総合は75前後（固有キャラで一番強い）
+  const p = addMember(save, rng, { grade: 2, position: TRANSFER.position, strength: TENKOSEI_STRENGTH, surname: TRANSFER.surname, givenName: TRANSFER.givenName })
   const b = p.batting as unknown as Record<string, number>
+  const r = p.running as unknown as Record<string, number>
   const f = p.fielding as unknown as Record<string, number>
   p.storyCast = 'fixed:tenkosei'
-  p.hidden.potential = Math.max(p.hidden.potential, 75)
-  set(b, 'contact', 60 + rng.int(0, 6))
-  set(b, 'power', 58 + rng.int(0, 6))
-  set(b, 'eye', 55)
-  set(f, 'arm', 68 + rng.int(0, 5))
-  set(f, 'range', 60)
-  set(f, 'catching', 62)
+  p.hidden.potential = Math.max(p.hidden.potential, 78)
+  set(b, 'contact', TENKOSEI_STATS.contact + rng.int(0, 5))
+  set(b, 'power', TENKOSEI_STATS.power + rng.int(0, 5))
+  set(b, 'eye', TENKOSEI_STATS.eye)
+  set(r, 'speed', Math.max(r.speed ?? 0, TENKOSEI_STATS.speed))
+  set(f, 'arm', TENKOSEI_STATS.arm + rng.int(0, 5))
+  set(f, 'range', TENKOSEI_STATS.range)
+  set(f, 'catching', TENKOSEI_STATS.catching)
   p.condition.motivation = motivation
   s.joinedTransfer = p.id
   grantJoinSkill('tenkosei', p)
@@ -205,6 +233,9 @@ export function joinTransfer(save: SaveData, rng: Rng, motivation: number): Play
 function set(obj: Record<string, number>, key: string, v: number, max = 99): void {
   obj[key] = clamp(Math.round(v), 1, max)
 }
+
+/** 三木の才能（伸びる上限） */
+export const SHINBUN_POTENTIAL = 50
 
 /** 固定キャラの能力を、その人らしく整える */
 function tailor(p: Player, id: FixedId, rng: Rng): void {
@@ -221,9 +252,10 @@ function tailor(p: Player, id: FixedId, rng: Rng): void {
     set(pi, 'control', 34 + rng.int(0, 6))
     set(b, 'power', 55)
   } else if (id === 'sumo') {
-    set(b, 'power', 80 + rng.int(0, 5))
+    // 11月19日：長打に特化（パワー90、ミートは低め。走力と守備範囲は入部後も上がらない）
+    set(b, 'power', 90)
     b.trajectory = 4
-    set(b, 'contact', 42 + rng.int(0, 6))
+    set(b, 'contact', 28 + rng.int(0, 5))
     set(f, 'range', 22)
     set(r, 'speed', 22)
   } else if (id === 'soccer') {
@@ -257,6 +289,8 @@ function tailor(p: Player, id: FixedId, rng: Rng): void {
     if (p.pitching.pitches.length < 2) p.pitching.pitches.push({ type: p.pitching.pitches.some((x) => x.type === 'fork') ? 'slider' : 'fork', level: 4 })
     for (const x of p.pitching.pitches) x.level = Math.max(x.level, 4)
   }
+  // 三木：伸びる上限を低めに（記事を書くほうが本業）
+  if (id === 'shinbun') p.hidden.potential = SHINBUN_POTENTIAL
   const pos = FIXED[id].position
   p.mainPosition = pos
   p.fielding.aptitude[pos] = 3
@@ -305,12 +339,45 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
     s.talks[fixedHere.id] = talks
     const practiceWin = save.story?.flags.practiceWin !== undefined || hasAnyWin(save)
     const chance = clamp(
-      info.chance(talks - 1, { rep, win: practiceWin, officialWin: hasOfficialWin(save), stars: (k) => evalStars(s.eval[k]) }),
+      info.chance(talks - 1, {
+        rep,
+        win: practiceWin,
+        officialWin: hasOfficialWin(save),
+        winRate: winRateOf(save),
+        focusPitcher: save.players[s.focusId ?? '']?.mainPosition === 'P',
+        stars: (k) => evalStars(s.eval[k]),
+        evalOf: (k) => s.eval[k],
+      }),
       0,
       0.95,
     )
-    lines.push(`${club.name}へ。${info.title}の${info.surname}に、思い切って声をかけた。`)
-    if (rng.chance(chance)) {
+    lines.push(
+      fixedHere.id === 'tenkosei'
+        ? '帰宅部の神代が、保健室の前の廊下で壁にもたれている。…グラウンドのほうを、じっと見ていた。'
+        : `${club.name}へ。${info.title}の${info.surname}に、思い切って声をかけた。`,
+    )
+    if (fixedHere.id === 'tenkosei') {
+      // 神代：成功率は蓮見の評価だけで決まる。入部の仕方は転校生の作り方（joinTransfer）を使う
+      if (rng.chance(chance)) {
+        const p = joinTransfer(save, rng, 70)
+        if (p) {
+          s.joined.tenkosei = p.id
+          if (roster) roster.members = roster.members.filter((x) => x !== fixedHere)
+          success = true
+          fixed = 'tenkosei'
+          lines.push(`「…蓮見センセーが、うるせぇんだよ。一回くらい行ってやれって」${fullName(p)}が入部した！`)
+          evals.push(addEval(save, 'hasumi', 3), addEval(save, 'team', 2), addEval(save, 'nagi', 2))
+        }
+      } else {
+        lines.push(
+          rng.pick([
+            '「野球？ …もうやめたんだよ」舌打ちして、保健室に入っていった。',
+            '「うるせぇな。放っとけ」…それでも、少しだけ足を止めた。',
+            '「…監督とか、いねぇんだろ、ここ」それだけ言って、帰っていった。',
+          ]),
+        )
+      }
+    } else if (rng.chance(chance)) {
       const p = addMember(save, rng, { grade: save.calendar.year === 1 ? 1 : 2, position: info.position, strength: 55, surname: info.surname, givenName: info.givenName })
       if (save.calendar.year >= 3) p.grade = 3
       tailor(p, fixedHere.id, rng)
@@ -382,6 +449,14 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
   save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `勧誘（${club.name}）：${success ? '成功' : '失敗'}` })
   const talked = fixedHere ? { char: FIXED[fixedHere.id].char, bg: CLUB_BG[clubId] } : undefined
   return { title: success ? '勧誘成功！' : '勧誘', lines, success, fixed, talked }
+}
+
+/** これまでの勝率（練習試合と公式戦） */
+function winRateOf(save: SaveData): number {
+  const f = save.story?.flags
+  const w = Number(f?.recW ?? 0)
+  const l = Number(f?.recL ?? 0)
+  return w + l > 0 ? w / (w + l) : 0
 }
 
 /** 公式戦で、一度でも勝ったことがあるか */

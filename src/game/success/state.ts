@@ -184,12 +184,16 @@ export function focusGrowthMult(save: SaveData, p: Player): number {
   if (s.focusId !== p.id) {
     // 11月19日：育成選手 ≧ 固有キャラ（大地・神代を含む） ≫ モブ
     const named = p.storyCast === 'daichi' || !!p.storyCast?.startsWith('fixed:')
-    return teamGrowthMult(save) * (named ? TEAMMATE_GROWTH_MULT : MOB_GROWTH_MULT)
+    // 三木・東雲・大地以外の固有キャラは、少し伸びにくい（11月19日）
+    const slow = named && p.storyCast !== 'daichi' && p.storyCast !== 'fixed:shinbun' && p.storyCast !== 'fixed:seitokai'
+    return teamGrowthMult(save) * (named ? TEAMMATE_GROWTH_MULT * (slow ? FIXED_SLOW_MULT : 1) : MOB_GROWTH_MULT)
   }
   return p.mainPosition === 'P' ? 1.45 : 1.35
 }
 /** 固有キャラ（大地・神代を含む）の伸びの倍率（11月19日：育成選手 ≧ 固有キャラ ≫ モブ、全国優勝が上手に遊んで5割前後） */
 export let TEAMMATE_GROWTH_MULT = 1.15
+/** 三木・東雲・大地以外の固有キャラの伸びに掛ける倍率 */
+export let FIXED_SLOW_MULT = 0.8
 /** モブの部員の伸びの倍率（固有キャラより低く） */
 export let MOB_GROWTH_MULT = 0.9
 /** 調整用 */

@@ -14,6 +14,8 @@ export interface CharSkillSet {
   altPitcher: string
   /** 投手・野手に関係なく取れる、その人の能力（三木・東雲） */
   common?: string
+  /** 入部したときに本人が持つ能力（省略すると、本人の守備位置に合う fielder / pitcher） */
+  join?: string
 }
 
 export const CHAR_SKILLS: Record<string, CharSkillSet> = {
@@ -21,7 +23,8 @@ export const CHAR_SKILLS: Record<string, CharSkillSet> = {
   soccer: { fielder: 'supercar', pitcher: 'last_spurt', altFielder: 'rocket_start', altPitcher: 'gear_change' },
   shogi: { fielder: 'senryo', pitcher: 'all_in', altFielder: 'late_hero', altPitcher: 'kyuen' },
   tennis: { fielder: 'shikaku', pitcher: 'makaiten', altFielder: 'persistent', altPitcher: 'denka' },
-  rikujo: { fielder: 'sniper', pitcher: 'tekkyu', altFielder: 'good_throw', altPitcher: 'groundball' },
+  // 11月19日：育成選手が投手のときは内野ゴロ量産（別の終わり方は能力アップのみ）。岩城本人は鉄球を持つ
+  rikujo: { fielder: 'sniper', pitcher: 'groundball', altFielder: 'good_throw', altPitcher: '', join: 'tekkyu' },
   takkyu: { fielder: 'seiiki', pitcher: 'fuiuchi', altFielder: 'highlight_defense', altPitcher: 'no_steal' },
   shinbun: { fielder: 'shingan', pitcher: 'checkmate', altFielder: 'miwame', altPitcher: 'finisher', common: 'renshu_oni' },
   seitokai: { fielder: 'pillar', pitcher: 'ace', altFielder: 'bench_sun', altPitcher: 'heijoshin', common: 'charisma' },
@@ -34,13 +37,13 @@ export function charSkillFor(key: string, p: Player, alt = false): string | unde
   const set = CHAR_SKILLS[key]
   if (!set) return undefined
   const pitcher = p.mainPosition === 'P'
-  if (alt) return pitcher ? set.altPitcher : set.altFielder
-  return pitcher ? set.pitcher : set.fielder
+  const id = alt ? (pitcher ? set.altPitcher : set.altFielder) : pitcher ? set.pitcher : set.fielder
+  return id || undefined
 }
 
 /** 入部したときに、その人の能力を持たせる */
 export function grantJoinSkill(key: string, p: Player): string | undefined {
-  const id = charSkillFor(key, p)
+  const id = CHAR_SKILLS[key]?.join ?? charSkillFor(key, p)
   if (!id || p.skills.includes(id)) return undefined
   // ぶつかる良い能力があれば外して付ける（弱点は grantSkill が外す）
   p.skills = p.skills.filter((x) => !conflicts(x, id) || !getSkill(x)?.good)

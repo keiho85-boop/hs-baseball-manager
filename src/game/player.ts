@@ -334,7 +334,20 @@ export function velocityCap(p: Player): number {
  * 能力を上げる（イベント・試合の伸びに使う）。才能の上限＋5までしか上がらない。
  * もともと上限を超えている能力は、下げはしないがそれ以上は上がらない。key は 'batting.contact' の形
  */
+/**
+ * 固有キャラの、入部後に上がらない能力（11月19日）
+ * 千手：スタミナ（1回限りの火消し役のまま）／塩見：走力と守備範囲
+ */
+export const LOCKED_ABILITIES: Record<string, string[]> = {
+  'fixed:shogi': ['pitching.stamina'],
+  'fixed:sumo': ['running.speed', 'fielding.range'],
+}
+export function isLocked(p: Player, key: string): boolean {
+  return !!p.storyCast && !!LOCKED_ABILITIES[p.storyCast]?.includes(key)
+}
+
 export function raiseAbility(p: Player, key: string, delta: number): boolean {
+  if (delta > 0 && isLocked(p, key)) return false
   const [group, k] = key.split('.') as [string, string]
   const obj = (p as unknown as Record<string, Record<string, number>>)[group]
   if (!obj || typeof obj[k] !== 'number') return false
@@ -491,6 +504,7 @@ export function growWeekly(rng: Rng, p: Player, intensity: number, focusKeys?: R
   for (const g of GROWABLE) {
     const obj = p[g.group] as unknown as Record<string, number>
     const value = obj[g.key]!
+    if (isLocked(p, `${g.group}.${g.key}`)) continue
     const cap = abilityCap(p, g.key)
     if (!useXp && value >= cap) continue
     // 投手は投手能力、野手は野手能力が伸びやすい

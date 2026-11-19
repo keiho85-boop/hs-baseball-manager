@@ -953,7 +953,6 @@ function ownFinished(save: SaveData, t: Tournament): { done: boolean; wins: numb
  */
 const SECRET_RATE = 0.00056
 const GLOVE_RATE = 0.00053
-const TRANSFER_RATE = 0.00107
 
 /** 自校が勝ち残っている大会の週か */
 function tournamentWeekNow(save: SaveData): boolean {
@@ -1109,7 +1108,7 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng, ctx: { campPractice?
   // 毎週の抽選のレアイベント（古道具屋のグラブ・転校生・蓮見先生の秘密の施術）
   if (rng.chance(success ? GLOVE_RATE : 0.05 / 52) && onceEver(save, 'glove')) push(rareBgm(withScene(oldGloveEvent(save, list), 'bg_antique_shop_day', [])))
   if (success) {
-    if (w <= wk(9, 4) && rng.chance(TRANSFER_RATE) && !successOf(save)!.joinedTransfer && onceEver(save, 'transfer')) push(rareBgm(transferEvent(save, rng)))
+    // 11月19日：神代は帰宅部の勧誘対象になった（転校生のイベントは起きない）
     if (st?.seen.includes('c1_hokenshitsu') && rng.chance(SECRET_RATE) && onceEver(save, 'hasumiSecret')) push(rareBgm(hasumiSecret(save, rng)))
   } else if (w <= wk(9, 4) && rng.chance(0.02 / 26) && onceThisYear(save, 'transfer')) push(transferEvent(save, rng))
 
