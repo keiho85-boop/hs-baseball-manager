@@ -25,7 +25,8 @@ export type CharKey = FixedId | 'daichi' | 'tenkosei'
  */
 export const CHAIN_RATE_BY_COUNT = [0.7, 0.7, 0.7, 0.7, 0.65, 0.6, 0.45, 0.35, 0.3, 0.3]
 export function chainRate(save: SaveData): number {
-  const n = Object.values(successOf(save)?.joined ?? {}).filter(Boolean).length
+  // 神代は数えない
+  const n = Object.entries(successOf(save)?.joined ?? {}).filter(([k, v]) => v && k !== 'tenkosei').length
   return CHAIN_RATE_BY_COUNT[Math.min(n, CHAIN_RATE_BY_COUNT.length - 1)]!
 }
 /** 大地のマスで、★イベントの代わりに続きの話が起きる確率 */
@@ -816,8 +817,9 @@ function trySkill(f: Player, id: string | undefined, rate: number, rng: Rng): st
 }
 
 // ---------------------------------------------------------------- イベントを作る
-function speakerOf(sc: CharScript) {
-  return { kind: 'local' as const, name: sc.name, portrait: sc.portrait }
+/** 話し手は地の文（台詞は「塩見「…」」のように名前つきで書く）。立ち絵でキャラを出す */
+function speakerOf(_sc: CharScript) {
+  return { kind: 'narration' as const, name: '' }
 }
 
 function finish(e: Omit<EventInstance, 'id' | 'speaker'>, sc: CharScript, key: CharKey, f: Player): EventInstance {

@@ -129,8 +129,9 @@ export const FIXED: Record<FixedId, FixedInfo> = {
   },
   tenkosei: {
     id: 'tenkosei', club: 'kitaku', surname: '神代', givenName: '迅', char: 'tenkosei', title: '転校生（帰宅部）', position: '3B',
-    // 前の学校のスパルタ監督が合わず野球をやめた。保健室の常連で、蓮見先生だけが理解者。成功率は蓮見の評価だけで決まる
-    chance: (_t, x) => clamp((x.evalOf('hasumi') - 30) / 110, 0.03, 0.6),
+    // 前の学校のスパルタ監督が合わず野球をやめた。保健室の常連で、蓮見先生だけが理解者。
+    // 11月19日：転校してくること自体がまれなので、声をかければ必ず入部する
+    chance: () => 1,
   },
 }
 
@@ -210,7 +211,10 @@ export function joinTransfer(save: SaveData, rng: Rng, motivation: number): Play
   const s = successOf(save)
   if (!s || s.joinedTransfer) return null
   // 11月19日：入部しにくい分、入部時の総合は75前後（固有キャラで一番強い）
-  const p = addMember(save, rng, { grade: 2, position: TRANSFER.position, strength: TENKOSEI_STRENGTH, surname: TRANSFER.surname, givenName: TRANSFER.givenName })
+  // 転校してきたときは2年生。翌年に入部すれば3年生
+  const arrived = Number(save.flags?.tenkoseiArrived ?? save.calendar.year)
+  const grade = Math.min(3, 2 + Math.max(0, save.calendar.year - arrived))
+  const p = addMember(save, rng, { grade, position: TRANSFER.position, strength: TENKOSEI_STRENGTH, surname: TRANSFER.surname, givenName: TRANSFER.givenName })
   const b = p.batting as unknown as Record<string, number>
   const r = p.running as unknown as Record<string, number>
   const f = p.fielding as unknown as Record<string, number>
@@ -358,8 +362,8 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
         : `${club.name}へ。${info.title}の${info.surname}に、思い切って声をかけた。`,
     )
     if (fixedHere.id === 'tenkosei') {
-      // 神代：成功率は蓮見の評価だけで決まる。入部の仕方は転校生の作り方（joinTransfer）を使う
-      if (rng.chance(chance)) {
+      // 神代：声をかければ必ず入部する。入部の仕方は転校生の作り方（joinTransfer）を使う
+      {
         const p = joinTransfer(save, rng, 70)
         if (p) {
           s.joined.tenkosei = p.id
@@ -369,14 +373,6 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
           lines.push(`「…蓮見センセーが、うるせぇんだよ。一回くらい行ってやれって」${fullName(p)}が入部した！`)
           evals.push(addEval(save, 'hasumi', 3), addEval(save, 'team', 2), addEval(save, 'nagi', 2))
         }
-      } else {
-        lines.push(
-          rng.pick([
-            '「野球？ …もうやめたんだよ」舌打ちして、保健室に入っていった。',
-            '「うるせぇな。放っとけ」…それでも、少しだけ足を止めた。',
-            '「…監督とか、いねぇんだろ、ここ」それだけ言って、帰っていった。',
-          ]),
-        )
       }
     } else if (rng.chance(chance)) {
       const p = addMember(save, rng, { grade: save.calendar.year === 1 ? 1 : 2, position: info.position, strength: 55, surname: info.surname, givenName: info.givenName })
@@ -448,7 +444,7 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
   const ev = evals.filter((x): x is string => !!x)
   if (ev.length) lines.push(`（${ev.join('。')}）`)
   save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `勧誘（${club.name}）：${success ? '成功' : '失敗'}` })
-  const talked = fixedHere ? { char: FIXED[fixedHere.id].char, bg: CLUB_BG[clubId] } : undefined
+  const talked = fixedHere ? { char: FIXED[fixedHere.id].char, bg: fixedHere.id === 'tenkosei' ? 'bg_infirmary_day' : CLUB_BG[clubId] } : undefined
   return { title: success ? '勧誘成功！' : '勧誘', lines, success, fixed, talked }
 }
 

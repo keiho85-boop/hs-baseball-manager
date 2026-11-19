@@ -217,7 +217,7 @@ function mobScale(save: SaveData, p: Player): number {
   }
   if (playerRating(p) >= c.named) return 0.1
   // 固有キャラが少ないほど、モブにも出番と練習が回る（6人より少ない1人ごとに伸びが上がる）
-  const fixedN = Object.values(successOf(save)?.joined ?? {}).filter(Boolean).length
+  const fixedN = Object.entries(successOf(save)?.joined ?? {}).filter(([k, v]) => v && k !== 'tenkosei').length
   const few = 1 + MOB_FEW_BONUS * Math.max(0, 6 - fixedN)
   return clamp(c.focus / MOB_REF, 0.6, 1.6) * few
 }

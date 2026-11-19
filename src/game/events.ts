@@ -659,8 +659,11 @@ function withCharisma(save: SaveData, ops: EffectOp[]): EffectOp[] {
   if (!f) return ops
   const ch = f.skills.includes('charisma')
   const jb = f.skills.includes('jinbo')
-  if (!ch && !jb) return ops
+  const su = f.skills.includes('scout_uke')
+  if (!ch && !jb && !su) return ops
   return ops.map((o) => {
+    // 「スカウト受け」：スカウトの評価が上がりやすい
+    if (o.op === 'eval' && su && o.key === 'scout' && o.delta > 0) o = { ...o, delta: Math.round(o.delta * 1.4) }
     if (o.op === 'eval') {
       if (ch) return { ...o, delta: o.delta > 0 ? Math.round(o.delta * 1.3) : Math.round(o.delta * 0.6) }
       if (jb && o.key === 'team' && o.delta > 0) return { ...o, delta: Math.round(o.delta * 1.3) }
