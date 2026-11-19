@@ -6,7 +6,7 @@
 
 import { Rng, clamp } from '../rng'
 import { GIVEN_NAMES, SURNAMES } from '../names'
-import { POSITION_NAME, wk } from '../constants'
+import { POSITION_NAME } from '../constants'
 import { defaultPracticeMenu, fullName, generatePlayer } from '../player'
 import { computeOverall, newId } from '../world'
 import type { Player, Position, SaveData } from '../types'
@@ -151,7 +151,7 @@ export function rollClubs(save: SaveData, rng: Rng): void {
   for (const c of CLUBS) {
     const members: ClubMember[] = []
     if (c.fixed && !s.joined[c.fixed] && rng.chance(0.5)) members.push({ kind: 'fixed', id: c.fixed })
-    // 神代：1〜2年目の4〜12月だけ、帰宅部にいることがある
+    // 神代：転校してきたあとは、帰宅部にいることがある
     if (c.id === 'kitaku' && tenkoseiAvailable(save) && rng.chance(0.5)) members.push({ kind: 'fixed', id: 'tenkosei' })
     for (let i = 0; i < c.mobs; i++) {
       members.push({
@@ -168,10 +168,11 @@ export function rollClubs(save: SaveData, rng: Rng): void {
   s.clubs = rosters
 }
 
-/** 神代が勧誘できる時期か（1〜2年目の12月まで。入部していない） */
+/** 神代が勧誘できるか（転校してきたあと、卒業するまで。入部していない） */
 export function tenkoseiAvailable(save: SaveData): boolean {
   const s = successOf(save)
-  return !!s && !s.joinedTransfer && save.calendar.year <= 2 && save.calendar.week <= wk(12, 5)
+  const arrived = save.flags?.tenkoseiArrived
+  return !!s && !s.joinedTransfer && arrived !== undefined && save.calendar.year <= Number(arrived) + 1
 }
 
 /** 強さの目安（一覧に出す） */

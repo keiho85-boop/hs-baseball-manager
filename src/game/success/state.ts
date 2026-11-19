@@ -186,12 +186,42 @@ export function focusGrowthMult(save: SaveData, p: Player): number {
     const named = p.storyCast === 'daichi' || !!p.storyCast?.startsWith('fixed:')
     // 三木・東雲・大地以外の固有キャラは、少し伸びにくい（11月19日）
     const slow = named && p.storyCast !== 'daichi' && p.storyCast !== 'fixed:shinbun' && p.storyCast !== 'fixed:seitokai'
-    return teamGrowthMult(save) * (named ? TEAMMATE_GROWTH_MULT * (slow ? FIXED_SLOW_MULT : 1) : MOB_GROWTH_MULT)
+    if (named) return teamGrowthMult(save) * TEAMMATE_GROWTH_MULT * (slow ? FIXED_SLOW_MULT : 1)
+    return teamGrowthMult(save) * MOB_GROWTH_MULT * mobScale(save, p)
   }
   return p.mainPosition === 'P' ? 1.45 : 1.35
 }
 /** 固有キャラ（大地・神代を含む）の伸びの倍率（11月19日：育成選手 ≧ 固有キャラ ≫ モブ、全国優勝が上手に遊んで5割前後） */
 export let TEAMMATE_GROWTH_MULT = 1.15
+/**
+ * モブの伸びの倍率（11月19日）：育成選手の強さに比例して伸びる（育成がうまく行けば、チームも強くなる）。
+ * ただし固有キャラ（入部している人の平均）は超えない
+ */
+export let MOB_REF = 60
+/** 固有キャラが少ないときの、モブの伸びの上乗せ（6人より1人少ないごと） */
+export let MOB_FEW_BONUS = 0.2
+const mobCache = new WeakMap<SaveData, { week: number; focus: number; named: number }>()
+function mobScale(save: SaveData, p: Player): number {
+  const now = (save.calendar.year - 1) * 52 + save.calendar.week
+  let c = mobCache.get(save)
+  if (!c || c.week !== now) {
+    const s = successOf(save)!
+    const f = s.focusId ? save.players[s.focusId] : undefined
+    const own = save.schools[save.playerSchoolId]
+    const named = (own?.playerIds ?? [])
+      .map((id) => save.players[id])
+      .filter((x): x is Player => !!x && !x.retired && (x.storyCast === 'daichi' || !!x.storyCast?.startsWith('fixed:')))
+      .map((x) => playerRating(x))
+    c = { week: now, focus: f ? playerRating(f) : MOB_REF, named: named.length ? named.reduce((a, b) => a + b, 0) / named.length : 99 }
+    mobCache.set(save, c)
+  }
+  if (playerRating(p) >= c.named) return 0.1
+  // 固有キャラが少ないほど、モブにも出番と練習が回る（6人より少ない1人ごとに伸びが上がる）
+  const fixedN = Object.values(successOf(save)?.joined ?? {}).filter(Boolean).length
+  const few = 1 + MOB_FEW_BONUS * Math.max(0, 6 - fixedN)
+  return clamp(c.focus / MOB_REF, 0.6, 1.6) * few
+}
+
 /** 三木・東雲・大地以外の固有キャラの伸びに掛ける倍率 */
 export let FIXED_SLOW_MULT = 0.8
 /** モブの部員の伸びの倍率（固有キャラより低く） */

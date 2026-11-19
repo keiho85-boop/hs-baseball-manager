@@ -21,9 +21,9 @@ export type CharKey = FixedId | 'daichi' | 'tenkosei'
 /**
  * 止まったときに続きの話が起きる確率（残りはただの出来事）。11月19日：
  * 入部している固有キャラが少ないほど、一人ひとりと深く付き合えるので続きの話が起きやすい。
- * 勧誘を3人程度に絞ると完走しやすく、全員を集めると完走はまれになる
+ * 3〜5人に絞ると完走しやすく、全員を集めると完走はまれになる
  */
-export const CHAIN_RATE_BY_COUNT = [0.7, 0.7, 0.7, 0.7, 0.6, 0.5, 0.4, 0.35, 0.3, 0.3]
+export const CHAIN_RATE_BY_COUNT = [0.7, 0.7, 0.7, 0.7, 0.65, 0.6, 0.45, 0.35, 0.3, 0.3]
 export function chainRate(save: SaveData): number {
   const n = Object.values(successOf(save)?.joined ?? {}).filter(Boolean).length
   return CHAIN_RATE_BY_COUNT[Math.min(n, CHAIN_RATE_BY_COUNT.length - 1)]!

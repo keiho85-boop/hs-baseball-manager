@@ -784,7 +784,8 @@ function oldGloveEvent(save: SaveData, list: Player[]): EventInstance | null {
 function transferEvent(save: SaveData, rng: Rng): EventInstance {
   const later = rng.chance(0.5)
   if (successOf(save)) {
-    // 選手育成モード：転校生は固定キャラの神代（2年生・三塁手）
+    // 選手育成モード：転校生は固定キャラの神代（2年生・三塁手）。この場では入部せず、帰宅部の勧誘対象になる（11月19日）
+    const arrived = { op: 'flag' as const, key: 'tenkoseiArrived', value: save.calendar.year }
     return {
       id: eid('transfer'),
       title: '転校生',
@@ -793,20 +794,19 @@ function transferEvent(save: SaveData, rng: Rng): EventInstance {
       cast: [{ char: 'tenkosei', face: 'normal' }, { char: 'nagi', face: 'normal' }],
       lines: [
         '2年生のクラスに、転校生が来たそうです。名前は神代くん。前の学校では、強豪校の三塁手だったとか。',
-        'でも、野球はもうやめたって…。何か、理由があるみたいです。',
+        '監督と合わなくて、野球はやめたそうです。…今は、授業を抜け出して保健室にばかりいるとか。',
+        'ナギ（心の声）「…あの目は、まだ野球を捨てきれていない目だ」',
       ],
       choices: [
         {
-          label: '理由を聞きに行く',
-          result: '「…もう一度、ちゃんと野球がしたい」神代は、ボールを握ると決めた。（神代が入部した！）',
-          ops: [{ op: 'transfer', motivation: 85 }],
+          label: '保健室をのぞいてみる',
+          result: '蓮見先生が「あの子、根は悪くないのよ」と笑った。神代は、窓からグラウンドを見ていた。（蓮見の評価が上がった。神代は帰宅部にいる）',
+          ops: [{ op: 'eval', key: 'hasumi', delta: 3 }, arrived],
         },
         {
-          label: '無理には誘わない',
-          result: later
-            ? '数週間後、神代は自分からグラウンドにやって来た。「…ここなら、やれる気がする」（神代が入部した！）'
-            : '神代は、結局野球部には来なかった。それでも、廊下で会うと会釈してくれるようになった。（評判が少し上がった）',
-          ops: later ? [{ op: 'transfer', motivation: 60 }] : [{ op: 'school', key: 'reputation', delta: 1 }],
+          label: '今はそっとしておく',
+          result: '廊下ですれ違うと、神代は少しだけ会釈した。（評判が少し上がった。神代は帰宅部にいる）',
+          ops: [{ op: 'school', key: 'reputation', delta: 1 }, arrived],
         },
       ],
     }
@@ -953,6 +953,7 @@ function ownFinished(save: SaveData, t: Tournament): { done: boolean; wins: numb
  */
 const SECRET_RATE = 0.00056
 const GLOVE_RATE = 0.00053
+const TRANSFER_RATE = 0.00107
 
 /** 自校が勝ち残っている大会の週か */
 function tournamentWeekNow(save: SaveData): boolean {
@@ -1108,7 +1109,8 @@ export function queueWeeklyEvents(save: SaveData, rng: Rng, ctx: { campPractice?
   // 毎週の抽選のレアイベント（古道具屋のグラブ・転校生・蓮見先生の秘密の施術）
   if (rng.chance(success ? GLOVE_RATE : 0.05 / 52) && onceEver(save, 'glove')) push(rareBgm(withScene(oldGloveEvent(save, list), 'bg_antique_shop_day', [])))
   if (success) {
-    // 11月19日：神代は帰宅部の勧誘対象になった（転校生のイベントは起きない）
+    // 転校生（神代）：1〜2年目の4〜12月だけ抽選。来たあとは、帰宅部の勧誘対象になる
+    if (save.calendar.year <= 2 && w <= wk(12, 5) && rng.chance(TRANSFER_RATE) && !successOf(save)!.joinedTransfer && onceEver(save, 'transfer')) push(rareBgm(transferEvent(save, rng)))
     if (st?.seen.includes('c1_hokenshitsu') && rng.chance(SECRET_RATE) && onceEver(save, 'hasumiSecret')) push(rareBgm(hasumiSecret(save, rng)))
   } else if (w <= wk(9, 4) && rng.chance(0.02 / 26) && onceThisYear(save, 'transfer')) push(transferEvent(save, rng))
 
