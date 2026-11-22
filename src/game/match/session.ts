@@ -55,6 +55,13 @@ export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial
   const lateRound = !!tour && !!partial.tournament && tour.prefCode !== null && partial.tournament.round >= tour.rounds.length - 2
   // 「下剋上」：学校の総合の比較
   const ratings = { [own.id]: own.overall, [opp.id]: opp.overall }
+  // 選手育成モード：龍ヶ峰のエース（投手で制球とキレが一番の選手）は、キレに弱点がある
+  const weakAce =
+    save.story?.success && opp.id === save.story.rivalId
+      ? activeMembers(save, opp)
+          .filter((p) => p.mainPosition === 'P')
+          .sort((a, b) => b.pitching.control + b.pitching.kire - a.pitching.control - a.pitching.kire)[0]?.id
+      : undefined
   const oppForm = save.story?.success && (tk === 'summerNational' || tk === 'springNational') ? NATIONAL_FORM.base + (save.calendar.year - 1) * NATIONAL_FORM.yearly : 0
   const ownInput = { schoolId: own.id, name: own.name, lineup: ownLine }
   const oppInput = { schoolId: opp.id, name: opp.name, lineup: oppLine }
@@ -62,7 +69,7 @@ export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial
     ctx,
     ownHome ? oppInput : ownInput,
     ownHome ? ownInput : oppInput,
-    defaultOptions({ luck: 'normal', userSchoolId: own.id, tacticBonus, ignoreCondition: !!save.story?.success, oppForm, lateRound, ratings, ...partial }),
+    defaultOptions({ luck: 'normal', userSchoolId: own.id, tacticBonus, ignoreCondition: !!save.story?.success, oppForm, lateRound, ratings, weakAce, ...partial }),
     newId(save, 'm'),
   )
 }

@@ -21,7 +21,7 @@ import type { MatchState } from '@/game/match/types'
 import { exportToBlob, importFromBlob } from '@/game/serialize'
 import { diffSnapshot, takeSnapshot, type GrowthEntry } from '@/game/growth'
 import { ensureSugoroku, playCard } from '@/game/sugoroku'
-import { applyOps, buildEvent } from '@/game/events'
+import { applyOps, buildEvent, splitRecovery } from '@/game/events'
 import { type VisitResult, ensureScout, scoutRecruit as scoutRecruitLogic, scoutVisit as scoutVisitLogic } from '@/game/scout'
 import {
   TOURNAMENT_SPECS,
@@ -34,7 +34,7 @@ import {
   recordOwnResult,
   roundName,
 } from '@/game/tournament'
-import type { LineupConfig, Player, Position, SaveData, SaveSummary, School, SquareType } from '@/game/types'
+import type { EffectOp, LineupConfig, Player, Position, SaveData, SaveSummary, School, SquareType } from '@/game/types'
 import { setupStoryWorld } from '@/game/story/setup'
 import { setFictionalPlaces } from '@/game/constants'
 import { buildSteps, completeScene, markStory, nextScene, noteMatch, observeStory } from '@/game/story/engine'
@@ -457,9 +457,13 @@ export const useGameStore = defineStore('game', () => {
     busy.value = true
     try {
       let eventResult: string | null = null
+      // 体力の回復は、練習で減ったあとに入れる
+      let recovery: EffectOp[] = []
       if (pending.event) {
         const choice = pending.event.choices[opts.choice ?? 0] ?? pending.event.choices[0]!
-        applyOps(s, choice.ops)
+        const split = splitRecovery(choice.ops)
+        applyOps(s, split.before)
+        recovery = split.after
         eventResult = choice.result
         s.log.push({ year: s.calendar.year, week: s.calendar.week, text: `${pending.event.title}：${choice.result}` })
       }
@@ -467,6 +471,7 @@ export const useGameStore = defineStore('game', () => {
       const plan = { kind: 'square' as const, square: pending.square, card: pending.card, specialPlayerId: opts.specialPlayerId ?? (pending.square === 'special' ? (successOf(s)?.focusId ?? undefined) : undefined), specialKey: opts.specialKey }
       // 練習の説明のときは、週を進めない
       const week = opts.rehearsal ? rehearsalWeek(s, plan) : afterWeek(advanceWeek(s, plan))
+      if (recovery.length) applyOps(s, recovery)
       lastResult.value = week
       lastGrowth.value = diffSnapshot(before, ownPlayers().filter((p) => !p.retired))
       growthTitle.value = '練習の成果！'

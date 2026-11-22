@@ -145,6 +145,8 @@ export interface MatchOptions {
   lateRound?: boolean
   /** 学校ごとの総合（「下剋上」の判定に使う） */
   ratings?: Record<string, number>
+  /** 選手育成モード：龍ヶ峰のエース（この投手のキレが下がる） */
+  weakAce?: string
 }
 
 /** 特殊能力のための試合中の記録 */

@@ -352,7 +352,7 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
         focusPitcher: save.players[s.focusId ?? '']?.mainPosition === 'P',
         stars: (k) => evalStars(s.eval[k]),
         evalOf: (k) => s.eval[k],
-      }),
+      }) * (fixedHere.id === 'tenkosei' ? 1 : crowdFactor(s)),
       0,
       0.95,
     )
@@ -446,6 +446,16 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
   save.log.push({ year: save.calendar.year, week: save.calendar.week, text: `勧誘（${club.name}）：${success ? '成功' : '失敗'}` })
   const talked = fixedHere ? { char: FIXED[fixedHere.id].char, bg: fixedHere.id === 'tenkosei' ? 'bg_infirmary_day' : CLUB_BG[clubId] } : undefined
   return { title: success ? '勧誘成功！' : '勧誘', lines, success, fixed, talked }
+}
+
+/**
+ * 6人目以降の固有キャラは、だんだん入ってくれにくい（11月22日。神代は数えない）
+ * 並びは、すでに入部している人数（0人〜）ごとの倍率
+ */
+export const RECRUIT_CROWD = [1, 1, 1, 1, 1, 0.7, 0.5, 0.35, 0.25]
+function crowdFactor(s: { joined: Partial<Record<FixedId, string>> }): number {
+  const n = Object.entries(s.joined).filter(([k, v]) => v && k !== 'tenkosei').length
+  return RECRUIT_CROWD[Math.min(n, RECRUIT_CROWD.length - 1)]!
 }
 
 /** これまでの勝率（練習試合と公式戦） */

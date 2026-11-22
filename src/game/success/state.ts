@@ -3,7 +3,7 @@
 
 import { Rng, clamp } from '../rng'
 import { rankOf, wk } from '../constants'
-import { fullName, playerRating } from '../player'
+import { baseRating, fullName, playerRating } from '../player'
 import type { MatchState } from '../match/types'
 import type { Player, SaveData } from '../types'
 import type { EvalKey, SuccessState } from './types'
@@ -187,7 +187,7 @@ export function focusGrowthMult(save: SaveData, p: Player): number {
     // 三木・東雲・大地以外の固有キャラは、少し伸びにくい（11月19日）
     const slow = named && p.storyCast !== 'daichi' && p.storyCast !== 'fixed:shinbun' && p.storyCast !== 'fixed:seitokai'
     if (named) return teamGrowthMult(save) * TEAMMATE_GROWTH_MULT * (slow ? FIXED_SLOW_MULT : 1)
-    return teamGrowthMult(save) * MOB_GROWTH_MULT * mobScale(save, p)
+    return mobTeamGrowthMult(save) * MOB_GROWTH_MULT * mobScale(save, p)
   }
   return p.mainPosition === 'P' ? 1.45 : 1.35
 }
@@ -195,37 +195,35 @@ export function focusGrowthMult(save: SaveData, p: Player): number {
 export let TEAMMATE_GROWTH_MULT = 1.15
 /**
  * モブの伸びの倍率（11月19日）：育成選手の強さに比例して伸びる（育成がうまく行けば、チームも強くなる）。
- * ただし固有キャラ（入部している人の平均）は超えない
+ * 11月22日：固有キャラを3人に絞ればモブのほうが強く、5人で拮抗、全員集めるとモブはだいぶ弱い、くらいに
  */
 export let MOB_REF = 60
-/** 固有キャラが少ないときの、モブの伸びの上乗せ（6人より1人少ないごと） */
-export let MOB_FEW_BONUS = 0.2
-const mobCache = new WeakMap<SaveData, { week: number; focus: number; named: number }>()
+/**
+ * 入部している固有キャラの人数ごとの、モブの伸びの倍率（11月22日）
+ * 3人ならモブのほうが強く、5人で拮抗、6人以上ではモブはだいぶ弱い
+ */
+export let MOB_BY_FIXED = [3.0, 3.0, 3.0, 2.8, 2.0, 1.4, 0.9, 0.6, 0.45, 0.45]
+const mobCache = new WeakMap<SaveData, { week: number; focus: number }>()
 function mobScale(save: SaveData, p: Player): number {
   const now = (save.calendar.year - 1) * 52 + save.calendar.week
   let c = mobCache.get(save)
   if (!c || c.week !== now) {
     const s = successOf(save)!
     const f = s.focusId ? save.players[s.focusId] : undefined
-    const own = save.schools[save.playerSchoolId]
-    const named = (own?.playerIds ?? [])
-      .map((id) => save.players[id])
-      .filter((x): x is Player => !!x && !x.retired && (x.storyCast === 'daichi' || !!x.storyCast?.startsWith('fixed:')))
-      .map((x) => playerRating(x))
-    c = { week: now, focus: f ? playerRating(f) : MOB_REF, named: named.length ? named.reduce((a, b) => a + b, 0) / named.length : 99 }
+    c = { week: now, focus: f ? baseRating(f) : MOB_REF }
     mobCache.set(save, c)
   }
-  if (playerRating(p) >= c.named) return 0.1
-  // 固有キャラが少ないほど、モブにも出番と練習が回る（6人より少ない1人ごとに伸びが上がる）
+  // 11月22日：モブが固有キャラを上回ってもよい（勧誘を絞って練習を重ねれば、モブが強くなる）
+  // 固有キャラが少ないほど、モブにも出番と練習が回る（人数ごとの倍率は MOB_BY_FIXED）
   const fixedN = Object.entries(successOf(save)?.joined ?? {}).filter(([k, v]) => v && k !== 'tenkosei').length
-  const few = 1 + MOB_FEW_BONUS * Math.max(0, 6 - fixedN)
+  const few = MOB_BY_FIXED[Math.min(fixedN, MOB_BY_FIXED.length - 1)]!
   return clamp(c.focus / MOB_REF, 0.6, 1.6) * few
 }
 
 /** 三木・東雲・大地以外の固有キャラの伸びに掛ける倍率 */
 export let FIXED_SLOW_MULT = 0.8
 /** モブの部員の伸びの倍率（固有キャラより低く） */
-export let MOB_GROWTH_MULT = 0.9
+export let MOB_GROWTH_MULT = 1.0
 /** 調整用 */
 export function setGrowthMults(named: number, mob: number): void {
   TEAMMATE_GROWTH_MULT = named
@@ -240,6 +238,32 @@ export function teamGrowthMult(save: SaveData): number {
   const s = successOf(save)
   if (!s) return 1
   return 1.15 + 0.07 * (evalStars(s.eval.team) - 1)
+}
+
+/**
+ * モブの伸びに効く、チームメイトの評価（11月21日：モブには少し強めに効く。★1で1.15倍〜★5で1.63倍）。
+ * 固有キャラの平均を超えるモブは伸びにくいので、序列（育成≧固有≫モブ）は崩れない
+ */
+export let MOB_TEAM_STEP = 0.12
+export function mobTeamGrowthMult(save: SaveData): number {
+  const s = successOf(save)
+  if (!s) return 1
+  return 1.15 + MOB_TEAM_STEP * (evalStars(s.eval.team) - 1)
+}
+
+/**
+ * 選手育成モード：龍ヶ峰の野手の弱点（11月21日）。投手陣は本物だが、打線と守備に穴がある王者。
+ * 入部のとき（はじめの部員と、毎年の新入部員）に一度だけ掛ける
+ */
+export const RIVAL_WEAK = { eye: 10, contact: 5, power: 5, fielding: 5, aceKire: 10 }
+export function weakenRivalPlayer(p: Player): void {
+  if (p.mainPosition === 'P') return
+  p.batting.eye = clamp(p.batting.eye - RIVAL_WEAK.eye, 1, 99)
+  p.batting.contact = clamp(p.batting.contact - RIVAL_WEAK.contact, 1, 99)
+  p.batting.power = clamp(p.batting.power - RIVAL_WEAK.power, 1, 99)
+  p.fielding.range = clamp(p.fielding.range - RIVAL_WEAK.fielding, 1, 99)
+  p.fielding.catching = clamp(p.fielding.catching - RIVAL_WEAK.fielding, 1, 99)
+  p.fielding.arm = clamp(p.fielding.arm - RIVAL_WEAK.fielding, 1, 99)
 }
 
 /** 試合が終わったとき：勝敗とフォーカス選手の活躍で評価を動かす。戻り値は知らせ */
@@ -279,7 +303,7 @@ export function evalAfterMatch(save: SaveData, m: MatchState, official: boolean,
 
 /** ドラフト：フォーカス選手はスカウトの評価で指名が決まる（能力が低くても、評価が良ければ指名もある） */
 /** ドラフトの調整用の値 */
-export const DRAFT = { sure: 95, scoutBase: 40, scoutDiv: 110, ratingBase: 59, ratingDiv: 22, max: 0.95 }
+export const DRAFT = { sure: 95, scoutBase: 40, scoutDiv: 110, ratingBase: 68, ratingDiv: 22, max: 0.95 }
 
 /** 大会の実績によるドラフトの上乗せ（全国優勝・全国出場・県大会の優勝） */
 export function draftRecordBonus(save: SaveData): number {
@@ -311,7 +335,7 @@ export function draftOutlook(save: SaveData, p: Player): { label: string; note: 
   const chance = focusDraftChance(save, p)
   // スカウトへのアピール／プロで通用する能力が、それぞれ足りているか
   const appeal = scout >= 60
-  const ability = playerRating(p) >= 70
+  const ability = playerRating(p) >= 79
   if (scout >= DRAFT.sure) return { label: '指名確実', note: 'スカウトの評価は十分。あとは順位を上げるだけ', tone: 'gold' }
   if (chance >= 0.7) return { label: '指名の可能性が高い', note: appeal ? '能力をもう一段上げれば、さらに確実に' : 'スカウトの前で活躍すれば、さらに確実に', tone: 'good' }
   if (!appeal && !ability) return { label: 'まだまだ', note: '能力も、スカウトへのアピールも足りない', tone: 'low' }

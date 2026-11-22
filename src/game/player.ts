@@ -2,7 +2,7 @@
 
 import { Rng, clamp } from './rng'
 import { POSITIONS, velocityScore } from './constants'
-import { SKILLS, canHave, getSkill, randomGoodPool } from './skills'
+import { SKILLS, canHave, getSkill, randomGoodPool, skillPoints } from './skills'
 import type {
   AlumniRecord,
   BatSide,
@@ -264,7 +264,8 @@ export function defaultPracticeMenu(position: Position, power: number, speed: nu
 }
 
 /** 野手としての総合力 */
-export function fielderRating(p: Player): number {
+/** 野手としての能力だけの総合（特殊能力を含まない） */
+export function baseFielderRating(p: Player): number {
   const b = p.batting
   const f = p.fielding
   return Math.round(
@@ -280,12 +281,26 @@ export function fielderRating(p: Player): number {
 }
 
 /** 投手としての総合力 */
-export function pitcherRating(p: Player): number {
+/** 投手としての能力だけの総合（特殊能力を含まない） */
+export function basePitcherRating(p: Player): number {
   const pt = p.pitching
   const breaking = Math.min(100, 25 + pt.pitches.reduce((s, x) => s + x.level, 0) * 7)
   return Math.round(
     velocityScore(pt.velocity) * 0.28 + pt.control * 0.24 + pt.stamina * 0.18 + pt.kire * 0.12 + breaking * 0.18,
   )
+}
+
+/** 野手の総合（11月22日：試合に効く特殊能力の点数を含む。試合の起用・チームの総合・ドラフトもこれを使う） */
+export function fielderRating(p: Player): number {
+  return baseFielderRating(p) + skillPoints(p, 'batter')
+}
+/** 投手の総合（試合に効く特殊能力の点数を含む） */
+export function pitcherRating(p: Player): number {
+  return basePitcherRating(p) + skillPoints(p, 'pitcher')
+}
+/** 能力だけの総合（特殊能力を含まない） */
+export function baseRating(p: Player): number {
+  return p.mainPosition === 'P' ? basePitcherRating(p) : baseFielderRating(p)
 }
 
 export function playerRating(p: Player): number {

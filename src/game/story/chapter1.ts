@@ -791,14 +791,20 @@ export const CHAPTER1: Scene[] = [
       think('背が伸びたな、久我。…いや、俺が縮んだのか'),
       nagi('serious', '相手は王者です。失うものはありません。一つずつ取りにいきましょう'),
     ],
+    // 試合後の場面は、この大会の龍ヶ峰戦の結果で出す（11月22日：別の大会の結果で先に流れていた）
+    onEnd: (c) => {
+      const p = pendingGame(c.save)
+      if (p) c.st.flags.oujaTournament = p.t.id
+      return []
+    },
   },
   {
     id: 'c1_ouja_ato',
     title: '王者との対戦（試合後）',
     chapter: 1,
-    when: (c) => seen(c, 'c1_ouja_mae') && rivalResult(c) !== null,
+    when: (c) => seen(c, 'c1_ouja_mae') && rivalResult(c, ouja(c)) !== null,
     steps: (c) =>
-      rivalResult(c) === 'win'
+      rivalResult(c, ouja(c)) === 'win'
         ? [
             bg('bg_stadium_day'),
             kuga('surprise', '完敗です。3回のあの盗塁、あれはどなたの指示ですか'),
@@ -814,7 +820,7 @@ export const CHAPTER1: Scene[] = [
             think('教え子に負けるのは、嬉しいのか悔しいのか。…悔しいに決まっている', 'frustrated'),
           ],
     onEnd: (c) => {
-      if (rivalResult(c) === 'win') {
+      if (rivalResult(c, ouja(c)) === 'win') {
         motivation(regulars(c.save), 15)
         const own = c.save.schools[c.save.playerSchoolId]!
         own.reputation = clamp(own.reputation + 8, 0, 100)
@@ -1231,12 +1237,19 @@ export const CHAPTER1: Scene[] = [
 ]
 
 /** 今年の大会でライバル校と当たった試合の結果。まだなら null */
-function rivalResult(c: StoryContext): 'win' | 'lose' | null {
+/** 「王者との対戦」の場面を出した大会（古いデータでは無い） */
+function ouja(c: StoryContext): string | undefined {
+  const v = c.st.flags.oujaTournament
+  return typeof v === 'string' ? v : undefined
+}
+
+function rivalResult(c: StoryContext, tournamentId?: string): 'win' | 'lose' | null {
   const rival = c.st.rivalId
   if (!rival) return null
   const own = c.save.playerSchoolId
   for (const t of c.save.tournaments ?? []) {
     if (t.year !== Y(c)) continue
+    if (tournamentId && t.id !== tournamentId) continue
     for (const games of t.rounds) {
       for (const g of games) {
         if (!g.winner || g.bye) continue

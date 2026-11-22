@@ -6,7 +6,7 @@
 import type { Rng } from '../rng'
 import { ABILITY_LABEL, eid, learnable, learnablePitcher, mainKeys, skillName } from '../events'
 import type { EffectOp, EventInstance, Player, SaveData, SquareType } from '../types'
-import { focusPlayer, successOf } from './state'
+import { addEval, focusPlayer, successOf } from './state'
 import { levelEvent, PERSON_EVAL, pitcherDelta } from './personEvents'
 import { DAICHI_CHAIN_RATE, chainEvent, charEvent, joinedChars, type CharKey } from './charEvents'
 
@@ -29,6 +29,11 @@ export function successBoard(board: SquareType[]): SquareType[] {
   let i = 0
   return board.map((sq) => (sq === 'manager' || sq === 'funds' || sq === 'scout' ? repl[i++ % repl.length]! : sq))
 }
+
+/** 固有キャラが付く範囲（コマの先、何マスまで） */
+export const CHAR_REACH = 6
+/** 評価のある人物のマスに止まったときの、評価の上がり幅（イベントが起きなくても毎回） */
+export const PERSON_STOP_EVAL = 1
 
 /** 今週、練習マスに付く人物を決める（毎週入れ替わる） */
 export function rollAttach(save: SaveData, rng: Rng): void {
@@ -54,10 +59,17 @@ export function rollAttach(save: SaveData, rng: Rng): void {
     if (i !== undefined) attach[i] = p
   })
   sg.attach = attach
-  // 入部している固有キャラも、練習マスに付く（人物のいないマス。1マスに複数いてもよい）
-  const free = slots.slice(people.length)
+  // 入部している固有キャラは、コマの先6マス以内の練習マスに全員付く（11月22日。1マスに複数いてもよい）
+  const len = sg.board.length
+  const near: number[] = []
+  for (let d = 1; d <= CHAR_REACH; d++) {
+    const i = (sg.position + d) % len
+    if (PRACTICE.includes(sg.board[i]!)) near.push(i)
+  }
+  const nearFree = near.filter((i) => attach[i] === undefined)
+  const pool2 = nearFree.length ? nearFree : near.length ? near : slots
   const chars: Record<number, string[]> = {}
-  if (free.length) for (const c of joinedChars(save)) (chars[rng.pick(free)] ??= []).push(c.key)
+  if (pool2.length) for (const c of joinedChars(save)) (chars[rng.pick(pool2)] ??= []).push(c.key)
   sg.charAttach = chars
 }
 
@@ -71,6 +83,9 @@ export function occupantAt(save: SaveData, rng: Rng, index: number): { person: P
 
 /** 止まったマスのイベント（人物か固有キャラ） */
 export function occupantEvent(save: SaveData, rng: Rng, index: number): { hit: boolean; event: EventInstance | null } {
+  // 評価のある人物がいるマスに止まったら、イベントが起きなくても評価が少し上がる
+  const person = attachedAt(save, index)
+  if (person) addEval(save, PERSON_EVAL[person], PERSON_STOP_EVAL)
   const who = occupantAt(save, rng, index)
   if (!who) return { hit: false, event: null }
   if ('person' in who) return { hit: true, event: attachEvent(save, rng, who.person) }

@@ -23,7 +23,7 @@ export type CharKey = FixedId | 'daichi' | 'tenkosei'
  * 入部している固有キャラが少ないほど、一人ひとりと深く付き合えるので続きの話が起きやすい。
  * 3〜5人に絞ると完走しやすく、全員を集めると完走はまれになる
  */
-export const CHAIN_RATE_BY_COUNT = [0.7, 0.7, 0.7, 0.7, 0.65, 0.6, 0.45, 0.35, 0.3, 0.3]
+export let CHAIN_RATE_BY_COUNT = [0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.35, 0.35, 0.35, 0.35]
 export function chainRate(save: SaveData): number {
   // 神代は数えない
   const n = Object.entries(successOf(save)?.joined ?? {}).filter(([k, v]) => v && k !== 'tenkosei').length
@@ -33,6 +33,8 @@ export function chainRate(save: SaveData): number {
 export const DAICHI_CHAIN_RATE = 0.25
 /** 3話で、そのキャラの能力が取れる確率 */
 export const CHAR_SKILL_RATE = 0.5
+/** 3話で正解を選んで完走したときに、そのキャラの能力が取れる確率（11月22日：必ず取れる） */
+export const CHAR_MAIN_SKILL_RATE = 1
 /** 三木・東雲の共通の能力が、さらに取れる確率 */
 export const CHAR_COMMON_RATE = 0.3
 /** 神代の一発イベント：起きる確率と、正解で能力が取れる確率 */
@@ -853,7 +855,7 @@ function chainEp3(save: SaveData, rng: Rng, key: CharKey, f: Player): EventInsta
       const b = buildFx(f, ch.fx, rng)
       return { label: ch.label, result: withNotes(ch.text, b.notes), ops: [...b.ops, ...done], tag: ch.kind }
     }
-    const got = trySkill(f, charSkillFor(key, f, ch.skill === 'alt'), CHAR_SKILL_RATE, rng)
+    const got = trySkill(f, charSkillFor(key, f, ch.skill === 'alt'), ch.skill === 'main' ? CHAR_MAIN_SKILL_RATE : CHAR_SKILL_RATE, rng)
     const common = ch.skill === 'main' && set.common ? trySkill(f, set.common, CHAR_COMMON_RATE, rng) : null
     const skills = [got, common].filter((x): x is string => !!x)
     const b = got ? { ops: [], notes: [] } : buildFx(f, ch.fx, rng)

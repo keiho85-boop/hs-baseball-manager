@@ -9,7 +9,7 @@ import { GUIDE_ORDER } from './guides'
 import { Rng, clamp } from '../rng'
 import { defaultPracticeMenu, generatePlayer, playerRating } from '../player'
 import { computeOverall, generateGrade, newId, schoolStrength } from '../world'
-import { newSuccessState } from '../success/state'
+import { newSuccessState, weakenRivalPlayer } from '../success/state'
 import type { Player, Position, SaveData } from '../types'
 import type { StoryState } from './types'
 import { grantJoinSkill } from '../success/charSkills'
@@ -89,6 +89,14 @@ export function setupStoryWorld(save: SaveData, opts: { focusName?: { surname: s
     rival.name = RIVAL_NAME
     rival.kind = 'private'
     st.rivalId = rival.id
+    // 龍ヶ峰の野手の弱点（打線と守備に穴がある）
+    if (rival.detailed) {
+      for (const id of rival.playerIds) {
+        const p = save.players[id]
+        if (p && !p.retired) weakenRivalPlayer(p)
+      }
+      rival.overall = computeOverall(rival, save.players)
+    }
   }
 
   // 操作の説明なし：説明はすべて済んだ扱いにする。最初の勧誘だけは、週を使わずに必ず行う

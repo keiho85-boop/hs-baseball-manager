@@ -203,6 +203,27 @@ export function skillColor(id: string): 'gold' | 'silver' | 'normal' | 'bad' {
   return s.tier === 'S' ? 'gold' : s.tier === 'A' ? 'silver' : 'normal'
 }
 
+/**
+ * 総合に足す特殊能力の点数（11月22日）。試合に効く能力だけを数える（練習・体調・評価にだけ効くものは数えない）
+ * 良い能力 S+5・A+3・B+2・C+1、弱点 S−4・A−3・B−2・C−1
+ */
+export const SKILL_POINTS = { good: { S: 5, A: 3, B: 2, C: 1 }, bad: { S: -4, A: -3, B: -2, C: -1 } } as const
+export const NON_MATCH_SKILLS = new Set([
+  'charisma', 'choshi_nami', 'hagane', 'hard_worker', 'jinbo', 'kaifuku', 'kega_shirazu', 'kegagachi',
+  'lazy', 'makezugirai', 'nobizakari', 'omatsuri', 'renshu_oni', 'scout_uke', 'taiki',
+])
+/** 野手（batter）または投手（pitcher）としての総合に足す、特殊能力の点数 */
+export function skillPoints(p: Pick<Player, 'skills'>, side: 'batter' | 'pitcher'): number {
+  let sum = 0
+  for (const id of p.skills ?? []) {
+    const s = SKILL_MAP.get(id)
+    if (!s || NON_MATCH_SKILLS.has(id)) continue
+    if (s.target !== 'all' && s.target !== side) continue
+    sum += s.good ? SKILL_POINTS.good[s.tier] : SKILL_POINTS.bad[s.tier]
+  }
+  return sum
+}
+
 /** 札の色のクラス（id か名前から。S＝金、A＝銀） */
 export function tierClass(key: string): string {
   const s = SKILL_MAP.get(key) ?? SKILLS.find((x) => x.name === key)

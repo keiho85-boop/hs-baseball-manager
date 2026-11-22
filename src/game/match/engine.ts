@@ -185,6 +185,9 @@ function fxOf(s: MatchState): MatchFx {
 }
 
 /** この回にその投手が取られた点 */
+/** 選手育成モード：龍ヶ峰のエースのキレの弱点 */
+const RIVAL_ACE_KIRE = 10
+
 /** その試合で、その投手が取られた点 */
 function runsThisGame(s: MatchState, pitcherId: string): number {
   let r = 0
@@ -331,7 +334,7 @@ function pitcherNow(s: MatchState, ctx: MatchContext, full: boolean): PitcherNow
   const f = box.fatigue
   let velo = p.pitching.velocity - f * 5 + (full ? 3 : 0)
   let control = p.pitching.control - f * 14 + form * 0.6
-  let kire = p.pitching.kire - f * 10 + form * 0.6 + (full ? 5 : 0)
+  let kire = p.pitching.kire - f * 10 + form * 0.6 + (full ? 5 : 0) - (s.options.weakAce === id ? RIVAL_ACE_KIRE : 0)
   if (p.condition.armIssue) {
     velo -= 3
     control -= 4

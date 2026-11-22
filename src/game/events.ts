@@ -652,6 +652,15 @@ function nurseEvent(rng: Rng, list: Player[]): EventInstance {
   }
 }
 
+/**
+ * 練習マスのイベントの効果を、練習の前に入れるものと後に入れるものに分ける（11月22日）。
+ * 体力の回復は、練習で減ったあとに入れる（回復してから練習で引かれると、回復が無駄になるため）
+ */
+export function splitRecovery(ops: EffectOp[]): { before: EffectOp[]; after: EffectOp[] } {
+  const isRecovery = (o: EffectOp) => o.op === 'condition' && o.key === 'stamina' && o.delta > 0
+  return { before: ops.filter((o) => !isRecovery(o)), after: ops.filter(isRecovery) }
+}
+
 /** 育成選手の「カリスマ」「人望」：イベントの良い効果と評価の上がり幅を大きくする（11月19日） */
 export const CHARISMA_MULT = 1.2
 function withCharisma(save: SaveData, ops: EffectOp[]): EffectOp[] {

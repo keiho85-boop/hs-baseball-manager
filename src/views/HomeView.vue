@@ -548,6 +548,8 @@ watch(
     const s = game.save
     if (!s || !success.value || ended.value || roster.value >= 9) return null
     if (game.story || guideStore.active || game.match || sg.value?.pending || game.busy) return null
+    // 勧誘の結果や今週の知らせ、伸びの表示を出し終えてから（11月22日：結果より先に出ていた）
+    if (game.storyHold > 0 || ui.dialog || ui.notice || game.showGrowth || recruitOpen.value) return null
     // 説明なしで始めたときの最初の勧誘の前は、知らせを出さない（勧誘の画面がすぐ開く）
     if (s.story?.flags.firstRecruit === 'todo') return null
     return `${s.calendar.year}-${s.calendar.week}`

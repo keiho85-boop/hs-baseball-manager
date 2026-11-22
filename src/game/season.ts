@@ -11,7 +11,7 @@ import { DRAFT_WEEK, SCOUT_DECISION_WEEK, SCOUT_MONTHLY, addScoutPoints, decideP
 import { currentTournament, ensureTournament, findTournament, kindNow, monthlyFunds, ownAlive, progress } from './tournament'
 import { hasModifier, pruneModifiers } from './modifiers'
 import { queueWeeklyEvents } from './calendarEvents'
-import { CAMP_WEEKS, campPlaceName, campStartWeek, campThisYear, rosterCount, successFreshmen, successOf } from './success/state'
+import { CAMP_WEEKS, campPlaceName, campStartWeek, campThisYear, rosterCount, successFreshmen, successOf, weakenRivalPlayer } from './success/state'
 import { autoJoin, rollClubs } from './success/clubs'
 import { rollAttach } from './success/board'
 
@@ -417,6 +417,8 @@ function startNewYear(save: SaveData, rng: Rng, messages: string[]): void {
     for (const p of freshmen) {
       save.players[p.id] = p
       school.playerIds.push(p.id)
+      // 選手育成モード：龍ヶ峰の新入部員にも、野手の弱点
+      if (successOf(save) && school.id === save.story?.rivalId) weakenRivalPlayer(p)
     }
     school.overall = computeOverall(school, save.players)
     if (isOwn) {
