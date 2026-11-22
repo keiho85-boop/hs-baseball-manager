@@ -187,7 +187,7 @@ export function focusGrowthMult(save: SaveData, p: Player): number {
     // 三木・東雲・大地以外の固有キャラは、少し伸びにくい（11月19日）
     const slow = named && p.storyCast !== 'daichi' && p.storyCast !== 'fixed:shinbun' && p.storyCast !== 'fixed:seitokai'
     if (named) return teamGrowthMult(save) * TEAMMATE_GROWTH_MULT * (slow ? FIXED_SLOW_MULT : 1)
-    return mobTeamGrowthMult(save) * MOB_GROWTH_MULT * mobScale(save, p)
+    return mobTeamGrowthMult(save) * MOB_GROWTH_MULT * mobScale(save, p) * (p.storyCast === 'mob:recruit' ? RECRUIT_MOB.growth : 1)
   }
   return p.mainPosition === 'P' ? 1.45 : 1.35
 }
@@ -219,6 +219,12 @@ function mobScale(save: SaveData, p: Player): number {
   const few = MOB_BY_FIXED[Math.min(fixedN, MOB_BY_FIXED.length - 1)]!
   return clamp(c.focus / MOB_REF, 0.6, 1.6) * few
 }
+
+/**
+ * 勧誘で入部するモブの上乗せ（11月23日）：入部時の能力を少し上げ、伸びしろと練習の伸びも大きめ（ばらつきあり）。
+ * 目安は、2年目の夏に岩城と同じくらいまで伸びること
+ */
+export let RECRUIT_MOB = { strength: 12, potential: 10, growth: 1.6 }
 
 /** 三木・東雲・大地以外の固有キャラの伸びに掛ける倍率 */
 export let FIXED_SLOW_MULT = 0.8

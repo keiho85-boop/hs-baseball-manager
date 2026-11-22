@@ -21,6 +21,10 @@ export type ClubMember =
       position: string
       /** 強さの目安（入部するときの能力の基準） */
       strength: number
+      /** 入部したときの選手を決める種（勧誘の画面に、入部後の総合のランクを出すため。古いデータには無い） */
+      seed?: number
+      /** 入部したときの総合（勧誘の画面に出す） */
+      rating?: number
     }
 
 export interface ClubRoster {

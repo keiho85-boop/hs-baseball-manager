@@ -7,12 +7,12 @@
 import { Rng, clamp } from '../rng'
 import { GIVEN_NAMES, SURNAMES } from '../names'
 import { POSITION_NAME } from '../constants'
-import { defaultPracticeMenu, fullName, generatePlayer } from '../player'
+import { defaultPracticeMenu, fullName, generatePlayer, playerRating } from '../player'
 import { computeOverall, newId } from '../world'
 import type { Player, Position, SaveData } from '../types'
 import type { CharId } from '../story/types'
 import type { ClubId, ClubMember, ClubRoster, EvalKey, FixedId } from './types'
-import { addEval, evalStars, successOf } from './state'
+import { RECRUIT_MOB, addEval, evalStars, successOf } from './state'
 import { grantJoinSkill } from './charSkills'
 import { absWeek } from '../modifiers'
 
@@ -155,14 +155,18 @@ export function rollClubs(save: SaveData, rng: Rng): void {
     // 神代：転校してきたあとは、帰宅部にいることがある
     if (c.id === 'kitaku' && tenkoseiAvailable(save) && rng.chance(0.5)) members.push({ kind: 'fixed', id: 'tenkosei' })
     for (let i = 0; i < c.mobs; i++) {
-      members.push({
-        kind: 'mob',
+      const m = {
+        kind: 'mob' as const,
         surname: rng.pick(SURNAMES),
         givenName: rng.pick(GIVEN_NAMES),
         grade: save.calendar.year >= 2 && rng.chance(0.3) ? 2 : 1,
         position: rng.pick(POSITION_POOL),
         strength: rng.int(c.strength[0], c.strength[1]),
-      })
+        seed: rng.int(1, 2 ** 30),
+      }
+      // 勧誘の画面には、入部したときの総合（ランク）をそのまま出す
+      const preview = makeMob(save, m, 'preview')
+      members.push({ ...m, rating: playerRating(preview) })
     }
     rosters.push({ club: c.id, members })
   }
@@ -179,6 +183,38 @@ export function tenkoseiAvailable(save: SaveData): boolean {
 /** 強さの目安（一覧に出す） */
 export function strengthLabel(v: number): string {
   return v >= 50 ? 'C' : v >= 38 ? 'D' : v >= 26 ? 'E' : 'F'
+}
+
+
+/** 勧誘で入部するモブを作る（種が同じなら、勧誘の画面に出した選手と同じになる） */
+function makeMob(save: SaveData, m: { grade: number; position: string; strength: number; seed?: number; surname: string; givenName: string }, id: string): Player {
+  const own = save.schools[save.playerSchoolId]!
+  const rng = Rng.fromSeed(m.seed ?? 1)
+  const p = generatePlayer(rng, {
+    id,
+    schoolId: own.id,
+    grade: m.grade,
+    year: save.calendar.year - (m.grade - 1),
+    strength: m.strength + RECRUIT_MOB.strength,
+    kind: own.kind,
+    position: m.position as Position,
+    managerExperience: save.managerExperience,
+  })
+  p.hidden.potential = clamp(p.hidden.potential + RECRUIT_MOB.potential, 30, 99)
+  // 勧誘で入ったモブの印（伸びが良い）
+  p.storyCast = 'mob:recruit'
+  p.surname = m.surname
+  p.givenName = m.givenName
+  return p
+}
+
+/** 勧誘したモブを入部させる */
+function addMob(save: SaveData, m: Extract<ClubMember, { kind: 'mob' }>): Player {
+  const own = save.schools[save.playerSchoolId]!
+  const p = makeMob(save, m, newId(save, 'p'))
+  save.players[p.id] = p
+  own.playerIds.push(p.id)
+  return p
 }
 
 /** 部員を1人加える */
@@ -412,7 +448,8 @@ export function recruit(save: SaveData, rng: Rng, clubId: ClubId, target?: numbe
     const base = clubId === 'kitaku' ? 0.85 : 0.68
     const chance = clamp(base - (m.strength - 30) / 160 + rep / 250 + (visits >= 2 ? 0.08 : 0), 0.35, 0.95)
     if (rng.chance(chance)) {
-      const p = addMember(save, rng, { grade: m.grade, position: m.position as Position, strength: m.strength, surname: m.surname, givenName: m.givenName })
+      // 種があれば、勧誘の画面に出した選手そのままで入部する
+      const p = m.seed !== undefined ? addMob(save, m) : addMember(save, rng, { grade: m.grade, position: m.position as Position, strength: m.strength, surname: m.surname, givenName: m.givenName })
       success = true
       const yes = rng.pick([
         '「野球か…まあ、やってみてもいいかな」',
