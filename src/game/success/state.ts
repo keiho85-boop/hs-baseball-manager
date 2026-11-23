@@ -187,7 +187,7 @@ export function focusGrowthMult(save: SaveData, p: Player): number {
     // 三木・東雲・大地以外の固有キャラは、少し伸びにくい（11月19日）
     const slow = named && p.storyCast !== 'daichi' && p.storyCast !== 'fixed:shinbun' && p.storyCast !== 'fixed:seitokai'
     if (named) return teamGrowthMult(save) * TEAMMATE_GROWTH_MULT * (slow ? FIXED_SLOW_MULT : 1)
-    return mobTeamGrowthMult(save) * MOB_GROWTH_MULT * mobScale(save, p) * (p.storyCast === 'mob:recruit' ? RECRUIT_MOB.growth : 1)
+    return mobTeamGrowthMult(save) * MOB_GROWTH_MULT * mobScale(save, p) * (p.storyCast === 'mob:recruit' ? RECRUIT_MOB.growth : 1) * (p.mainPosition === 'P' ? MOB_PITCHER_MULT : 1)
   }
   return p.mainPosition === 'P' ? 1.45 : 1.35
 }
@@ -225,6 +225,9 @@ function mobScale(save: SaveData, p: Player): number {
  * 目安は、2年目の夏に岩城と同じくらいまで伸びること
  */
 export let RECRUIT_MOB = { strength: 12, potential: 10, growth: 1.6 }
+
+/** モブの投手の伸びの倍率（11月24日：育ちすぎたので少し抑える） */
+export let MOB_PITCHER_MULT = 0.75
 
 /** 三木・東雲・大地以外の固有キャラの伸びに掛ける倍率 */
 export let FIXED_SLOW_MULT = 0.8

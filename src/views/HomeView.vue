@@ -24,7 +24,7 @@ import TabIcon from '@/components/TabIcon.vue'
 import { play } from '@/sound'
 import { bgUrl, portraitUrl } from '@/game/story/art'
 import { chapterGoal } from '@/game/story/engine'
-import { canRequestPractice, currentTournament, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
+import { canRequestPractice, currentTournament, nationalTarget, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 import RecruitSheet from '@/components/success/RecruitSheet.vue'
 import FacilityPanel from '@/components/FacilityPanel.vue'
 import OrderBoard from '@/components/OrderBoard.vue'
@@ -289,11 +289,11 @@ const teamPower = computed(() => {
   const stamina = list.length ? Math.round(list.reduce((a, p) => a + p.condition.stamina, 0) / list.length) : 0
   return {
     items: [
-      { label: 'ミート', value: avg((p) => p.batting.contact) },
-      { label: 'パワー', value: avg((p) => p.batting.power) },
-      { label: '走力', value: avg((p) => p.running.speed) },
-      { label: '守備', value: avg((p) => (p.fielding.range + p.fielding.catching + p.fielding.arm + p.fielding.throwing) / 4) },
-      { label: '投手', value: ace ? pitcherRating(ace) : 0 },
+      { label: 'ミート', scale: 'ability' as const, value: avg((p) => p.batting.contact) },
+      { label: 'パワー', scale: 'ability' as const, value: avg((p) => p.batting.power) },
+      { label: '走力', scale: 'ability' as const, value: avg((p) => p.running.speed) },
+      { label: '守備', scale: 'ability' as const, value: avg((p) => (p.fielding.range + p.fielding.catching + p.fielding.arm + p.fielding.throwing) / 4) },
+      { label: '投手', scale: 'overall' as const, value: ace ? pitcherRating(ace) : 0 },
     ],
     stamina,
   }
@@ -623,7 +623,7 @@ watch(
       <div v-else class="strip">
         <div v-for="it in teamPower.items" :key="it.label" class="tp">
           <small>{{ it.label }}</small>
-          <RankBadge :value="it.value" size="sm" />
+          <RankBadge :value="it.value" :scale="it.scale" size="sm" />
         </div>
         <div class="tp stam">
           <small>チーム体力</small>
@@ -651,6 +651,7 @@ watch(
         :schools="game.save!.schools"
         :own-id="game.save!.playerSchoolId"
         :pending="pendingGame ? { round: pendingGame.round, opponentId: pendingGame.opponentId } : null"
+        :opp-overall="pendingGame ? nationalTarget(game.save!, pendingGame.t, pendingGame.round, pendingGame.opponentId) : null"
         :busy="game.busy"
         :no-bracket="!!success"
         @start="startTournament"

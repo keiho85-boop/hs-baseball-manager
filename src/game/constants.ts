@@ -180,6 +180,27 @@ export function rankOf(value: number): string {
   return RANKS.find((r) => value >= r.min)?.rank ?? 'G'
 }
 
+/**
+ * 総合（選手の総合・学校の総合）のランクの区切り（11月24日）。
+ * 総合には試合に効く特殊能力の点数が入り100を超えるので、能力のランクとは別の区切りにする（105はA、115からS）
+ */
+export const OVERALL_RANKS: { rank: string; min: number }[] = [
+  { rank: 'SSS', min: 135 },
+  { rank: 'SS', min: 125 },
+  { rank: 'S', min: 115 },
+  { rank: 'A', min: 90 },
+  { rank: 'B', min: 70 },
+  { rank: 'C', min: 60 },
+  { rank: 'D', min: 50 },
+  { rank: 'E', min: 40 },
+  { rank: 'F', min: 20 },
+  { rank: 'G', min: 0 },
+]
+
+export function overallRankOf(value: number): string {
+  return OVERALL_RANKS.find((r) => value >= r.min)?.rank ?? 'G'
+}
+
 /** 球速を1-100の評価値に換算（120km/h=40、150km/h=90 前後） */
 export function velocityScore(kmh: number): number {
   return Math.round(Math.max(1, Math.min(100, (kmh - 96) * (5 / 3))))

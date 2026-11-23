@@ -1,13 +1,14 @@
 <script setup lang="ts">
-// ランク（S〜G）の札。六角形の盾の形に光沢を付けている
+// ランク（S〜G）の札。六角形の盾の形に光沢を付けている（ふだんは総合の区切り。能力の値には scale="ability"）
 import { computed } from 'vue'
-import { rankOf } from '@/game/constants'
+import { overallRankOf, rankOf } from '@/game/constants'
 
-const props = withDefaults(defineProps<{ value: number; showValue?: boolean; size?: 'sm' | 'md' | 'lg' }>(), {
+const props = withDefaults(defineProps<{ value: number; showValue?: boolean; size?: 'sm' | 'md' | 'lg'; scale?: 'overall' | 'ability' }>(), {
   showValue: true,
   size: 'md',
+  scale: 'overall',
 })
-const rank = computed(() => rankOf(props.value))
+const rank = computed(() => (props.scale === 'ability' ? rankOf(props.value) : overallRankOf(props.value)))
 </script>
 
 <template>

@@ -4,7 +4,7 @@ import { useBack } from '@/back'
 import { computed, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { CLUBS, FIXED, strengthLabel } from '@/game/success/clubs'
-import { rankOf } from '@/game/constants'
+import { overallRankOf } from '@/game/constants'
 import { successOf, repRank, rosterCount } from '@/game/success/state'
 import { POSITION_LABEL } from '@/game/constants'
 import type { ClubId, ClubMember } from '@/game/success/types'
@@ -55,7 +55,7 @@ function name(m: ClubMember): string {
 function sub(m: ClubMember): string {
   if (m.kind === 'fixed') return FIXED[m.id].title
   // 入部したときの総合のランク（古いデータは強さの目安）
-  return `${m.grade}年・${POSITION_LABEL[m.position as Position] ?? '野'}向き・${m.rating !== undefined ? rankOf(m.rating) : strengthLabel(m.strength)}`
+  return `${m.grade}年・${POSITION_LABEL[m.position as Position] ?? '野'}向き・${m.rating !== undefined ? overallRankOf(m.rating) : strengthLabel(m.strength)}`
 }
 
 function go(): void {

@@ -16,6 +16,8 @@ const props = defineProps<{
   busy: boolean
   /** 組み合わせ表へのリンクを出さない（選手育成モード） */
   noBracket?: boolean
+  /** 相手の総合として表示する値（選手育成モードの全国大会の目安。無ければ学校の総合） */
+  oppOverall?: number | null
 }>()
 defineEmits<{ start: []; next: []; bracket: []; order: [] }>()
 
@@ -75,7 +77,7 @@ const nextRoundLabel = computed(() => (alive.value && props.t.current < props.t.
         <div class="vs-mark">VS</div>
         <div class="team">
           <div class="tn">{{ opp.name }}</div>
-          <RankBadge :value="opp.overall" />
+          <RankBadge :value="oppOverall ?? opp.overall" />
           <small>{{ national ? prefName(opp.prefCode) : '' }}{{ national ? '・' : '' }}{{ opp.kind === 'private' ? '私立' : '公立' }}</small>
         </div>
       </div>

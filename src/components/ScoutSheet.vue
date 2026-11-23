@@ -4,7 +4,7 @@ import { useBack } from '@/back'
 import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { useUiStore } from '@/stores/ui'
-import { POSITION_NAME, prefName, rankOf, velocityScore } from '@/game/constants'
+import { POSITION_NAME, prefName, overallRankOf, rankOf, velocityScore } from '@/game/constants'
 import { SCOUT_COST, canAct, interestLabel, knownOf, scoutAbilities, type Prospect } from '@/game/scout'
 import { playerRating } from '@/game/player'
 import { getSkill } from '@/game/skills'
@@ -62,7 +62,7 @@ function skillSlots(pr: Prospect): { name: string; good: boolean | null }[] | nu
   })
 }
 
-const overall = (pr: Prospect) => rankOf(playerRating(pr.player))
+const overall = (pr: Prospect) => overallRankOf(playerRating(pr.player))
 
 async function act(kind: 'visit' | 'recruit', pr: Prospect): Promise<void> {
   const before = pr.interest

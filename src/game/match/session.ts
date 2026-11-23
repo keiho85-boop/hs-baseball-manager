@@ -34,8 +34,8 @@ export function ownLineup(save: SaveData): LineupConfig {
   return autoLineup(activeMembers(save, school), saved?.useDH ?? true, focus)
 }
 
-/** 選手育成モードの全国大会の相手の上乗せ（調整用。打撃・投球の能力に足される） */
-export const NATIONAL_FORM = { base: 2, yearly: 2 }
+/** 選手育成モードの全国大会の相手の上乗せ（調整用。打撃・投球の能力に足される）。11月24日：相手の総合を龍ヶ峰基準の目安に合わせるようにしたので 0 */
+export const NATIONAL_FORM = { base: 0, yearly: 0 }
 
 export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial: Partial<MatchOptions> = {}): MatchState {
   const own = save.schools[save.playerSchoolId]!

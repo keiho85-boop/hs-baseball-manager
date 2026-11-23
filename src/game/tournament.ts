@@ -7,8 +7,8 @@
 
 import { Rng, clamp } from './rng'
 import { PREFECTURES, prefName, wk } from './constants'
-import { newId, populateSchool } from './world'
-import type { SaveData, School } from './types'
+import { computeOverall, newId, populateSchool } from './world'
+import type { Player, SaveData, School } from './types'
 
 export type TournamentKind = 'springPref' | 'summerPref' | 'summerNational' | 'autumnPref' | 'springNational'
 
@@ -40,6 +40,11 @@ export interface Tournament {
   championId: string | null
   /** 選手を一時的に作った他県の学校（大会が終わったら元に戻す） */
   tempDetailed: string[]
+  /**
+   * 選手育成モード：全国大会の相手に合わせるため一時的に能力を上げ下げした、選手を持つ学校（大会が終わったら元に戻す）。
+   * 学校ごとに、元の総合と選手の元の能力
+   */
+  tempBoost?: Record<string, { overall: number; players: Record<string, Pick<Player, 'batting' | 'fielding' | 'running' | 'pitching'>> }>
 }
 
 interface Spec {
@@ -496,28 +501,110 @@ function finishTournament(save: SaveData, t: Tournament): string[] {
   // 一時的に選手を作った他県の学校を元に戻す
   for (const id of t.tempDetailed) revertTemp(save, id)
   t.tempDetailed = []
+  revertBoost(save, t)
   return messages
 }
 
 // ---------------------------------------------------------------- 他県の学校の選手
 
 /** 総合力だけで管理している学校と対戦するときに、その場で選手を作る */
-/** 選手育成モード：全国大会の相手校の底上げ（総合力）と、1年ごとに強くなる量 */
-const NATIONAL_BASE = 14
-const NATIONAL_YEARLY_GROWTH = 7
+/**
+ * 選手育成モード：全国大会の相手の総合の目安（11月24日）。
+ * 龍ヶ峰（県のライバル）の総合を基準にして、準決勝の手前までは龍ヶ峰の前後、準決勝・決勝は龍ヶ峰より上にする。
+ * 値は [下限, 上限]（龍ヶ峰との差）。どこに入るかは学校ごとに決まっていて、試合前の表示と試合の強さが一致する
+ */
+export const NATIONAL_TARGET = { early: [-7, 1], semi: [0, 3], final: [1, 4] } as const
+
+function unitHash(key: string): number {
+  let h = 2166136261
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619)
+  return ((h >>> 0) % 10000) / 10000
+}
+
+/** 全国大会の相手の総合の目安（選手育成モード以外、県大会は null） */
+export function nationalTarget(save: SaveData, t: Tournament, round: number, schoolId: string): number | null {
+  if (!save.story?.success || t.prefCode !== null) return null
+  const rival = save.story.rivalId ? save.schools[save.story.rivalId] : undefined
+  if (!rival) return null
+  const base = computeOverall(rival, save.players)
+  const n = t.rounds.length
+  const [lo, hi] = round >= n - 1 ? NATIONAL_TARGET.final : round === n - 2 ? NATIONAL_TARGET.semi : NATIONAL_TARGET.early
+  return Math.round(base + lo + (hi - lo) * unitHash(`${t.id}:${schoolId}`))
+}
+
+/** 能力をまとめて上げ下げする（全国大会の相手を目安の総合に合わせる） */
+function shiftAbilities(p: Player, d: number): void {
+  const c = (v: number) => clamp(Math.round(v + d), 1, 100)
+  const b = p.batting
+  b.contact = c(b.contact)
+  b.power = c(b.power)
+  b.eye = c(b.eye)
+  p.running.speed = c(p.running.speed)
+  const f = p.fielding
+  f.arm = c(f.arm)
+  f.range = c(f.range)
+  f.catching = c(f.catching)
+  f.throwing = c(f.throwing)
+  const pt = p.pitching
+  pt.control = c(pt.control)
+  pt.stamina = c(pt.stamina)
+  pt.kire = c(pt.kire)
+  pt.velocity = clamp(Math.round(pt.velocity + d * 0.6), 100, 165)
+}
+
+/** 学校の選手の能力を、総合が目安になるまで上げ下げする */
+function fitToTarget(save: SaveData, school: School, target: number): void {
+  const members = school.playerIds.map((id) => save.players[id]).filter((p): p is Player => !!p && !p.retired)
+  for (let i = 0; i < 6; i++) {
+    const d = target - computeOverall(school, save.players)
+    if (Math.abs(d) < 0.5) break
+    for (const p of members) shiftAbilities(p, d)
+  }
+  school.overall = computeOverall(school, save.players)
+}
 
 export function ensureDetailed(save: SaveData, rng: Rng, t: Tournament, schoolId: string): void {
   const school = save.schools[schoolId]
-  if (!school || school.detailed) return
+  if (!school) return
+  const round = t.rounds.findIndex((games) => games.some((g) => !g.winner && (g.a === schoolId || g.b === schoolId)))
+  const target = nationalTarget(save, t, round < 0 ? t.current : round, schoolId)
+  if (school.detailed) {
+    // 選手を持つ他県の強豪：大会の間だけ、目安の総合に合わせて能力を上げ下げする（大会が終わったら元に戻す）
+    if (target === null || school.id === save.playerSchoolId || t.tempBoost?.[schoolId] || t.tempDetailed.includes(schoolId)) return
+    const players: NonNullable<Tournament['tempBoost']>[string]['players'] = {}
+    for (const id of school.playerIds) {
+      const p = save.players[id]
+      if (!p) continue
+      players[id] = JSON.parse(JSON.stringify({ batting: p.batting, fielding: p.fielding, running: p.running, pitching: p.pitching }))
+    }
+    t.tempBoost = { ...(t.tempBoost ?? {}), [schoolId]: { overall: school.overall, players } }
+    fitToTarget(save, school, target)
+    return
+  }
   const overall = school.overall
   school.detailed = true
   school.tempOverall = overall
-  // 選手育成モード：全国大会の相手は各地の代表にふさわしい強さで、年を追うごとに強くなる（1年目+5、2年目+10、3年目+15）
-  const national = t.kind === 'summerNational' || t.kind === 'springNational'
-  const boost = national && save.story?.enabled && save.story.success ? NATIONAL_BASE + Math.max(0, Math.min(2, save.calendar.year - 1)) * NATIONAL_YEARLY_GROWTH : 0
-  populateSchool(rng, save, school, clamp((overall + boost) / 0.75, 10, 97), 0)
-  school.overall = overall
+  if (target !== null) {
+    // 選手育成モードの全国大会：龍ヶ峰を基準にした目安の総合に合わせる（表示もその値）
+    populateSchool(rng, save, school, clamp(target / 0.75, 10, 97), 0)
+    fitToTarget(save, school, target)
+  } else {
+    populateSchool(rng, save, school, clamp(overall / 0.75, 10, 97), 0)
+    school.overall = overall
+  }
   t.tempDetailed.push(schoolId)
+}
+
+function revertBoost(save: SaveData, t: Tournament): void {
+  for (const [schoolId, b] of Object.entries(t.tempBoost ?? {})) {
+    for (const [id, a] of Object.entries(b.players)) {
+      const p = save.players[id]
+      if (p) Object.assign(p, a)
+    }
+    const school = save.schools[schoolId]
+    if (school) school.overall = b.overall
+  }
+  t.tempBoost = {}
 }
 
 function revertTemp(save: SaveData, schoolId: string): void {
