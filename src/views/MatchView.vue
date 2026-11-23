@@ -24,6 +24,8 @@ import type { FaceParts } from '@/game/types'
 import FaceIcon from '@/components/FaceIcon.vue'
 import RankBadge from '@/components/RankBadge.vue'
 import GameIcon from '@/components/GameIcon.vue'
+import PlayerSheet from '@/components/PlayerSheet.vue'
+import { fielderRating, pitcherRating } from '@/game/player'
 import { successOf } from '@/game/success/state'
 import { portraitUrl } from '@/game/story/art'
 import { faceIconName } from '@/game/success/icons'
@@ -198,6 +200,9 @@ const skillsNow = computed(() => {
     ids.map((id) => getSkill(id)).filter((x): x is NonNullable<typeof x> => !!x).map((x) => ({ name: x.name, good: x.good, desc: x.description }))
   return { pitcher: view(r.pitcher), batter: view(r.batter) }
 })
+
+/** 能力を見ている選手（継投・代打・オーダーから開く） */
+const viewing = ref<string | null>(null)
 
 function showSkill(sk: { name: string; desc: string }): void {
   ui.notify({ title: sk.name, message: sk.desc, tone: 'info', icon: 'up' })
@@ -991,39 +996,52 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
     <!-- 試合終了 -->
     <MatchResult v-if="m.finished && !flash" :m="m" :players="players" :own-id="ownId" :busy="game.busy" :focus-id="focusId" @finish="finish" />
 
+    <!-- 選手の能力 -->
+    <PlayerSheet v-if="viewing" :player-id="viewing" @close="viewing = null" />
+
     <!-- ポップアップ -->
     <div v-if="sheet" class="sheet-backdrop" @click.self="closeSheet">
       <div class="sheet card">
         <template v-if="sheet === 'pitcher'">
           <h2 class="red"><GameIcon name="flame" /> 継投（ブルペン）</h2>
           <p v-if="benchPitchers.length === 0" class="muted">交代できる投手がいません。</p>
-          <button v-for="p in benchPitchers" :key="p.id" class="pick" @click="pickPitcher(p.id)">
-            <FaceIcon :face="p.face" :size="36" />
-            <span class="pick-name">{{ p.surname }}<small>{{ p.grade }}年</small></span>
-            <span class="muted">{{ p.pitching.velocity }}km</span>
-            <RankBadge :value="velocityScore(p.pitching.velocity) * 0.4 + p.pitching.control * 0.6" size="sm" :show-value="false" />
-            <span class="pill" :class="{ bad: p.condition.armIssue }">体力{{ Math.round(p.condition.stamina) }}</span>
-          </button>
+          <div v-for="p in benchPitchers" :key="p.id" class="pick-row">
+            <button class="pick" @click="pickPitcher(p.id)">
+              <FaceIcon :face="p.face" :size="36" />
+              <span class="pick-name">{{ p.surname }}<small>{{ p.grade }}年</small></span>
+              <span class="muted">{{ p.pitching.velocity }}km 制{{ p.pitching.control }} ス{{ p.pitching.stamina }}</span>
+              <RankBadge :value="pitcherRating(p)" size="sm" :show-value="false" />
+              <span class="pill" :class="{ bad: p.condition.armIssue }">体力{{ Math.round(p.condition.stamina) }}</span>
+            </button>
+            <button class="info-btn" aria-label="能力を見る" @click="viewing = p.id">詳細</button>
+          </div>
         </template>
 
         <template v-else-if="sheet === 'sub'">
           <h2 class="orange"><GameIcon name="cap" /> 代打・代走</h2>
           <template v-if="!subTarget">
             <p class="muted">交代させる選手を選んでください</p>
-            <button v-for="(sl, i) in ownTeam?.lineup ?? []" :key="sl.playerId" class="pick" @click="subTarget = sl.playerId">
-              <span class="slot">{{ i + 1 }}番</span>
-              <span class="pick-name">{{ players[sl.playerId]?.surname }}<small>{{ posLabel(sl.position) }}</small></span>
-              <span v-if="m.bases.includes(sl.playerId)" class="pill gold">走者</span>
-              <span v-if="ownBatting && currentBatterId(m) === sl.playerId" class="pill">打席</span>
-            </button>
+            <div v-for="(sl, i) in ownTeam?.lineup ?? []" :key="sl.playerId" class="pick-row">
+              <button class="pick" @click="subTarget = sl.playerId">
+                <span class="slot">{{ i + 1 }}番</span>
+                <span class="pick-name">{{ players[sl.playerId]?.surname }}<small>{{ posLabel(sl.position) }}</small></span>
+                <span v-if="m.bases.includes(sl.playerId)" class="pill gold">走者</span>
+                <span v-if="ownBatting && currentBatterId(m) === sl.playerId" class="pill">打席</span>
+              </button>
+              <button class="info-btn" aria-label="能力を見る" @click="viewing = sl.playerId">詳細</button>
+            </div>
           </template>
           <template v-else>
             <p class="muted">{{ players[subTarget]?.surname }}に代わって出る選手</p>
-            <button v-for="p in benchAll" :key="p.id" class="pick" :disabled="ownTeam?.used.includes(p.id)" @click="pickSub(p.id)">
-              <FaceIcon :face="p.face" :size="36" />
-              <span class="pick-name">{{ p.surname }}<small>{{ p.grade }}年・{{ POSITION_LABEL_RAW[p.mainPosition] }}</small></span>
-              <span class="muted">ミ{{ p.batting.contact }} パ{{ p.batting.power }} 走{{ p.running.speed }}</span>
-            </button>
+            <div v-for="p in benchAll" :key="p.id" class="pick-row">
+              <button class="pick" :disabled="ownTeam?.used.includes(p.id)" @click="pickSub(p.id)">
+                <FaceIcon :face="p.face" :size="36" />
+                <span class="pick-name">{{ p.surname }}<small>{{ p.grade }}年・{{ POSITION_LABEL_RAW[p.mainPosition] }}</small></span>
+                <span class="muted">ミ{{ p.batting.contact }} パ{{ p.batting.power }} 走{{ p.running.speed }}</span>
+                <RankBadge :value="fielderRating(p)" size="sm" :show-value="false" />
+              </button>
+              <button class="info-btn" aria-label="能力を見る" @click="viewing = p.id">詳細</button>
+            </div>
             <button class="plain" @click="subTarget = null">選び直す</button>
           </template>
         </template>
@@ -1043,19 +1061,20 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
           <div class="lineups">
             <div v-for="t in [m.away, m.home]" :key="t.schoolId" class="lu">
               <div class="lu-name" :class="{ own: t.schoolId === ownId }">{{ t.name }}</div>
-              <div v-for="(sl, i) in t.lineup" :key="sl.playerId" class="lu-row" :class="{ now: t === battingTeam(m) && t.battingIndex === i }">
+              <div v-for="(sl, i) in t.lineup" :key="sl.playerId" class="lu-row tap" :class="{ now: t === battingTeam(m) && t.battingIndex === i }" @click="viewing = sl.playerId">
                 <span class="lu-no">{{ i + 1 }}</span>
                 <span class="lu-pos">{{ posLabel(sl.position) }}</span>
                 <span class="lu-p">{{ players[sl.playerId]?.surname }}</span>
                 <span class="lu-r">{{ m.batting[sl.playerId]?.h ?? 0 }}/{{ m.batting[sl.playerId]?.ab ?? 0 }}</span>
               </div>
-              <div class="lu-row pit">
+              <div class="lu-row pit tap" @click="viewing = t.pitcherId">
                 <span class="lu-no">投</span>
                 <span class="lu-p">{{ players[t.pitcherId]?.surname }}</span>
                 <span class="lu-r">{{ m.pitching[t.pitcherId]?.pitches ?? 0 }}球</span>
               </div>
             </div>
           </div>
+          <p class="muted lu-hint">選手をタップすると、能力が見られます</p>
         </template>
         <button class="secondary full" @click="closeSheet">閉じる</button>
       </div>
@@ -2240,5 +2259,36 @@ else if (game.match.events.length === 0 && game.match.count.balls + game.match.c
     transform: none;
     opacity: 1;
   }
+}
+
+/* 継投・代打の一覧：選ぶボタンと、能力を見るボタン */
+.pick-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.pick-row .pick {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.info-btn {
+  flex: none;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid #c7d7ea;
+  background: #f2f7fd;
+  color: #2a5a8c;
+  font-size: 12px;
+  font-weight: 800;
+}
+.lu-row.tap {
+  cursor: pointer;
+}
+.lu-hint {
+  font-size: 11px;
+  text-align: center;
+  margin: 6px 0 0;
 }
 </style>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SkillChips from '@/components/SkillChips.vue'
 // 選手育成モード：育てている選手の専用画面（能力・特殊能力・まわりの評価・ドラフトの見込み）
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -139,7 +140,7 @@ const draft = computed(() => {
       <div class="card">
         <h2 class="sun">特殊能力</h2>
         <div v-if="p.skills.length" class="skills">
-          <span v-for="id in p.skills" :key="id" class="skill" :class="[getSkill(id)?.good ? 'good' : 'bad', tierClass(id)]">{{ getSkill(id)?.name }}</span>
+          <SkillChips :ids="p.skills" />
         </div>
         <p v-else class="muted">まだありません。イベントや特訓で覚えます。</p>
       </div>

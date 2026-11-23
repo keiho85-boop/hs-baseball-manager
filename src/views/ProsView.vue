@@ -6,8 +6,9 @@ import { useRouter } from 'vue-router'
 import GameIcon from '@/components/GameIcon.vue'
 import RankBadge from '@/components/RankBadge.vue'
 import AbilityBar from '@/components/AbilityBar.vue'
+import PlayerSheet from '@/components/PlayerSheet.vue'
+import SkillChips from '@/components/SkillChips.vue'
 import { PITCH_NAME, velocityScore } from '@/game/constants'
-import { getSkill, tierClass } from '@/game/skills'
 import type { Player, Position } from '@/game/types'
 import {
   autoDreamTeam,
@@ -28,6 +29,8 @@ const tab = ref<'list' | 'dream'>('list')
 const saved = ref<SavedPlayer[]>(listSavedPlayers().sort((a, b) => b.rating - a.rating))
 const byUid = computed(() => new Map(saved.value.map((x) => [savedUid(x), x])))
 const open = ref<string | null>(null)
+/** くわしい能力を見ている選手 */
+const viewing = ref<Player | null>(null)
 
 /** 守備位置の名前（育成選手の外野はひとまとめ。ドリームチームの打順では左・中・右を分ける） */
 const POS_NAME: Record<Position, string> = { P: '投手', C: '捕手', '1B': '一塁手', '2B': '二塁手', '3B': '三塁手', SS: '遊撃手', LF: '外野手', CF: '外野手', RF: '外野手' }
@@ -36,12 +39,6 @@ const DREAM_LABEL: Record<DreamPos, string> = { C: '捕', '1B': '一', '2B': '�
 function dateLabel(iso: string): string {
   const d = new Date(iso)
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
-}
-function skillsOf(p: Player): { name: string; good: boolean }[] {
-  return p.skills
-    .map((id) => getSkill(id))
-    .filter((x): x is NonNullable<typeof x> => !!x)
-    .map((x) => ({ name: x.name, good: x.good }))
 }
 
 // ---------------------------------------------------------------- ドリームチーム
@@ -145,10 +142,10 @@ function brief(x: SavedPlayer | undefined): string {
           <AbilityBar label="肩力" :value="x.player.fielding.arm" />
           <AbilityBar label="守備" :value="x.player.fielding.range" />
           <AbilityBar label="捕球" :value="x.player.fielding.catching" />
-          <div class="skills">
-            <span v-for="sk in skillsOf(x.player)" :key="sk.name" class="sk" :class="[sk.good ? 'good' : 'bad', tierClass(sk.name)]">{{ sk.name }}</span>
-            <span v-if="skillsOf(x.player).length === 0" class="muted">特殊能力なし</span>
+          <div class="skills" @click.stop>
+            <SkillChips :ids="x.player.skills" empty-text="特殊能力なし" />
           </div>
+          <button class="sky full detail" @click.stop="viewing = x.player">くわしい能力を見る</button>
         </div>
       </div>
     </template>
@@ -170,6 +167,7 @@ function brief(x: SavedPlayer | undefined): string {
             </template>
             <span v-else class="muted">選手を選ぶ</span>
           </button>
+          <button class="info" :disabled="!o.uid || !byUid.get(o.uid)" aria-label="能力を見る" @click="o.uid && byUid.get(o.uid) && (viewing = byUid.get(o.uid)!.player)">詳細</button>
           <button class="up" :disabled="i === 0" aria-label="打順を上げる" @click="moveUp(i)">▲</button>
         </div>
         <div class="d-row pitcher">
@@ -182,23 +180,29 @@ function brief(x: SavedPlayer | undefined): string {
             </template>
             <span v-else class="muted">先発投手を選ぶ</span>
           </button>
+          <button class="info" :disabled="!dream.pitcher || !byUid.get(dream.pitcher)" aria-label="能力を見る" @click="dream.pitcher && byUid.get(dream.pitcher) && (viewing = byUid.get(dream.pitcher)!.player)">詳細</button>
           <span class="up-sp" />
         </div>
         <p class="note">守備位置は、位置の札をタップすると変わります。ドリームチームでの大会は、今後追加します。</p>
       </div>
     </template>
 
+    <PlayerSheet v-if="viewing" :player="viewing" @close="viewing = null" />
+
     <div v-if="picking" class="pick-backdrop" @click.self="picking = null">
       <div class="card pick">
         <h2>{{ picking.kind === 'pitch' ? '先発投手' : `${picking.index + 1}番打者` }}</h2>
-        <button v-for="c in pickList" :key="c.uid" class="pk" :disabled="c.used" @click="choose(c.uid)">
-          <img :src="`${BASE}icon/icon_focus.webp`" alt="" />
-          <span class="pk-main">
-            <b>{{ c.x.player.surname }} {{ c.x.player.givenName }}</b>
-            <small>{{ POS_NAME[c.x.player.mainPosition] }}・{{ brief(c.x) }}{{ c.used ? '（起用中）' : '' }}</small>
-          </span>
-          <RankBadge :value="c.x.rating" size="sm" />
-        </button>
+        <div v-for="c in pickList" :key="c.uid" class="pk-row">
+          <button class="pk" :disabled="c.used" @click="choose(c.uid)">
+            <img :src="`${BASE}icon/icon_focus.webp`" alt="" />
+            <span class="pk-main">
+              <b>{{ c.x.player.surname }} {{ c.x.player.givenName }}</b>
+              <small>{{ POS_NAME[c.x.player.mainPosition] }}・{{ brief(c.x) }}{{ c.used ? '（起用中）' : '' }}</small>
+            </span>
+            <RankBadge :value="c.x.rating" size="sm" />
+          </button>
+          <button class="info" aria-label="能力を見る" @click="viewing = c.x.player">詳細</button>
+        </div>
         <button class="secondary full" @click="choose(null)">空きにする</button>
         <button class="plain full" @click="picking = null">閉じる</button>
       </div>
@@ -442,5 +446,35 @@ function brief(x: SavedPlayer | undefined): string {
 .pk-main small {
   font-size: 11px;
   color: var(--ink-soft);
+}
+
+/* 能力を見るボタン */
+.info {
+  flex: none;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid #c7d7ea;
+  background: #f2f7fd;
+  color: #2a5a8c;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: none;
+  text-shadow: none;
+}
+.info:disabled {
+  opacity: 0.35;
+}
+.pk-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+.pk-row .pk {
+  flex: 1;
+  min-width: 0;
+}
+.detail {
+  margin-top: 8px;
+  font-size: 13px;
 }
 </style>

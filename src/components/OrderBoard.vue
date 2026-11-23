@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SkillChips from '@/components/SkillChips.vue'
 // オーダー編成：スタメン（打順と先発投手）・控え（チーム育成モードはベンチ外も）を並べ、
 // 2人を続けてタップすると入れ替わる（ドラッグはしない：画面を指で楽にスクロールできるように）。野手も投手もここで決める
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
@@ -473,7 +474,7 @@ const focusSkills = computed(() =>
         </div>
       </div>
       <div class="f-sk">
-        <span v-for="sk in focusSkills" :key="sk.id" class="sk" :class="[sk.good ? 'good' : 'bad', tierClass(sk.name)]">{{ sk.name }}</span>
+        <SkillChips :ids="focusSkills.map((x) => x.id)" small />
         <span v-if="focusSkills.length === 0" class="sk none">特殊能力なし</span>
       </div>
       <div class="f-apt">

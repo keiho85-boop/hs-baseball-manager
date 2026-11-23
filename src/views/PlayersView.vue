@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SkillChips from '@/components/SkillChips.vue'
 // 部員一覧：野手・投手を表で並べ、能力1／能力2／成績を切り替えて見る。見出しを押すと並び替え
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -214,7 +215,7 @@ function posKind(p: Player): string {
             <template v-else>{{ c.text ? c.text(p) : c.value(p) }}</template>
           </span>
           <span v-if="view === 'sk'" class="c-sk">
-            <i v-for="sk in skillsOf(p)" :key="sk.id" :class="[sk.good ? 'good' : 'bad', tierClass(sk.name)]">{{ sk.name }}</i>
+            <SkillChips :ids="p.skills" small />
             <em v-if="p.skills.length === 0">なし</em>
           </span>
           <button v-if="!noMenu" class="c-m" :disabled="p.retired" @click.stop="menuFor = p">{{ MENU_SHORT[p.practiceMenu] }}</button>

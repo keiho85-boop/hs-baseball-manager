@@ -5,17 +5,19 @@ import { computed } from 'vue'
 import { useGameStore } from '@/stores/game'
 import { APTITUDE_LABEL, PITCH_NAME, POSITIONS, POSITION_LABEL, POSITION_NAME, velocityScore } from '@/game/constants'
 import { fielderRating, pitcherRating } from '@/game/player'
-import { getSkill, tierClass } from '@/game/skills'
+import type { Player } from '@/game/types'
+import SkillChips from './SkillChips.vue'
 import AbilityBar from './AbilityBar.vue'
 import FaceIcon from './FaceIcon.vue'
 import RankBadge from './RankBadge.vue'
 import GameIcon from './GameIcon.vue'
 
-const props = defineProps<{ playerId: string }>()
+/** playerId：いまのセーブの選手。player：セーブの外の選手（ドリームチームなど）をそのまま渡す */
+const props = defineProps<{ playerId?: string; player?: Player }>()
 const emit = defineEmits<{ close: [] }>()
 useBack(() => (emit('close'), true))
 const game = useGameStore()
-const p = computed(() => game.player(props.playerId))
+const p = computed(() => props.player ?? (props.playerId ? game.player(props.playerId) : undefined))
 
 const BATS = { R: '右打', L: '左打', S: '両打' } as const
 const THROWS = { R: '右投', L: '左投' } as const
@@ -29,11 +31,11 @@ const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
         <FaceIcon :face="p.face" :size="58" />
         <div class="who">
           <div class="name">{{ p.surname }} {{ p.givenName }}</div>
-          <div class="muted">{{ p.grade }}年・{{ POSITION_NAME[p.mainPosition] }}・{{ THROWS[p.throws] }}{{ BATS[p.bats] }}</div>
-          <div class="muted">見立て：{{ p.estimate }} ／ 調子：{{ FORM[p.condition.form] }} ／ 体力{{ Math.round(p.condition.stamina) }}</div>
-          <div v-if="p.condition.injury" class="bad">ケガ：{{ p.condition.injury.name }}（あと{{ p.condition.injury.weeksLeft }}週）</div>
-          <div v-if="p.condition.armIssue" class="bad">{{ p.condition.armIssue.part === 'shoulder' ? '肩' : '肘' }}の不安あり</div>
-          <div v-if="p.condition.worry" class="bad">{{ { shoulder: '肩', elbow: '肘', knee: '膝' }[p.condition.worry.part] }}の不安あり（休ませると消える）</div>
+          <div class="muted">{{ player ? '' : `${p.grade}年・` }}{{ POSITION_NAME[p.mainPosition] }}・{{ THROWS[p.throws] }}{{ BATS[p.bats] }}</div>
+          <div v-if="!player" class="muted">見立て：{{ p.estimate }} ／ 調子：{{ FORM[p.condition.form] }} ／ 体力{{ Math.round(p.condition.stamina) }}</div>
+          <div v-if="!player && p.condition.injury" class="bad">ケガ：{{ p.condition.injury.name }}（あと{{ p.condition.injury.weeksLeft }}週）</div>
+          <div v-if="!player && p.condition.armIssue" class="bad">{{ p.condition.armIssue.part === 'shoulder' ? '肩' : '肘' }}の不安あり</div>
+          <div v-if="!player && p.condition.worry" class="bad">{{ { shoulder: '肩', elbow: '肘', knee: '膝' }[p.condition.worry.part] }}の不安あり（休ませると消える）</div>
         </div>
         <button class="plain close" aria-label="閉じる" @click="emit('close')">✕</button>
       </div>
@@ -67,7 +69,8 @@ const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
       </div>
 
       <div v-if="p.skills.length" class="skills">
-        <span v-for="id in p.skills" :key="id" class="pill" :class="[getSkill(id)?.good ? 'good' : 'bad', tierClass(id)]">{{ getSkill(id)?.name }}</span>
+        <SkillChips :ids="p.skills" />
+        <div class="hint muted">能力をタップすると、くわしい効果が見られます</div>
       </div>
       <button class="secondary full" @click="emit('close')">閉じる</button>
     </div>
@@ -75,6 +78,10 @@ const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
 </template>
 
 <style scoped>
+.hint {
+  font-size: 11px;
+  margin-top: 4px;
+}
 .ps-backdrop {
   position: fixed;
   inset: 0;
@@ -84,6 +91,8 @@ const FORM = ['', '絶不調', '不調', '普通', '好調', '絶好調']
   align-items: flex-end;
 }
 .ps {
+  /* 試合画面（白い文字）の中で開いても読めるように、文字の色を決めておく */
+  color: var(--ink);
   width: 100%;
   max-width: 640px;
   margin: 0 auto;

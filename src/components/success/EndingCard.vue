@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SkillChips from '@/components/SkillChips.vue'
 // 選手育成モード：シナリオの結末（ドラフト結果・育てた選手のカード・評価・3年間の成績）
 import { computed, onMounted, ref } from 'vue'
 import { useGameStore } from '@/stores/game'
@@ -115,7 +116,7 @@ function stars(v: number): string {
             </div>
           </div>
           <div v-if="f.skills.length" class="pc-skills">
-            <span v-for="id in f.skills" :key="id" :class="[getSkill(id)?.good ? 'good' : 'bad', tierClass(id)]">{{ getSkill(id)?.name }}</span>
+            <SkillChips :ids="f.skills" small />
           </div>
         </div>
       </Transition>
