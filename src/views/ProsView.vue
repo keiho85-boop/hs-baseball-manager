@@ -8,7 +8,7 @@ import RankBadge from '@/components/RankBadge.vue'
 import AbilityBar from '@/components/AbilityBar.vue'
 import PlayerSheet from '@/components/PlayerSheet.vue'
 import SkillChips from '@/components/SkillChips.vue'
-import { PITCH_NAME, velocityScore } from '@/game/constants'
+import { APTITUDE_LABEL, PITCH_NAME, rankOf, velocityScore } from '@/game/constants'
 import type { Player, Position } from '@/game/types'
 import {
   autoDreamTeam,
@@ -91,6 +91,24 @@ function auto(): void {
   persist()
 }
 const filled = computed(() => dream.value.order.filter((o) => o.uid).length + (dream.value.pitcher ? 1 : 0))
+/** 通常のオーダーと同じ5つのランク（野手：ミート・パワー・走力・肩力・守備／投手：球速・制球・スタミナ・キレ・変化） */
+const RANK_LABELS = { bat: ['ミート', 'パワー', '走力', '肩力', '守備'], pit: ['球速', '制球', 'スタ', 'キレ', '変化'] }
+function ranks(p: Player, asPitcher: boolean): string[] {
+  if (asPitcher) {
+    const breaking = p.pitching.pitches.reduce((a, x) => a + x.level, 0) * 7
+    return [velocityScore(p.pitching.velocity), p.pitching.control, p.pitching.stamina, p.pitching.kire, Math.min(100, breaking)].map(rankOf)
+  }
+  return [p.batting.contact, p.batting.power, p.running.speed, p.fielding.arm, p.fielding.range].map(rankOf)
+}
+function batsLabel(p: Player): string {
+  return p.bats === 'L' ? '左打' : p.bats === 'S' ? '両打' : '右打'
+}
+/** その守備位置の適性（◎○△×）。指名打者は出さない */
+function aptAt(p: Player, pos: DreamPos): { mark: string; v: number } | null {
+  if (pos === 'DH') return null
+  const v = p.fielding.aptitude[pos as Position] ?? 0
+  return { mark: APTITUDE_LABEL[v] ?? '×', v }
+}
 function brief(x: SavedPlayer | undefined): string {
   if (!x) return ''
   const p = x.player
@@ -162,8 +180,14 @@ function brief(x: SavedPlayer | undefined): string {
           <button class="pos" @click="cyclePos(i)">{{ DREAM_LABEL[o.pos] }}</button>
           <button class="who" @click="picking = { kind: 'bat', index: i }">
             <template v-if="o.uid && byUid.get(o.uid)">
-              <b>{{ byUid.get(o.uid)!.player.surname }}</b>
-              <small>{{ brief(byUid.get(o.uid)) }}</small>
+              <span class="w-name">
+                <b>{{ byUid.get(o.uid)!.player.surname }}</b>
+                <small>{{ batsLabel(byUid.get(o.uid)!.player) }}</small>
+                <i v-if="aptAt(byUid.get(o.uid)!.player, o.pos)" class="w-apt" :class="`ap-${aptAt(byUid.get(o.uid)!.player, o.pos)!.v}`">{{ aptAt(byUid.get(o.uid)!.player, o.pos)!.mark }}</i>
+              </span>
+              <span class="w-ranks">
+                <i v-for="(r, k) in ranks(byUid.get(o.uid)!.player, false)" :key="k" :class="`rk-${r}`"><small>{{ RANK_LABELS.bat[k] }}</small>{{ r }}</i>
+              </span>
             </template>
             <span v-else class="muted">選手を選ぶ</span>
           </button>
@@ -175,8 +199,13 @@ function brief(x: SavedPlayer | undefined): string {
           <span class="pos p">投</span>
           <button class="who" @click="picking = { kind: 'pitch' }">
             <template v-if="dream.pitcher && byUid.get(dream.pitcher)">
-              <b>{{ byUid.get(dream.pitcher)!.player.surname }}</b>
-              <small>{{ brief(byUid.get(dream.pitcher)) }}</small>
+              <span class="w-name">
+                <b>{{ byUid.get(dream.pitcher)!.player.surname }}</b>
+                <small>{{ byUid.get(dream.pitcher)!.player.pitching.velocity }}km</small>
+              </span>
+              <span class="w-ranks">
+                <i v-for="(r, k) in ranks(byUid.get(dream.pitcher)!.player, true)" :key="k" :class="`rk-${r}`"><small>{{ RANK_LABELS.pit[k] }}</small>{{ r }}</i>
+              </span>
             </template>
             <span v-else class="muted">先発投手を選ぶ</span>
           </button>
@@ -197,7 +226,10 @@ function brief(x: SavedPlayer | undefined): string {
             <img :src="`${BASE}icon/icon_focus.webp`" alt="" />
             <span class="pk-main">
               <b>{{ c.x.player.surname }} {{ c.x.player.givenName }}</b>
-              <small>{{ POS_NAME[c.x.player.mainPosition] }}・{{ brief(c.x) }}{{ c.used ? '（起用中）' : '' }}</small>
+              <small>{{ POS_NAME[c.x.player.mainPosition] }}{{ c.used ? '（起用中）' : '' }}</small>
+              <span class="w-ranks pk-ranks">
+                <i v-for="(r, k) in ranks(c.x.player, picking.kind === 'pitch')" :key="k" :class="`rk-${r}`"><small>{{ (picking.kind === 'pitch' ? RANK_LABELS.pit : RANK_LABELS.bat)[k] }}</small>{{ r }}</i>
+              </span>
             </span>
             <RankBadge :value="c.x.rating" size="sm" />
           </button>
@@ -476,5 +508,60 @@ function brief(x: SavedPlayer | undefined): string {
 .detail {
   margin-top: 8px;
   font-size: 13px;
+}
+
+/* 打順の行：通常のオーダーと同じ5つのランク */
+.who {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 5px 8px;
+}
+.w-name {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+.w-name b {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.w-apt {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 900;
+  margin-left: auto;
+}
+.ap-3 { color: #1b9a4b; }
+.ap-2 { color: #2a7bd6; }
+.ap-1 { color: #d68a00; }
+.ap-0 { color: #c0392b; }
+.w-ranks {
+  display: flex;
+  gap: 3px;
+}
+.w-ranks i {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 30px;
+  font-size: 15px;
+  font-weight: 900;
+  font-style: italic;
+  line-height: 1.05;
+  background: #f5f8fc;
+  border-radius: 6px;
+  padding: 1px 2px 2px;
+}
+.w-ranks small {
+  font-size: 8px;
+  font-style: normal;
+  color: var(--ink-soft);
+  font-weight: 800;
+}
+.pk-ranks {
+  margin-top: 3px;
 }
 </style>
