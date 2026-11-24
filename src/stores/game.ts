@@ -31,6 +31,8 @@ import {
   ensureTournament,
   ownAlive,
   pendingOwnGame,
+  momentumRound,
+  recordMomentumWin,
   recordOwnResult,
   roundName,
 } from '@/game/tournament'
@@ -271,6 +273,16 @@ export const useGameStore = defineStore('game', () => {
             : `部員が9人に満たないため、${p.t.name}は棄権となった…。`
         if (forfeit === 'story' && s.story) s.story.flags.y1SpringForfeit = s.calendar.year
         const msgs = [head, ...recordOwnResult(s, rng, p.t, p.round, false, 0, 9, '人数不足で棄権')]
+        s.rngState = rng.getState()
+        touch()
+        await writeSave(s)
+        return msgs
+      }
+      if (momentumRound(s, p.t, p.round)) {
+        // 選手育成モード：最初の試合・準決勝・決勝以外は「勢いで勝利」（試合はしない）
+        const rng = new Rng(s.rngState)
+        const msgs = recordMomentumWin(s, rng, p.t, p.round, p.opponentId)
+        noteMatch(s, { practice: false, won: true, opponentId: p.opponentId })
         s.rngState = rng.getState()
         touch()
         await writeSave(s)

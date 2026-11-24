@@ -358,6 +358,24 @@ export function ownPlayedThisWeek(save: SaveData): boolean {
   return t.rounds.some((games, r) => t.weeks[r] === save.calendar.week && games.some((g) => !g.bye && g.winner && (g.a === own || g.b === own)))
 }
 
+/**
+ * 選手育成モード（11月24日）：大会の試合を減らす。自校の最初の試合・準決勝・決勝は戦い、その間の回戦は「勢いで勝利」として結果だけ記録する
+ */
+export function momentumRound(save: SaveData, t: Tournament, round: number): boolean {
+  if (!save.story?.success) return false
+  if (round >= t.rounds.length - 2) return false
+  const own = save.playerSchoolId
+  return t.rounds.slice(0, round).some((games) => games.some((g) => !g.bye && !!g.winner && (g.a === own || g.b === own)))
+}
+
+/** 「勢いで勝利」の回戦を記録する（知らせの文を返す） */
+export function recordMomentumWin(save: SaveData, rng: Rng, t: Tournament, round: number, opponentId: string): string[] {
+  const ownRuns = rng.int(4, 9)
+  const oppRuns = rng.int(0, Math.min(3, ownRuns - 1))
+  const head = `${t.name} ${roundName(t, round)}：${save.schools[opponentId]?.name ?? '相手校'}に${ownRuns}-${oppRuns}で勝利！ 勢いそのままに勝ち進んだ。`
+  return [head, ...recordOwnResult(save, rng, t, round, true, ownRuns, oppRuns, '勢いで勝利')]
+}
+
 /** 自校の試合の結果を記録して、同じ回戦の残りの試合を進める */
 export function recordOwnResult(save: SaveData, rng: Rng, t: Tournament, round: number, ownWon: boolean, ownRuns: number, oppRuns: number, note: string): string[] {
   const own = save.playerSchoolId

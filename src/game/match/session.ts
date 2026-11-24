@@ -3,7 +3,7 @@
 import { Rng } from '../rng'
 import { activeMembers } from '../season'
 import { fullName } from '../player'
-import { newId } from '../world'
+import { computeOverall, newId } from '../world'
 import type { LineupConfig, SaveData } from '../types'
 import { autoLineup, available, lineupValid } from './lineup'
 import { createMatch, defaultOptions, score, type MatchContext } from './engine'
@@ -37,6 +37,25 @@ export function ownLineup(save: SaveData): LineupConfig {
 /** 選手育成モードの全国大会の相手の上乗せ（調整用。打撃・投球の能力に足される）。11月24日：相手の総合を龍ヶ峰基準の目安に合わせるようにしたので 0 */
 export const NATIONAL_FORM = { base: 0, yearly: 0 }
 
+/**
+ * 選手育成モードの大会（11月24日）：総合で上回る相手には最低9割勝てる。
+ * 龍ヶ峰戦と全国大会の準決勝以降は対象外。対象の試合の rate の割合は相手の調子を form だけ下げ、ほぼ勝てる試合にする
+ * （残りの1割は普段どおりの試合で、作戦などの差はここに出る）
+ */
+export const FAVORED = { rate: 0.9, form: -20 }
+
+/** 総合で上回っていれば最低9割勝てる試合か */
+export function favoredMatch(save: SaveData, tournamentId: string, round: number, opponentId: string): boolean {
+  if (!save.story?.success || opponentId === save.story.rivalId) return false
+  const t = save.tournaments?.find((x) => x.id === tournamentId)
+  if (!t) return false
+  if (t.prefCode === null && round >= t.rounds.length - 2) return false
+  const own = save.schools[save.playerSchoolId]
+  const opp = save.schools[opponentId]
+  if (!own || !opp) return false
+  return computeOverall(own, save.players) > computeOverall(opp, save.players)
+}
+
 export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial: Partial<MatchOptions> = {}): MatchState {
   const own = save.schools[save.playerSchoolId]!
   const opp = save.schools[opponentId]!
@@ -62,7 +81,10 @@ export function startMatch(save: SaveData, opponentId: string, rng: Rng, partial
           .filter((p) => p.mainPosition === 'P')
           .sort((a, b) => b.pitching.control + b.pitching.kire - a.pitching.control - a.pitching.kire)[0]?.id
       : undefined
-  const oppForm = save.story?.success && (tk === 'summerNational' || tk === 'springNational') ? NATIONAL_FORM.base + (save.calendar.year - 1) * NATIONAL_FORM.yearly : 0
+  const favored = !!partial.tournament && favoredMatch(save, partial.tournament.id, partial.tournament.round, opp.id) && rng.chance(FAVORED.rate)
+  const oppForm =
+    (save.story?.success && (tk === 'summerNational' || tk === 'springNational') ? NATIONAL_FORM.base + (save.calendar.year - 1) * NATIONAL_FORM.yearly : 0) +
+    (favored ? FAVORED.form : 0)
   const ownInput = { schoolId: own.id, name: own.name, lineup: ownLine }
   const oppInput = { schoolId: opp.id, name: opp.name, lineup: oppLine }
   return createMatch(

@@ -18,6 +18,8 @@ const props = defineProps<{
   noBracket?: boolean
   /** 相手の総合として表示する値（選手育成モードの全国大会の目安。無ければ学校の総合） */
   oppOverall?: number | null
+  /** 選手育成モード：この回戦は「勢いで勝利」（試合はしない） */
+  momentum?: boolean
 }>()
 defineEmits<{ start: []; next: []; bracket: []; order: [] }>()
 
@@ -85,7 +87,7 @@ const nextRoundLabel = computed(() => (alive.value && props.t.current < props.t.
       <p v-else class="opp-path">{{ pending.round === 0 ? '初戦の相手です' : 'シードで勝ち上がってきた相手です' }}</p>
       <div class="btns">
         <button class="secondary" @click="$emit('order')"><GameIcon name="clipboard" :size="16" /> オーダー</button>
-        <button class="sun main" :disabled="busy" @click="$emit('start')"><GameIcon name="play" :size="16" /> 試合開始</button>
+        <button class="sun main" :disabled="busy" @click="$emit('start')"><GameIcon name="play" :size="16" /> {{ momentum ? '勢いで勝ち進む' : '試合開始' }}</button>
       </div>
     </template>
 
