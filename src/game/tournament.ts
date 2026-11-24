@@ -154,6 +154,48 @@ function seedOrder(size: number): number[] {
  * ストーリー：ライバル校（龍ヶ峰）とは県大会の決勝でしか当たらないように、自校を反対の山へ移す。
  * 同じ山にいたら、反対の山の（不戦勝でない）学校と入れ替える
  */
+/** 学校の総合（選手を持つ学校は今の選手から） */
+function overallNow(save: SaveData, id: string): number {
+  const s = save.schools[id]
+  if (!s) return 0
+  return s.detailed ? computeOverall(s, save.players) : s.overall
+}
+
+/**
+ * 選手育成モード（11月25日）：自校はシードなしで必ず1回戦を戦い、その相手は自校より総合の低い学校にする
+ * （全国大会の相手の強さは nationalTarget で自校より下に合わせる）
+ */
+function ownFirstRound(rng: Rng, save: SaveData, slots: (string | null)[]): void {
+  if (!save.story?.success) return
+  const own = save.playerSchoolId
+  const i = slots.indexOf(own)
+  if (i < 0) return
+  const pi = i ^ 1
+  const rival = save.story.rivalId
+  const ownO = overallNow(save, own)
+  const cands = slots
+    .map((id, j) => ({ id, j }))
+    .filter((x): x is { id: string; j: number } => !!x.id && x.j !== i && x.id !== rival && slots[x.j ^ 1] !== rival)
+  const weaker = cands.filter((x) => overallNow(save, x.id) < ownO - 5)
+  if (weaker.length) {
+    const pick = rng.pick(weaker)
+    if (pick.j === pi) return
+    const tmp = slots[pi] ?? null
+    slots[pi] = pick.id
+    slots[pick.j] = tmp
+    return
+  }
+  // 出場校に自校より弱い学校がいない（1年目の夏など）：県大会なら、出ていない県内の弱い学校と入れ替える
+  const isPref = slots.every((id) => !id || save.schools[id]?.prefCode === save.prefCode)
+  if (!isPref) return
+  const outside = Object.values(save.schools)
+    .filter((x) => x.prefCode === save.prefCode && x.id !== own && x.id !== rival && !slots.includes(x.id))
+    .map((x) => x.id)
+  if (!outside.length) return
+  const low = outside.filter((id) => overallNow(save, id) < ownO - 5)
+  slots[pi] = low.length ? rng.pick(low) : outside.sort((a, b) => overallNow(save, a) - overallNow(save, b))[0]!
+}
+
 function separateRival(rng: Rng, save: SaveData, slots: (string | null)[]): void {
   const rival = save.story?.rivalId
   const own = save.playerSchoolId
@@ -186,6 +228,7 @@ function buildBracket(rng: Rng, save: SaveData, entrants: string[]): TournamentG
   const ranked = [...sorted.slice(0, seeded), ...rng.shuffle(sorted.slice(seeded))]
   const slots = seedOrder(size).map((seed) => ranked[seed - 1] ?? null)
   separateRival(rng, save, slots)
+  ownFirstRound(rng, save, slots)
   const first: TournamentGame[] = []
   for (let i = 0; i < size; i += 2) {
     const a = slots[i] ?? null
@@ -358,24 +401,6 @@ export function ownPlayedThisWeek(save: SaveData): boolean {
   return t.rounds.some((games, r) => t.weeks[r] === save.calendar.week && games.some((g) => !g.bye && g.winner && (g.a === own || g.b === own)))
 }
 
-/**
- * 選手育成モード（11月24日）：大会の試合を減らす。自校の最初の試合・準決勝・決勝は戦い、その間の回戦は「勢いで勝利」として結果だけ記録する
- */
-export function momentumRound(save: SaveData, t: Tournament, round: number): boolean {
-  if (!save.story?.success) return false
-  if (round >= t.rounds.length - 2) return false
-  const own = save.playerSchoolId
-  return t.rounds.slice(0, round).some((games) => games.some((g) => !g.bye && !!g.winner && (g.a === own || g.b === own)))
-}
-
-/** 「勢いで勝利」の回戦を記録する（知らせの文を返す） */
-export function recordMomentumWin(save: SaveData, rng: Rng, t: Tournament, round: number, opponentId: string): string[] {
-  const ownRuns = rng.int(4, 9)
-  const oppRuns = rng.int(0, Math.min(3, ownRuns - 1))
-  const head = `${t.name} ${roundName(t, round)}：${save.schools[opponentId]?.name ?? '相手校'}に${ownRuns}-${oppRuns}で勝利！ 勢いそのままに勝ち進んだ。`
-  return [head, ...recordOwnResult(save, rng, t, round, true, ownRuns, oppRuns, '勢いで勝利')]
-}
-
 /** 自校の試合の結果を記録して、同じ回戦の残りの試合を進める */
 export function recordOwnResult(save: SaveData, rng: Rng, t: Tournament, round: number, ownWon: boolean, ownRuns: number, oppRuns: number, note: string): string[] {
   const own = save.playerSchoolId
@@ -385,17 +410,20 @@ export function recordOwnResult(save: SaveData, rng: Rng, t: Tournament, round: 
   game.winner = ownWon ? own : opp
   game.score = game.a === own ? [ownRuns, oppRuns] : [oppRuns, ownRuns]
   game.note = note
-  return progress(save, rng, t)
+  // 選手育成モード（11月24日）：1回戦に勝ったら、準決勝の手前までは勢いで勝ち進む（試合は1回戦・準決勝・決勝だけ）
+  const jump = save.story?.success && ownWon && round === 0 ? t.rounds.length - 2 : 0
+  return progress(save, rng, t, false, jump)
 }
 
 /**
  * この週までに予定されている回戦を進める。
  * 自校の試合が残っていればそこで止まる（force なら自校の試合も総合力で決める）
  */
-export function progress(save: SaveData, rng: Rng, t: Tournament, force = false): string[] {
+export function progress(save: SaveData, rng: Rng, t: Tournament, force = false, momentumUntil = 0): string[] {
   const messages: string[] = []
   const own = save.playerSchoolId
-  while (!t.finished && t.current < t.rounds.length && t.weeks[t.current]! <= save.calendar.week) {
+  const passed: string[] = []
+  while (!t.finished && t.current < t.rounds.length && (t.weeks[t.current]! <= save.calendar.week || t.current < momentumUntil)) {
     const r = t.current
     let blocked = false
     for (const g of t.rounds[r]!) {
@@ -407,6 +435,17 @@ export function progress(save: SaveData, rng: Rng, t: Tournament, force = false)
         continue
       }
       const isOwn = g.a === own || g.b === own
+      if (isOwn && r < momentumUntil) {
+        // 選手育成モード：1回戦の勝利の勢いのまま勝ち進む（試合はしない）
+        const opp = g.a === own ? g.b : g.a
+        const ownRuns = rng.int(4, 9)
+        const oppRuns = rng.int(0, Math.min(3, ownRuns - 1))
+        g.winner = own
+        g.score = g.a === own ? [ownRuns, oppRuns] : [oppRuns, ownRuns]
+        g.note = '勢いで勝利'
+        passed.push(`${roundName(t, r)} ${save.schools[opp]?.name ?? '相手校'} ${ownRuns}-${oppRuns}`)
+        continue
+      }
       if (isOwn && !force) {
         blocked = true
         continue
@@ -435,6 +474,7 @@ export function progress(save: SaveData, rng: Rng, t: Tournament, force = false)
       messages.push(...finishTournament(save, t))
     }
   }
+  if (passed.length) messages.unshift(`1回戦の勝利の勢いそのままに、準決勝へ駒を進めた！（${passed.join('、')}）`)
   return messages
 }
 
@@ -547,7 +587,11 @@ export function nationalTarget(save: SaveData, t: Tournament, round: number, sch
   const base = computeOverall(rival, save.players)
   const n = t.rounds.length
   const [lo, hi] = round >= n - 1 ? NATIONAL_TARGET.final : round === n - 2 ? NATIONAL_TARGET.semi : NATIONAL_TARGET.early
-  return Math.round(base + lo + (hi - lo) * unitHash(`${t.id}:${schoolId}`))
+  const h = unitHash(`${t.id}:${schoolId}`)
+  const target = Math.round(base + lo + (hi - lo) * h)
+  // 1回戦の相手は必ず自校より総合が低い（3〜7下）
+  if (round === 0) return Math.min(target, computeOverall(save.schools[save.playerSchoolId]!, save.players) - 3 - Math.floor(h * 5))
+  return target
 }
 
 /** 能力をまとめて上げ下げする（全国大会の相手を目安の総合に合わせる） */

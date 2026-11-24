@@ -24,7 +24,7 @@ import TabIcon from '@/components/TabIcon.vue'
 import { play } from '@/sound'
 import { bgUrl, portraitUrl } from '@/game/story/art'
 import { chapterGoal } from '@/game/story/engine'
-import { canRequestPractice, currentTournament, momentumRound, nationalTarget, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
+import { canRequestPractice, currentTournament, nationalTarget, ownAlive, ownPlayedThisWeek, pendingOwnGame } from '@/game/tournament'
 import RecruitSheet from '@/components/success/RecruitSheet.vue'
 import FacilityPanel from '@/components/FacilityPanel.vue'
 import OrderBoard from '@/components/OrderBoard.vue'
@@ -77,18 +77,10 @@ const forfeitNow = computed(() => {
   return !!game.save && !!tournament.value && !!mustForfeit(game.save, tournament.value.kind)
 })
 
-/** 選手育成モード：この回戦は「勢いで勝利」（試合はしない） */
-const momentumNow = computed(() => {
-  void game.rev
-  const p = pendingGame.value
-  return !!game.save && !!p && momentumRound(game.save, p.t, p.round)
-})
-
 async function startTournament(): Promise<void> {
-  const title = forfeitNow.value ? '棄権' : momentumNow.value ? '勢いで勝利' : '棄権'
-  const notice = await game.startTournamentMatch()
-  if (notice) {
-    await ui.alert(notice.join('\n'), title)
+  const forfeit = await game.startTournamentMatch()
+  if (forfeit) {
+    await ui.alert(forfeit.join('\n'), '棄権')
     return
   }
   if (game.match) await router.push({ name: 'match' })
@@ -659,7 +651,6 @@ watch(
         :schools="game.save!.schools"
         :own-id="game.save!.playerSchoolId"
         :pending="pendingGame ? { round: pendingGame.round, opponentId: pendingGame.opponentId } : null"
-        :momentum="momentumNow"
         :opp-overall="pendingGame ? nationalTarget(game.save!, pendingGame.t, pendingGame.round, pendingGame.opponentId) : null"
         :busy="game.busy"
         :no-bracket="!!success"
