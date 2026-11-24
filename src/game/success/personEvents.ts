@@ -611,6 +611,15 @@ export function hasumiSecret(save: SaveData, rng: Rng): EventInstance | null {
 }
 
 /** ★2以上のイベント（★1なら null。呼んだ側で★1のイベントを出す） */
+/**
+ * 大地のふだんの出来事は、他の固有キャラと同じく2つ（11月25日）：
+ * 「居残り練習／バッテリー練習」（board.ts）と、この「幼馴染の本音／二人だけのサイン」。評価による★の段階は使わない
+ */
+export function daichiSecondEvent(save: SaveData, rng: Rng, f: Player): EventInstance | null {
+  const make = EVENTS.daichi[1]
+  return make ? make(save, rng, f) : null
+}
+
 export function levelEvent(save: SaveData, rng: Rng, person: Person, f: Player): EventInstance | null {
   const lv = pickLevel(save, rng, person)
   if (lv <= 1) return null

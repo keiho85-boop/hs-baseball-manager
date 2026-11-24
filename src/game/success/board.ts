@@ -7,7 +7,7 @@ import type { Rng } from '../rng'
 import { ABILITY_LABEL, eid, learnable, learnablePitcher, mainKeys, skillName } from '../events'
 import type { EffectOp, EventInstance, Player, SaveData, SquareType } from '../types'
 import { addEval, focusPlayer, successOf } from './state'
-import { levelEvent, PERSON_EVAL, pitcherDelta } from './personEvents'
+import { daichiSecondEvent, levelEvent, PERSON_EVAL, pitcherDelta } from './personEvents'
 import { DAICHI_CHAIN_RATE, chainEvent, charEvent, joinedChars, type CharKey } from './charEvents'
 
 export type Person = 'scout' | 'nagi' | 'genzo' | 'hasumi' | 'daichi' | 'makabe'
@@ -49,7 +49,8 @@ export function rollAttach(save: SaveData, rng: Rng): void {
   const flags = save.story!.flags
   const slots = rng.shuffle(sg.board.map((sq, i) => ({ sq, i })).filter((x) => PRACTICE.includes(x.sq)).map((x) => x.i))
   const people: Person[] = ['scout']
-  const pool: Person[] = ['nagi', 'daichi', 'makabe']
+  // 大地は固有キャラと同じく、毎週コマの先6マス以内に必ず付く（11月25日）
+  const pool: Person[] = ['nagi', 'makabe']
   if (flags.join9 !== undefined) pool.push('genzo')
   if (save.story!.seen.includes('c1_hokenshitsu')) pool.push('hasumi')
   people.push(...rng.shuffle(pool).slice(0, 2))
@@ -58,7 +59,6 @@ export function rollAttach(save: SaveData, rng: Rng): void {
     const i = slots[k]
     if (i !== undefined) attach[i] = p
   })
-  sg.attach = attach
   // 入部している固有キャラは、コマの先6マス以内の練習マスに全員付く（11月22日。1マスに複数いてもよい）
   const len = sg.board.length
   const near: number[] = []
@@ -66,6 +66,12 @@ export function rollAttach(save: SaveData, rng: Rng): void {
     const i = (sg.position + d) % len
     if (PRACTICE.includes(sg.board[i]!)) near.push(i)
   }
+  {
+    const free = near.filter((i) => attach[i] === undefined)
+    const at = free.length ? rng.pick(free) : near.length ? rng.pick(near) : undefined
+    if (at !== undefined) attach[at] = 'daichi'
+  }
+  sg.attach = attach
   const nearFree = near.filter((i) => attach[i] === undefined)
   const pool2 = nearFree.length ? nearFree : near.length ? near : slots
   const chars: Record<number, string[]> = {}
@@ -133,8 +139,13 @@ function attachEventBase(save: SaveData, rng: Rng, person: Person): EventInstanc
     const chain = chainEvent(save, rng, 'daichi')
     if (chain) return chain
   }
+  // 大地のふだんの出来事は2つ（この下の練習と、幼馴染の本音／二人だけのサイン）
+  if (person === 'daichi' && rng.chance(0.5)) {
+    const second = daichiSecondEvent(save, rng, f)
+    if (second) return second
+  }
   // 評価が上がるほど、新しいイベントが解放される（解放済みの中からランダム。★1はこの下のもの）
-  const higher = levelEvent(save, rng, person, f)
+  const higher = person === 'daichi' ? null : levelEvent(save, rng, person, f)
   if (higher) return higher
   const s = successOf(save)!
   const name = f.surname

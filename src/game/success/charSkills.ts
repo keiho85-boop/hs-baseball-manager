@@ -16,6 +16,8 @@ export interface CharSkillSet {
   common?: string
   /** 入部したときに本人が持つ能力（省略すると、本人の守備位置に合う fielder / pitcher） */
   join?: string
+  /** 育成選手が捕手のときに、最終話の正解で取れる能力（省略すると fielder） */
+  catcher?: string
 }
 
 export const CHAR_SKILLS: Record<string, CharSkillSet> = {
@@ -28,7 +30,8 @@ export const CHAR_SKILLS: Record<string, CharSkillSet> = {
   takkyu: { fielder: 'seiiki', pitcher: 'fuiuchi', altFielder: 'highlight_defense', altPitcher: 'no_steal' },
   shinbun: { fielder: 'shingan', pitcher: 'checkmate', altFielder: 'miwame', altPitcher: 'finisher', common: 'renshu_oni' },
   seitokai: { fielder: 'pillar', pitcher: 'ace', altFielder: 'bench_sun', altPitcher: 'heijoshin', common: 'charisma' },
-  daichi: { fielder: 'gekokujo', pitcher: 'ouja', altFielder: 'counterattack', altPitcher: 'pinch_ace' },
+  // 11月25日：育成選手が捕手のときは、捕手の最上位の能力「扇の要」。大地本人は下剋上を持つ
+  daichi: { fielder: 'gekokujo', pitcher: 'ouja', altFielder: 'counterattack', altPitcher: 'pinch_ace', catcher: 'ougi', join: 'gekokujo' },
   tenkosei: { fielder: 'moda', pitcher: 'game_maker', altFielder: 'momentum', altPitcher: 'recover' },
 }
 
@@ -37,6 +40,7 @@ export function charSkillFor(key: string, p: Player, alt = false): string | unde
   const set = CHAR_SKILLS[key]
   if (!set) return undefined
   const pitcher = p.mainPosition === 'P'
+  if (!alt && p.mainPosition === 'C' && set.catcher) return set.catcher
   const id = alt ? (pitcher ? set.altPitcher : set.altFielder) : pitcher ? set.pitcher : set.fielder
   return id || undefined
 }
