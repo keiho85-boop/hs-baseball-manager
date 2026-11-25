@@ -29,8 +29,6 @@ export function chainRate(save: SaveData): number {
   const n = Object.entries(successOf(save)?.joined ?? {}).filter(([k, v]) => v && k !== 'tenkosei').length
   return CHAIN_RATE_BY_COUNT[Math.min(n, CHAIN_RATE_BY_COUNT.length - 1)]!
 }
-/** 大地のマスで、★イベントの代わりに続きの話が起きる確率 */
-export const DAICHI_CHAIN_RATE = 0.25
 /** 3話で、そのキャラの能力が取れる確率 */
 export const CHAR_SKILL_RATE = 0.5
 /** 3話で正解を選んで完走したときに、そのキャラの能力が取れる確率（11月22日：必ず取れる） */
@@ -84,6 +82,8 @@ interface CharScript {
   ep2: Ep
   ep3F: Ep3
   ep3P: Ep3
+  /** 育成選手が捕手のときの3話（省略すると ep3F） */
+  ep3C?: Ep3
   alt: { title: string; bg: string; lines: string[]; label: string; text: string; fb: Fx }
   fillers: Filler[]
 }
@@ -680,6 +680,16 @@ export const CHAR_SCRIPTS: Record<CharKey, CharScript> = {
         s3('走者が出てからが本番だと思う', '大地「…変わってんな。でも、頼もしい」', 'alt', ['ab.pitching.kire+2'], 'alt'),
       ],
     },
+    ep3C: {
+      title: '二人の捕手',
+      bg: 'bg_ground_sunset',
+      lines: ['居残り練習のあと。大地が自分のミットを外して、隣に置いた。', '大地「…俺もお前も捕手か。なあ、捕手がいちばん大事にするもんって何だと思う？」'],
+      choices: [
+        s3('劣勢でも、マスク越しにみんなを奮い立たせる', '大地「…お前、昔からそうだったな」', 'alt', ['ab.fielding.catching+2'], 'alt'),
+        s3('盗塁を刺す肩', '大地「…まあ、それも大事だな」', 'end', ['ab.fielding.arm+1']),
+        s3('投手を信じて、全部受け止めること', '大地がしばらく黙って、それから笑った。「…負けたよ。扇の要は、お前だ」', 'ok', ['ab.fielding.catching+2', 'ab.batting.eye+2'], 'main'),
+      ],
+    },
     alt: {
       title: '日向酒店の屋上',
       bg: 'bg_liquor_day',
@@ -847,7 +857,7 @@ function chainEp(save: SaveData, rng: Rng, key: CharKey, f: Player, n: 1 | 2): E
 function chainEp3(save: SaveData, rng: Rng, key: CharKey, f: Player): EventInstance {
   const sc = CHAR_SCRIPTS[key]
   const set = CHAR_SKILLS[key]!
-  const ep = f.mainPosition === 'P' ? sc.ep3P : sc.ep3F
+  const ep = f.mainPosition === 'P' ? sc.ep3P : f.mainPosition === 'C' && sc.ep3C ? sc.ep3C : sc.ep3F
   const kinds = EP_FORMAT[key][2]!
   const choices = rng.shuffle(ep.choices.filter((ch) => kinds.includes(ch.kind))).map((ch) => {
     const done = [flag(`chr_${key}`, 'done'), flag(`che_${key}`, 3)]

@@ -8,7 +8,7 @@ import { ABILITY_LABEL, eid, learnable, learnablePitcher, mainKeys, skillName } 
 import type { EffectOp, EventInstance, Player, SaveData, SquareType } from '../types'
 import { addEval, focusPlayer, successOf } from './state'
 import { daichiSecondEvent, levelEvent, PERSON_EVAL, pitcherDelta } from './personEvents'
-import { DAICHI_CHAIN_RATE, chainEvent, charEvent, joinedChars, type CharKey } from './charEvents'
+import { chainEvent, chainRate, charEvent, joinedChars, type CharKey } from './charEvents'
 
 export type Person = 'scout' | 'nagi' | 'genzo' | 'hasumi' | 'daichi' | 'makabe'
 
@@ -135,7 +135,7 @@ function attachEventBase(save: SaveData, rng: Rng, person: Person): EventInstanc
   const f = focusPlayer(save)
   if (!f) return null
   // 大地：★イベントの代わりに、25%で続きの話
-  if (person === 'daichi' && rng.chance(DAICHI_CHAIN_RATE)) {
+  if (person === 'daichi' && rng.chance(chainRate(save))) {
     const chain = chainEvent(save, rng, 'daichi')
     if (chain) return chain
   }
